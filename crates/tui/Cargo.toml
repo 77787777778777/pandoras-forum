@@ -1,0 +1,39 @@
+[package]
+name = "pandoras-forum-tui"
+description = "Terminal UI for Pandora's Forum (ratatui)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pandoras-forum-core.workspace = true
+pandoras-forum-markdown.workspace = true
+pandoras-forum-atp.workspace = true
+pandoras-forum-lexicon.workspace = true
+# Private template files for $EDITOR (threat-model TERM-9).
+pandoras-forum-native.workspace = true
+ratatui.workspace = true
+crossterm.workspace = true
+ratatui-image.workspace = true
+# the F35/F36 decode caps are checked from the header before pixels are allocated
+image.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+futures.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+unicode-width.workspace = true
+# the author's PDS of an image (`Host::fetch_blob`)
+url.workspace = true
+
+# the terminal's answer to the graphics query is read with a bounded `poll` on stdin (no thread
+# is left reading it; `image.rs`); crossterm's own rustix lacks the `event` feature
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "event", "stdio"] }
+
+[dev-dependencies]
+pandoras-forum-testkit.workspace = true
+insta.workspace = true
+tempfile.workspace = true

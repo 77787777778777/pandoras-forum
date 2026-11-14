@@ -1,0 +1,1095 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Forums and membership (`engine-api.md` §3.2): `forum_open`, `forum_create`, the local
+//! followed list (`forum_follow`, `forum_unfollow`, `followed`, seeded from the accounts' own
+//! `membership` records, `sync.md` §4.8), `join`, `leave`, `grant`, `revoke` and `members`.
+//!
+//! Local rows (`state` store, `sync.md` §10.4): `("loc", "follow", F)`, `("loc", "unfollow", F)`
+//! (a local unfollow that seeding respects) and `("loc", "alias", F)`.
+
+use std::collections::{BTreeMap, BTreeSet};
+
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did, Nsid};
+use pandoras_forum_atp::xrpc::ListRecords;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::{AccessAction, Action, Forum, Md, ModAction, Moderator};
+use pandoras_forum_lexicon::values::{
+    AccessLevel, DefaultTier as LexTier, MembershipMode as LexMode,
+};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+
+use crate::discovery::forum_ref::ForumKey;
+use crate::discovery::sources::DIRECTORY_OWNERS_MAX;
+use crate::dto::{
+    DefaultTier, ForumDraft, ForumSummary, ForumView, MemberView, MembersQuery, MembershipMode,
+    ModRole, WriteTicket,
+};
+use crate::host::{Dir, Host, KeyRange, KvOp, KvStore};
+use crate::limits;
+use crate::model::views::{Views, bare_actor};
+use crate::outbox::{ContentOpts, records};
+use crate::social::input::split_uri;
+use crate::store::records::RecordStore;
+use crate::store::row;
+use crate::xrpc::{CallOpts, Service, Xrpc};
+
+use super::models::{Loaded, store_error};
+use super::{Engine, EngineError};
+
+const ROW_V: u32 = 1;
+
+/// `("loc", "follow", F)`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct FollowRow {
+    v: u32,
+    /// When followed (ms).
+    at: i64,
+    /// `true` if added by seeding from a membership record.
+    #[serde(default)]
+    seeded: bool,
+}
+
+/// `("loc", "unfollow", F)`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct UnfollowRow {
+    v: u32,
+    at: i64,
+}
+
+/// `("loc", "alias", F)`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct AliasRow {
+    v: u32,
+    alias: String,
+}
+
+/// `("loc", "seeded", did)`: the followed list was seeded from the account's memberships since
+/// its login (`sync.md` §4.8).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+struct SeededRow {
+    v: u32,
+    at: i64,
+}
+
+/// The key of an account's [`SeededRow`] (deleted at login, so the list is seeded again).
+pub(crate) fn seeded_key(did: &str) -> Vec<u8> {
+    crate::key!("loc", "seeded", did)
+}
+
+fn follow_key(f: &str) -> Vec<u8> {
+    crate::key!("loc", "follow", f)
+}
+
+fn unfollow_key(f: &str) -> Vec<u8> {
+    crate::key!("loc", "unfollow", f)
+}
+
+fn alias_key(f: &str) -> Vec<u8> {
+    crate::key!("loc", "alias", f)
+}
+
+fn state_error<E: std::fmt::Display>(e: E) -> EngineError {
+    EngineError::internal(format!("local state: {e}")).with_retryable(true)
+}
+
+fn encode<T: Serialize>(key: Vec<u8>, v: &T) -> Result<KvOp, EngineError> {
+    Ok(KvOp::Put(key, row::encode(v).map_err(state_error)?))
+}
+
+/// A markdown body, with its media (`data-model.md` §4, §8.8).
+///
+/// Each [`MediaRef`] came from `prepare_media`, so its bytes are already stripped and oriented
+/// and its CID identifies exactly those bytes. The record carries a PLACEHOLDER blob object for
+/// each one; the outbox replaces every placeholder with the object `uploadBlob` returns when the
+/// write is sent, and fails the write if the returned `ref.` differs from the local CID.
+///
+/// The body markdown refers to an item as `cid:<cid>` (lfm-1.md §6.1), which is why the media
+/// array is the only scope for those URLs.
+pub(crate) fn markdown_body(md: &crate::dto::BodyDraft) -> Result<Md, EngineError> {
+    let mut medias = Vec::with_capacity(md.media.len());
+    for m in &md.media {
+        medias.push(media_value(m)?);
+    }
+    let meta = pandoras_forum_markdown::derive_metadata(&md.markdown, &[]);
+    let mut m = pandoras_forum_lexicon::records::Markdown::inline(md.markdown.clone());
+    if !medias.is_empty() {
+        m.media = Some(medias);
+    }
+    // W8: derived hints
+    if !meta.mentions.is_empty() {
+        m.mentions = Some(meta.mentions);
+    }
+    if !meta.links.is_empty() {
+        m.links = Some(meta.links);
+    }
+    Ok(Md::Known(m))
+}
+
+/// The handle-authority `at://` link destinations of `markdown`, which writers rewrite to DIDs
+/// before publishing (`lfm-1.md` §5.2, §12; W7): each as the byte range of the handle in the
+/// source and the handle as written. Only destinations count (an inline link's, an autolink's,
+/// a link reference definition's), parsed under lfm/1's options, so a code span or a code block
+/// that shows such a uri is left alone.
+pub(crate) fn handle_destinations(markdown: &str) -> Vec<(std::ops::Range<usize>, String)> {
+    use pulldown_cmark::{Event, LinkType, Parser, Tag};
+    let mut it = Parser::new_ext(markdown, pandoras_forum_markdown::OPTIONS).into_offset_iter();
+    // (where the destination is written, the destination)
+    let mut dests: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for (ev, range) in &mut it {
+        if let Event::Start(Tag::Link {
+            link_type: LinkType::Inline | LinkType::Autolink,
+            dest_url,
+            ..
+        }) = ev
+        {
+            dests.push((range, dest_url.into_string()));
+        }
+    }
+    for (_, def) in it.reference_definitions().iter() {
+        dests.push((def.span.clone(), def.dest.to_string()));
+    }
+    let mut out: Vec<(std::ops::Range<usize>, String)> = Vec::new();
+    for (range, dest) in dests {
+        let Some(rest) = dest.strip_prefix("at://") else {
+            continue;
+        };
+        let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+        if authority.is_empty() || authority.starts_with("did:") {
+            continue;
+        }
+        let Some(src) = markdown.get(range.clone()) else {
+            continue;
+        };
+        let needle = format!("at://{authority}");
+        for (i, _) in src.match_indices(&needle) {
+            let before = src[..i].chars().next_back();
+            let after = src[i + needle.len()..].chars().next();
+            // the destination itself, not a mention of the uri in the link text or title
+            let opens = before.is_none_or(|c| matches!(c, '(' | '<' | ':') || c.is_whitespace());
+            let ends = after.is_none_or(|c| {
+                matches!(c, '/' | '?' | '#' | ')' | '>' | '"' | '\'') || c.is_whitespace()
+            });
+            if opens && ends {
+                let at = range.start + i + "at://".len();
+                let r = at..at + authority.len();
+                if !out.iter().any(|(o, _)| *o == r) {
+                    out.push((r, authority.to_owned()));
+                }
+            }
+        }
+    }
+    out.sort_by_key(|(r, _)| r.start);
+    out
+}
+
+impl<H: crate::host::Host> Engine<H> {
+    /// `body` with its handle-authority `at://` destinations rewritten to DIDs
+    /// ([`handle_destinations`], W7). A handle is replaced only once it verifies in both
+    /// directions (`sync.md` §3.1); one that does not is refused (`invalid_input`,
+    /// `detail.kind = "unresolvedHandle"`, `detail.handle`), since the link would otherwise be
+    /// published dead (`safe_href` never accepts a handle authority in a body).
+    pub(crate) async fn with_dids(
+        &self,
+        body: &crate::dto::BodyDraft,
+    ) -> Result<crate::dto::BodyDraft, EngineError> {
+        let found = handle_destinations(&body.markdown);
+        if found.is_empty() {
+            return Ok(body.clone());
+        }
+        let mut dids: BTreeMap<String, String> = BTreeMap::new();
+        for (_, h) in &found {
+            let key = h.to_ascii_lowercase();
+            if dids.contains_key(&key) {
+                continue;
+            }
+            let unresolved = |why: String| {
+                EngineError::invalid_input(format!(
+                    "the link to at://{h} names a handle that could not be verified ({why}); \
+                     link to the DID instead"
+                ))
+                .with_detail("kind", "unresolvedHandle")
+                .with_detail("handle", key.clone())
+            };
+            let r = self
+                .resolve_identity(&key)
+                .await
+                .map_err(|e| unresolved(e.message))?;
+            if r.identity.handle_state != crate::dto::HandleState::Verified {
+                return Err(unresolved("it does not verify in both directions".into()));
+            }
+            dids.insert(key, r.identity.did.to_string());
+        }
+        let mut md = body.markdown.clone();
+        for (range, h) in found.iter().rev() {
+            if let Some(did) = dids.get(&h.to_ascii_lowercase()) {
+                md.replace_range(range.clone(), did);
+            }
+        }
+        Ok(crate::dto::BodyDraft {
+            markdown: md,
+            ..body.clone()
+        })
+    }
+
+    /// [`Engine::with_dids`] of an optional body.
+    pub(crate) async fn with_dids_opt(
+        &self,
+        body: Option<&crate::dto::BodyDraft>,
+    ) -> Result<Option<crate::dto::BodyDraft>, EngineError> {
+        match body {
+            Some(b) => Ok(Some(self.with_dids(b).await?)),
+            None => Ok(None),
+        }
+    }
+}
+
+/// The excerpt a spilled body would carry (PO6).
+pub(crate) fn excerpt_of(markdown: &str) -> String {
+    pandoras_forum_markdown::derive_metadata(markdown, &[]).excerpt
+}
+
+/// A forum summary from the declaration value alone (a forum without a loaded model).
+fn summary_from_decl(
+    key: &ForumKey,
+    decl: Option<&Forum>,
+    followed: bool,
+    member: bool,
+    alias: Option<String>,
+    owner: crate::dto::ActorView,
+) -> ForumSummary {
+    ForumSummary {
+        uri: key.uri.to_string(),
+        owner,
+        name: decl.map_or_else(|| key.slug.clone(), |d| d.name.clone()),
+        description: decl.and_then(|d| d.description.clone()),
+        membership: match decl.map_or(LexMode::Approval, |d| d.membership_mode().value) {
+            LexMode::Open => MembershipMode::Open,
+            LexMode::Approval => MembershipMode::Approval,
+        },
+        followed,
+        member,
+        alias,
+        report_contact: decl.and_then(|d| d.report_contact.clone()),
+    }
+}
+
+impl<H: Host> Engine<H> {
+    async fn loc_get<T: serde::de::DeserializeOwned>(
+        &self,
+        key: Vec<u8>,
+    ) -> Result<Option<T>, EngineError> {
+        let mut rows = self.host.state().get_many(vec![key]).await?;
+        match rows.pop().flatten() {
+            Some(b) => Ok(row::decode(&b).ok()),
+            None => Ok(None),
+        }
+    }
+
+    async fn loc_scan(&self, kind: &str) -> Result<Vec<(String, Vec<u8>)>, EngineError> {
+        let prefix = crate::key!("loc", kind);
+        let mut range = KeyRange::prefix(&prefix);
+        let mut out = Vec::new();
+        loop {
+            let page = self
+                .host
+                .state()
+                .scan(range.clone(), Dir::Forward, 256)
+                .await?;
+            let full = page.len() >= 256;
+            let last = page.last().map(|(k, _)| k.clone());
+            for (k, v) in page {
+                let parts = crate::store::key::decode(&k).map_err(state_error)?;
+                if let Some(crate::store::key::Part::Bytes(b)) = parts.get(2)
+                    && let Ok(f) = String::from_utf8(b.clone())
+                {
+                    out.push((f, v));
+                }
+            }
+            match last {
+                Some(k) if full => range.start = std::ops::Bound::Excluded(k),
+                _ => return Ok(out),
+            }
+        }
+    }
+
+    async fn follow_state(&self, f: &str) -> Result<(bool, Option<String>), EngineError> {
+        let followed = self.loc_get::<FollowRow>(follow_key(f)).await?.is_some();
+        let alias = self
+            .loc_get::<AliasRow>(alias_key(f))
+            .await?
+            .map(|a| a.alias);
+        Ok((followed, alias))
+    }
+
+    /// The views over a loaded forum for the active account. `body_uris`: the items whose
+    /// bodies are rendered (their values are re-read); `people`: the DIDs, or record uris whose
+    /// authors, the views show (the forum's authorities are always included). Actor views come
+    /// from the identity cache only.
+    pub(crate) async fn with_views<T>(
+        &self,
+        l: &Loaded,
+        body_uris: &[String],
+        people: &[String],
+        f: impl FnOnce(&Views<'_>) -> T,
+    ) -> Result<T, EngineError> {
+        let m = &l.model;
+        let dids: BTreeSet<&str> = m
+            .view
+            .authorities
+            .keys()
+            .map(String::as_str)
+            .chain(people.iter().filter_map(|p| {
+                if p.starts_with("did:") {
+                    Some(p.as_str())
+                } else {
+                    split_uri(p).map(|(d, _, _)| d)
+                }
+            }))
+            .collect();
+        let (actors, pds) = self.actors(dids).await;
+        let values = self.values(m, body_uris).await?;
+        let pending = self.pending_uris().await?;
+        let mut viewer = self.viewer(m, body_uris).await?;
+        viewer.media = self.media_prefs(m, &values).await;
+        let v = Views {
+            model: m,
+            actors: &actors,
+            pds: &pds,
+            values: &values,
+            renders: &self.rt.renders,
+            pending: &pending,
+            completeness: &l.completeness,
+            viewer: &viewer,
+        };
+        Ok(f(&v))
+    }
+
+    /// The active account's DID.
+    pub(crate) async fn me(&self) -> Result<Option<String>, EngineError> {
+        Ok(self.active_account().await?.map(|a| a.did))
+    }
+
+    /// The session flag that turns the relay newcomer source off (`sync.md` §4.4), shared by
+    /// the engine's clones.
+    pub(crate) fn relay_newcomers_off(&self) -> &std::sync::Arc<std::sync::atomic::AtomicBool> {
+        &self.rt.relay_newcomers_off
+    }
+
+    /// `forum_discover(q)` (`engine-api.md` §3.9, `sync.md` §4.7): the forum directory. The
+    /// relays' `NS.forum` listings and a consented indexer's `listForums` give only owner hints;
+    /// every returned declaration came from its owner's PDS and passed the ordinary record
+    /// admission and validity checks. An owner that cannot be read is skipped; no hinted text is
+    /// substituted. Either hint source may fail alone; the call fails only when no configured
+    /// source answered (or `sources = direct`). Results are grouped by owner: owners with a
+    /// verified handle first, by handle, then by DID; within an owner by name, then uri.
+    pub async fn forum_discover(&self, q: &str) -> Result<Vec<ForumSummary>, EngineError> {
+        let mut owners: Vec<String> = Vec::new();
+        let mut hinted = BTreeSet::new();
+        // a source that is not configured gives nothing, and does not answer either
+        let mut answered = false;
+        let mut failed: Option<EngineError> = None;
+        match self.discover_forum_owners().await {
+            Ok(hints) => {
+                answered |= !self.config.relays.is_empty();
+                for did in hints.dids {
+                    if hinted.insert(did.clone()) {
+                        owners.push(did);
+                    }
+                }
+            }
+            Err(e) if e.is_gate() => return Err(e.into()),
+            Err(e) => {
+                tracing::warn!(error = %e, "relay forum directory unavailable");
+                failed = Some(e.into());
+            }
+        }
+        match self.indexer_forum_owners().await {
+            Ok(None) => {}
+            Ok(Some(dids)) => {
+                answered = true;
+                for did in dids {
+                    if hinted.len() >= DIRECTORY_OWNERS_MAX {
+                        tracing::warn!("forum directory truncated at its owner bound");
+                        break;
+                    }
+                    if hinted.insert(did.clone()) {
+                        owners.push(did);
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "indexer forum directory unavailable");
+                failed.get_or_insert(e);
+            }
+        }
+        if !answered && let Some(e) = failed {
+            return Err(e);
+        }
+        let stats = std::sync::Arc::new(crate::sync::Stats::new());
+        let session = self.syncer().session(crate::sync::Priority::P1, stats);
+        let query = q.trim().to_lowercase();
+        let mut out = Vec::new();
+        for did in owners {
+            let Ok(did) = Did::parse(&did) else { continue };
+            let declarations = match self.syncer().list_forum_declarations(&session, &did).await {
+                Ok(r) => r,
+                Err(e) => {
+                    tracing::debug!(did = %did, error = %e, "directory owner unavailable");
+                    continue;
+                }
+            };
+            for r in declarations {
+                if !r.validity.is_valid() {
+                    continue;
+                }
+                let decl: Forum = match serde_json::from_value(r.value.clone()) {
+                    Ok(d) => d,
+                    Err(_) => continue,
+                };
+                let key = match ForumKey::of_uri(&r.uri) {
+                    Ok(k) => k,
+                    Err(_) => continue,
+                };
+                let matches = query.is_empty()
+                    || decl.name.to_lowercase().contains(&query)
+                    || decl
+                        .description
+                        .as_deref()
+                        .is_some_and(|d| d.to_lowercase().contains(&query));
+                if !matches {
+                    continue;
+                }
+                let (followed, alias) = self.follow_state(key.uri.as_str()).await?;
+                let (owners, _) = self.actors([key.owner.as_str()]).await;
+                let owner = owners
+                    .get(key.owner.as_str())
+                    .cloned()
+                    .unwrap_or_else(|| bare_actor(key.owner.as_str()));
+                out.push(summary_from_decl(
+                    &key,
+                    Some(&decl),
+                    followed,
+                    false,
+                    alias,
+                    owner,
+                ));
+            }
+        }
+        // grouped by owner (F9: a lookalike forum name shows under its real owner)
+        let owner_key = |s: &ForumSummary| {
+            (
+                s.owner.handle.is_none(),
+                s.owner.handle.as_deref().unwrap_or_default().to_lowercase(),
+                s.owner.did.clone(),
+            )
+        };
+        out.sort_by(|a, b| {
+            owner_key(a)
+                .cmp(&owner_key(b))
+                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+                .then_with(|| a.uri.cmp(&b.uri))
+        });
+        Ok(out)
+    }
+
+    /// Forum owners named by the consented indexer's `listForums` (`sync.md` §4.7), in its
+    /// order: hints only, at most [`DIRECTORY_OWNERS_MAX`] forums read. `None` without an
+    /// indexer, or in `sources = direct`.
+    async fn indexer_forum_owners(&self) -> Result<Option<Vec<String>>, EngineError> {
+        let mut owners = Vec::new();
+        let mut cursor: Option<String> = None;
+        let mut cursors = BTreeSet::new();
+        let mut read = 0usize;
+        loop {
+            let page = match self.indexer_forums(None, cursor.as_deref()).await {
+                Ok(Some(page)) => page,
+                Ok(None) if cursor.is_none() => return Ok(None),
+                Ok(None) => break,
+                Err(e) if owners.is_empty() => return Err(e),
+                Err(e) => {
+                    tracing::warn!(error = %e, "indexer forum directory ended early");
+                    break;
+                }
+            };
+            for hint in &page.forums {
+                read += 1;
+                if let Some(uri) = hint.record.at_uri()
+                    && uri.collection().as_str() == nsid::FORUM
+                {
+                    owners.push(uri.did().to_string());
+                }
+            }
+            match page.cursor {
+                Some(next) if read < DIRECTORY_OWNERS_MAX && cursors.insert(next.clone()) => {
+                    cursor = Some(next);
+                }
+                Some(_) if read >= DIRECTORY_OWNERS_MAX => {
+                    tracing::warn!("indexer forum directory truncated at its bound");
+                    break;
+                }
+                _ => break,
+            }
+        }
+        Ok(Some(owners))
+    }
+
+    /// `backlinks(uri)`: listed synced posts whose rendered bodies link to `uri`. The record's
+    /// optional `markdown.links` field is not used: only the shared renderer's output counts.
+    pub async fn backlinks(&self, uri: &str) -> Result<Vec<crate::dto::PostSummary>, EngineError> {
+        let target = AtUri::parse(uri).map_err(|e| EngineError::invalid_ref(e.to_string()))?;
+        let forum = self.forum_of(&target).await?;
+        let l = self.loaded(&forum).await?;
+        let posts: Vec<String> = l
+            .model
+            .view
+            .visibility
+            .as_ref()
+            .map(|v| {
+                v.states
+                    .iter()
+                    .filter(|(_, s)| s.listed())
+                    .filter(|(u, _)| {
+                        l.model.skel(u).is_some_and(|x| {
+                            x.coll == Some(pandoras_forum_lexicon::Collection::Post)
+                        })
+                    })
+                    .map(|(u, _)| u.clone())
+                    .collect()
+            })
+            .map_err(|p| EngineError::internal(format!("the forum view is pending: {p}")))?;
+        let values = self.values(&l.model, &posts).await?;
+        let mut links = Vec::new();
+        for u in &posts {
+            if l.model.skel(u).is_none() {
+                continue;
+            }
+            let Some(body) = values.get(u).and_then(|v| v.get("body")) else {
+                continue;
+            };
+            let Some(src) = body.get("text").and_then(Value::as_str) else {
+                // Spilled text is never guessed from the record's hint fields; it becomes
+                // available once the normal renderer has fetched and admitted the blob.
+                continue;
+            };
+            let profile = body.get("profile").and_then(Value::as_str);
+            let rendered = pandoras_forum_markdown::render_profile(
+                src,
+                &[],
+                profile,
+                &pandoras_forum_markdown::RenderOpts::default(),
+            );
+            if rendered.links.contains(&target) {
+                links.push(u.clone());
+            }
+        }
+        self.with_views(&l, &[], &links, |v| {
+            links
+                .iter()
+                .filter_map(|u| v.post_summary(u))
+                .collect::<Vec<_>>()
+        })
+        .await
+    }
+
+    /// `forum_open(ref)` (`engine-api.md` §3.2): resolves the reference, fetches the
+    /// declaration (with a proof on first open; an open within [`limits::FORUM_REOPEN_MS`] of
+    /// the last one reuses it) and returns the header. It schedules the authority sync:
+    /// authorities never synced are synced now (P0, within
+    /// [`limits::FORUM_OPEN_SYNC_BUDGET_MS`]), so the header is not degraded; stale ones are
+    /// queued for `live_tail`. Members are synced by [`Engine::sync_forum`].
+    pub async fn forum_open(&self, forum: &str) -> Result<ForumView, EngineError> {
+        let key = self.forum_key(forum).await?;
+        let opened = self.open_key(&key, false).await?;
+        self.sync_authorities(&opened).await;
+        let l = self.loaded(&key).await?;
+        // a spilled `about` is fetched before the header renders it (lfm-1.md §1.3)
+        self.load_spilled_about(&l.model, &self.rt.renders).await;
+        let me = self.me().await?;
+        let (followed, alias) = self.follow_state(key.uri.as_str()).await?;
+        self.with_views(&l, &[], &[], |v| {
+            v.forum_view(me.as_deref(), followed, alias, &opened.warnings)
+        })
+        .await
+    }
+
+    /// `forum_create(ForumDraft)` (`data-model.md` §8.4): the declaration and the owner's
+    /// membership in one `applyWrites`, by the active account. The new forum is followed.
+    pub async fn forum_create(&self, draft: &ForumDraft) -> Result<WriteTicket, EngineError> {
+        let session = self.active_session().await?;
+        let now = records::datetime_ms(self.host.now_ms())?;
+        let mode = match draft.membership {
+            MembershipMode::Open => LexMode::Open,
+            MembershipMode::Approval => LexMode::Approval,
+        };
+        let mut forum = Forum::create(draft.name.clone(), now, mode);
+        forum.description.clone_from(&draft.description);
+        forum.about = self
+            .with_dids_opt(draft.about.as_ref())
+            .await?
+            .as_ref()
+            .map(markdown_body)
+            .transpose()?;
+        forum.default_tier = Some(
+            match draft.default_tier {
+                DefaultTier::Personal => LexTier::Personal,
+                DefaultTier::Frontpage => LexTier::Frontpage,
+            }
+            .as_str()
+            .to_owned(),
+        );
+        if !draft.featured_tags.is_empty() {
+            forum.featured_tags = Some(draft.featured_tags.clone());
+        }
+        if !draft.moderators.is_empty() {
+            let mut mods = Vec::with_capacity(draft.moderators.len());
+            for m in &draft.moderators {
+                mods.push(Moderator {
+                    did: Did::parse(&m.did)
+                        .map_err(|e| EngineError::invalid_input(format!("{:?}: {e}", m.did)))?,
+                    role: match m.role {
+                        ModRole::Admin => "admin",
+                        ModRole::Moderator => "moderator",
+                    }
+                    .to_owned(),
+                    title: m.title.clone(),
+                    extra: Map::new(),
+                });
+            }
+            forum.moderators = Some(mods);
+        }
+        forum.report_contact.clone_from(&draft.report_contact);
+        let key = ForumKey::new(&session.did, &draft.slug)
+            .map_err(|e| EngineError::invalid_input(e.to_string()))?;
+        let t = self
+            .outbox
+            .create_forum(&session, &draft.slug, &forum, ContentOpts::default())
+            .await?;
+        self.rt.register(&key);
+        self.follow_rows(key.uri.as_str(), None, false).await?;
+        Ok(t)
+    }
+
+    async fn follow_rows(
+        &self,
+        f: &str,
+        alias: Option<&str>,
+        seeded: bool,
+    ) -> Result<(), EngineError> {
+        let mut ops = vec![
+            encode(
+                follow_key(f),
+                &FollowRow {
+                    v: ROW_V,
+                    at: self.host.now_ms(),
+                    seeded,
+                },
+            )?,
+            KvOp::Delete(unfollow_key(f)),
+        ];
+        if let Some(a) = alias {
+            ops.push(encode(
+                alias_key(f),
+                &AliasRow {
+                    v: ROW_V,
+                    alias: a.to_owned(),
+                },
+            )?);
+        }
+        self.host.state().write(ops).await?;
+        self.rt
+            .bus
+            .changed([crate::dto::Topic::Forum { uri: f.to_owned() }]);
+        Ok(())
+    }
+
+    /// `forum_follow(uri, alias?)` (local).
+    pub async fn forum_follow(&self, forum: &str, alias: Option<&str>) -> Result<(), EngineError> {
+        let key = self.forum_key(forum).await?;
+        self.follow_rows(key.uri.as_str(), alias, false).await
+    }
+
+    /// `forum_unfollow(uri)` (local; seeding will not add it back).
+    pub async fn forum_unfollow(&self, forum: &str) -> Result<(), EngineError> {
+        let key = self.forum_key(forum).await?;
+        let f = key.uri.as_str();
+        self.host
+            .state()
+            .write(vec![
+                KvOp::Delete(follow_key(f)),
+                KvOp::Delete(alias_key(f)),
+                encode(
+                    unfollow_key(f),
+                    &UnfollowRow {
+                        v: ROW_V,
+                        at: self.host.now_ms(),
+                    },
+                )?,
+            ])
+            .await?;
+        self.rt
+            .bus
+            .changed([crate::dto::Topic::Forum { uri: f.to_owned() }]);
+        Ok(())
+    }
+
+    /// Adds the forums of `did`'s valid own `membership` records to the followed list, except
+    /// those unfollowed locally (`sync.md` §4.8). Reads the own repo's public `listRecords`
+    /// anonymously from the PDS bound at login, as the outbox's fresh reads do: an
+    /// authenticated session is for writes only (`threat-model.md` AUTH-4), so every host
+    /// behaves the same here.
+    async fn seed_follows(&self, did: &Did) -> Result<(), EngineError> {
+        let xrpc = Xrpc::new(&*self.host);
+        let session = self.session_for(did.as_str()).await?;
+        let svc = Service::Anon(session.pds);
+        let coll = Nsid::parse(nsid::MEMBERSHIP)
+            .map_err(|e| EngineError::internal(format!("membership NSID: {e}")))?;
+        let mut cursor: Option<String> = None;
+        let mut forums: Vec<String> = Vec::new();
+        for _ in 0..limits::FOLLOW_SEED_PAGES {
+            let params = ListRecords {
+                repo: AtIdentifier::Did(did.clone()),
+                collection: coll.clone(),
+                limit: Some(100),
+                cursor: cursor.take(),
+                reverse: None,
+            };
+            let page = xrpc
+                .query_endpoint(
+                    &svc,
+                    &params,
+                    &CallOpts::capped(limits::LIST_PAGE_MAX_BYTES),
+                )
+                .await?;
+            for r in &page.records {
+                let (Some(uri), Some(value)) = (r.uri.as_deref(), r.value.as_ref()) else {
+                    continue;
+                };
+                let Ok(uri) = AtUri::parse(uri) else {
+                    continue;
+                };
+                if uri.did() != did
+                    || !pandoras_forum_lexicon::validity::check_uri(&uri, value).valid
+                {
+                    continue;
+                }
+                if let Some(f) = value.get("forum").and_then(Value::as_str) {
+                    forums.push(f.to_owned());
+                }
+            }
+            match page.cursor {
+                Some(c) if !page.records.is_empty() => cursor = Some(c),
+                _ => break,
+            }
+        }
+        for f in forums {
+            let Ok(u) = AtUri::parse(&f) else { continue };
+            let Ok(key) = ForumKey::of_uri(&u) else {
+                continue;
+            };
+            let f = key.uri.as_str();
+            let known = self.loc_get::<FollowRow>(follow_key(f)).await?.is_some()
+                || self
+                    .loc_get::<UnfollowRow>(unfollow_key(f))
+                    .await?
+                    .is_some();
+            if !known {
+                self.rt.register(&key);
+                self.follow_rows(f, None, true).await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The keys of the followed forums, by uri.
+    pub(crate) async fn followed_keys(&self) -> Result<Vec<ForumKey>, EngineError> {
+        Ok(self
+            .loc_scan("follow")
+            .await?
+            .into_iter()
+            .filter_map(|(f, _)| ForumKey::of_uri(&AtUri::parse(&f).ok()?).ok())
+            .collect())
+    }
+
+    /// Seeds the followed list from the memberships of `did` and records that it did.
+    pub(crate) async fn seed_account(&self, did: &Did) -> Result<(), EngineError> {
+        self.seed_follows(did).await?;
+        let row = SeededRow {
+            v: ROW_V,
+            at: self.host.now_ms(),
+        };
+        self.host
+            .state()
+            .write(vec![encode(seeded_key(did.as_str()), &row)?])
+            .await?;
+        Ok(())
+    }
+
+    /// Seeds the followed list of every account not seeded since its login (`sync.md` §4.8:
+    /// on login; `live_tail` also re-seeds after each sync of the own repo). A failed read is
+    /// logged and retried next time.
+    pub(crate) async fn seed_pending(&self) -> Result<(), EngineError> {
+        for a in self.accounts().await? {
+            if self
+                .loc_get::<SeededRow>(seeded_key(&a.did))
+                .await?
+                .is_some()
+            {
+                continue;
+            }
+            let Ok(did) = Did::parse(&a.did) else {
+                continue;
+            };
+            if let Err(e) = self.seed_account(&did).await {
+                tracing::warn!(account = %a.did, error = %e, "seeding followed forums");
+            }
+        }
+        Ok(())
+    }
+
+    /// `followed()` (`engine-api.md` §3.2): the local followed list, seeded from the accounts'
+    /// own membership records once after each login ([`Engine::seed_pending`]). A forum added
+    /// by seeding counts as joined until the cache holds the membership (or its tombstone).
+    /// Sorted by name, then uri.
+    pub async fn followed(&self) -> Result<Vec<ForumSummary>, EngineError> {
+        self.seed_pending().await?;
+        let me = self.me().await?;
+        let aliases: BTreeMap<String, String> = self
+            .loc_scan("alias")
+            .await?
+            .into_iter()
+            .filter_map(|(f, b)| Some((f, row::decode::<AliasRow>(&b).ok()?.alias)))
+            .collect();
+        let store = RecordStore::new(self.host.cache());
+        let mut out = Vec::new();
+        for (f, follow) in self.loc_scan("follow").await? {
+            let seeded = row::decode::<FollowRow>(&follow).is_ok_and(|r| r.seeded);
+            let Ok(u) = AtUri::parse(&f) else { continue };
+            let Ok(key) = ForumKey::of_uri(&u) else {
+                continue;
+            };
+            let decl: Option<Forum> = store
+                .get(&key.uri)
+                .await
+                .map_err(store_error)?
+                .filter(|r| r.valid)
+                .and_then(|r| r.value_json().ok())
+                .and_then(|v| serde_json::from_value(v).ok());
+            let member = match &me {
+                Some(me) => {
+                    let m = format!("at://{me}/{}/{}", nsid::MEMBERSHIP, key.fk);
+                    match AtUri::parse(&m) {
+                        Ok(m) => match store.get(&m).await.map_err(store_error)? {
+                            Some(r) => r.valid,
+                            // seeded from the own PDS listing, not synced yet
+                            None => {
+                                seeded
+                                    && store.tombstone_of(&m).await.map_err(store_error)?.is_none()
+                            }
+                        },
+                        Err(_) => false,
+                    }
+                }
+                None => false,
+            };
+            let (owner, _) = self.actors([key.owner.as_str()]).await;
+            let owner = owner
+                .get(key.owner.as_str())
+                .cloned()
+                .unwrap_or_else(|| bare_actor(key.owner.as_str()));
+            out.push(summary_from_decl(
+                &key,
+                decl.as_ref(),
+                true,
+                member,
+                aliases.get(&f).cloned(),
+                owner,
+            ));
+        }
+        out.sort_by(|a, b| {
+            a.name
+                .to_lowercase()
+                .cmp(&b.name.to_lowercase())
+                .then_with(|| a.uri.cmp(&b.uri))
+        });
+        Ok(out)
+    }
+
+    /// `join(uri, note?)`: create-if-absent of the membership (approval forums also need a
+    /// grant). The forum is followed.
+    pub async fn join(&self, forum: &str, note: Option<&str>) -> Result<WriteTicket, EngineError> {
+        let session = self.active_session().await?;
+        let key = self.forum_key(forum).await?;
+        let t = self.outbox.join(&session, &key.uri, note).await?;
+        self.follow_rows(key.uri.as_str(), None, false).await?;
+        Ok(t)
+    }
+
+    /// `leave(uri)`: deletes the membership (the followed list is unchanged).
+    pub async fn leave(&self, forum: &str) -> Result<WriteTicket, EngineError> {
+        let session = self.active_session().await?;
+        let key = self.forum_key(forum).await?;
+        self.outbox.leave(&session, &key.uri).await
+    }
+
+    async fn subject_dids(&self, actors: &[String]) -> Result<Vec<String>, EngineError> {
+        let mut out = Vec::with_capacity(actors.len());
+        for a in actors {
+            out.push(if a.starts_with("did:") {
+                Did::parse(a)
+                    .map_err(|e| EngineError::invalid_ref(format!("{a:?}: {e}")))?
+                    .to_string()
+            } else {
+                self.resolve_actor(a).await?.did
+            });
+        }
+        Ok(out)
+    }
+
+    fn access_action(
+        key: &ForumKey,
+        did: &str,
+        now: pandoras_forum_atp::syntax::Datetime,
+    ) -> ModAction {
+        ModAction::new(
+            key.uri.clone(),
+            did,
+            Action::Access(AccessAction::new(AccessLevel::Member)),
+            now,
+        )
+    }
+
+    /// `grant(uri, actors)`: an `#access{member}` assertion per actor (DID or handle) by the
+    /// active account, which must be an authority of the forum to have an effect (approval
+    /// mode, `social.md` §4.7).
+    pub async fn grant(
+        &self,
+        forum: &str,
+        actors: &[String],
+    ) -> Result<Vec<WriteTicket>, EngineError> {
+        let session = self.active_session().await?;
+        let key = self.forum_key(forum).await?;
+        let now = records::datetime_ms(self.host.now_ms())?;
+        let mut out = Vec::new();
+        for d in self.subject_dids(actors).await? {
+            let m = Self::access_action(&key, &d, now.clone());
+            out.push(self.outbox.mod_assert(&session, &m).await?);
+        }
+        Ok(out)
+    }
+
+    /// `revoke(uri, actors)`: removes the active account's `#access` assertions on the actors
+    /// (the removal protocol with its `delete` revision).
+    pub async fn revoke(
+        &self,
+        forum: &str,
+        actors: &[String],
+    ) -> Result<Vec<WriteTicket>, EngineError> {
+        let session = self.active_session().await?;
+        let key = self.forum_key(forum).await?;
+        let now = records::datetime_ms(self.host.now_ms())?;
+        let mut out = Vec::new();
+        for d in self.subject_dids(actors).await? {
+            let built = records::mod_action(&Self::access_action(&key, &d, now.clone()))?;
+            out.push(
+                self.outbox
+                    .delete(&session, &built.uri(&session.did))
+                    .await?,
+            );
+        }
+        Ok(out)
+    }
+
+    /// `members(uri, MembersQuery)` (`social.md` §3): every DID with a valid membership
+    /// record, by DID, with its role (owner, admin, moderator, member = a seed, established,
+    /// newcomer, none), grant, karma and moderation flags. `pending: true` lists the applicants
+    /// (approval mode: a membership without a grant); `status` keeps one role (`newcomer`: the
+    /// newcomers).
+    pub async fn members(
+        &self,
+        forum: &str,
+        query: &MembersQuery,
+    ) -> Result<Vec<MemberView>, EngineError> {
+        let key = self.forum_key(forum).await?;
+        let l = self.loaded(&key).await?;
+        let people: Vec<String> = l.model.view.participation.members.iter().cloned().collect();
+        let mut out = self
+            .with_views(&l, &[], &people, |v| v.members(query))
+            .await?;
+        if query.pending == Some(true) {
+            // the applicants rejected on this device leave the pending list
+            let rejected = self.rejected_applicants(forum).await?;
+            out.retain(|m| !rejected.contains(&m.actor.did));
+        }
+        Ok(out)
+    }
+}
+
+/// `render(markdown, media, RenderOpts)` (`engine-api.md` §3.7): what a draft renders to, as
+/// a composer previews it. Each `media` item is a [`crate::dto::MediaRef`] from `prepare_media`,
+/// which becomes the `defs#media` value `publish` writes, or a `defs#media` value as a record
+/// stores it (an object with a `blob`), taken as it is; `profile` is the body's (`lfm-1.md`
+/// §1.4; absent: `lfm/1`). `invalid_input` for an item that is neither.
+pub fn render_draft(
+    markdown: &str,
+    media: &[Value],
+    profile: Option<&str>,
+) -> Result<crate::dto::RenderedBody, EngineError> {
+    let mut items = Vec::with_capacity(media.len());
+    for m in media {
+        if m.get("blob").is_some_and(Value::is_object) {
+            items.push(m.clone());
+            continue;
+        }
+        let r: crate::dto::MediaRef = serde_json::from_value(m.clone()).map_err(|e| {
+            EngineError::invalid_input(format!(
+                "render: a media item is neither a MediaRef nor a defs#media value: {e}"
+            ))
+        })?;
+        items.push(
+            serde_json::to_value(media_value(&r)?)
+                .map_err(|e| EngineError::internal(e.to_string()))?,
+        );
+    }
+    Ok(crate::model::render::render_markdown(
+        markdown,
+        &Value::Array(items),
+        profile,
+    ))
+}
+
+/// A [`crate::dto::MediaRef`] as the record's `defs#media` value (`data-model.md` §4).
+///
+/// The blob is a placeholder: the outbox substitutes the object `uploadBlob` returns, verbatim,
+/// and fails the write when the returned `ref.$link` is not the CID computed locally (§8.8).
+fn media_value(
+    m: &crate::dto::MediaRef,
+) -> Result<pandoras_forum_lexicon::records::Media, EngineError> {
+    use pandoras_forum_lexicon::records::{AspectRatio as LexAspect, Blob, CidLink, Media};
+    if m.cid.is_empty() {
+        return Err(EngineError::invalid_input(
+            "a media reference has no CID: pass its bytes through `prepare_media` first",
+        )
+        .with_detail("kind", "mediaRejected"));
+    }
+    let size = i64::try_from(m.size_bytes)
+        .map_err(|_| EngineError::invalid_input("a media blob is too large (limits.md §5)"))?;
+    let mut media = Media::new(Blob {
+        r#type: "blob".to_owned(),
+        r#ref: CidLink {
+            link: m.cid.clone(),
+        },
+        mime_type: m.mime.clone(),
+        size,
+        extra: Map::new(),
+    });
+    // a blank alt is no alt (data-model.md §4)
+    media.alt = m.alt.clone().filter(|a| !a.trim().is_empty());
+    media.name = m.name.clone();
+    media.aspect_ratio = m.aspect_ratio.as_ref().map(|a| LexAspect {
+        width: i64::from(a.width),
+        height: i64::from(a.height),
+        extra: Map::new(),
+    });
+    media.duration_ms = m.duration_ms.and_then(|d| i64::try_from(d).ok());
+    Ok(media)
+}

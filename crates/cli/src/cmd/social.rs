@@ -1,0 +1,1173 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! The M3 social commands (synthesis §6.10): opinions (`vote`, `vote --tag`, `agree`, `react`,
+//! `reacts`), `notifications`, `activity`, `mods` and `mod`.
+//!
+//! Opinions and mod actions are public records (`social.md` §17): the first use of each kind
+//! shows the "this is public" interstitial and records the acknowledgement
+//! (`engine.acknowledge_public_action`). Every action returns an [`ActionTicket`]: its write is
+//! driven like any other write ([`super::write::drive`]), and its notices (a vote recorded but
+//! not counted yet, a retroactive restriction, an adoption that runs first) are printed with
+//! the outcome.
+
+use pandoras_forum_atp::syntax::Datetime;
+use pandoras_forum_core::dto::{
+    ActionTicket, ModActionIntent, ModActionValue, ModScope, ModsChange, NotificationsQuery,
+    OpinionIntent, PublicActionKind, WriteState,
+};
+use pandoras_forum_core::engine::EngineError;
+use pandoras_forum_core::model::palette;
+use pandoras_forum_native::host::NativeHost;
+use serde_json::Value;
+
+use crate::args::{
+    ActivityArgs, AgreeArgs, ExportArgs, ExportScopeArg, KarmaCadenceArg, ModAction, ModArgs,
+    ModSubject, ModTagSubject, ModsAction, ModsArgs, MuteArgs, NotificationsArgs, PinArgs,
+    ReactArgs, VoteArgs, scope_of, tag_subject,
+};
+use crate::cmd::{read, refs, write};
+use crate::ctx::{CliError, Ctx, Writer};
+use crate::out::{Style, cat, dto, lit, name, tt};
+use crate::prompt;
+use crate::render;
+
+// ---------------------------------------------------------------------------------------------
+// the public-action interstitial
+
+/// The interstitial texts of `social.md` §17, per action kind.
+fn public_notice(kind: PublicActionKind) -> &'static str {
+    match kind {
+        PublicActionKind::Vote => {
+            "Your votes are public records in your repository: everyone can see what you voted \
+             on and how."
+        }
+        PublicActionKind::React => {
+            "Your reacts are public records in your repository, including the quoted passage."
+        }
+        PublicActionKind::TagVote => "Your tag votes are public records in your repository.",
+        PublicActionKind::Join => {
+            "Your membership (and its note) is a public record in your repository."
+        }
+        PublicActionKind::ModAction => {
+            "Moderation actions are public records in your repository, with their reasons."
+        }
+    }
+}
+
+/// Shows the first-use interstitial of `kind` unless it was acknowledged, and records the
+/// acknowledgement (`engine-api.md` §3.6): the first action of a kind is a decision, taken on a
+/// terminal by answering the question, or by `--yes` (`yes`), which headless use needs, since a
+/// script cannot answer. Once acknowledged, the kind asks nothing again, on any client of this
+/// device.
+pub(crate) async fn acknowledge(
+    ctx: &Ctx,
+    w: &Writer,
+    kind: PublicActionKind,
+    yes: bool,
+) -> Result<(), CliError> {
+    if w.engine.public_action_acknowledged(kind).await? {
+        return Ok(());
+    }
+    let text = public_notice(kind);
+    if yes {
+        ctx.out.note(&[(lit(text), Style::Dim)]);
+    } else if prompt::stdin_is_tty() {
+        ctx.out.err_line(&[(lit(text), Style::Warn)]);
+        if !prompt::confirm("continue?") {
+            return Err(CliError::Reported(1));
+        }
+    } else {
+        return Err(CliError::usage(format!(
+            "{text} This is asked once: add --yes to confirm when not running interactively."
+        )));
+    }
+    w.engine.acknowledge_public_action(kind).await?;
+    Ok(())
+}
+
+/// Drives an action's write, prints its outcome and notices, and (in JSON mode) the
+/// `ActionTicket` with its final state; returns true when the write is done.
+async fn drive_action(
+    ctx: &Ctx,
+    w: &Writer,
+    at: ActionTicket,
+    done: &'static str,
+) -> Result<bool, CliError> {
+    let notices = at.notices.clone();
+    let t = write::drive(ctx, w, at.ticket()).await?;
+    if ctx.out.is_json() {
+        // one JSON value: the ticket with its final state and the notices (report's
+        // JSON is the bare WriteTicket, which would duplicate it)
+        ctx.out.json(&dto(&ActionTicket {
+            id: t.id.clone(),
+            state: t.state.clone(),
+            notices,
+        }));
+        if let Some(e) = write::needs_login_error(&t) {
+            return Err(CliError::Engine(e));
+        }
+        if let WriteState::Failed { error } = &t.state {
+            return Err(CliError::Engine(error.clone()));
+        }
+        return Ok(matches!(t.state, WriteState::Done { .. }));
+    }
+    write::report(ctx, &t, done)?;
+    for n in &notices {
+        ctx.out.note(&[(tt(&n.message), Style::Dim)]);
+    }
+    Ok(matches!(t.state, WriteState::Done { .. }))
+}
+
+// ---------------------------------------------------------------------------------------------
+// vote, agree, react
+
+/// `pandoras-forum vote <ref> <value> [--tag <slug>]`: karma, or a tag vote on a post.
+pub async fn vote(ctx: &Ctx, args: VoteArgs) -> Result<(), CliError> {
+    let done = if args.tag.is_some() {
+        "Tag vote recorded"
+    } else {
+        "Voted"
+    };
+    opinion(ctx, &args.reference, args.intent(), done, args.yes).await
+}
+
+/// `pandoras-forum agree <ref> <value>`.
+pub async fn agree(ctx: &Ctx, args: AgreeArgs) -> Result<(), CliError> {
+    opinion(ctx, &args.reference, args.intent(), "Recorded", args.yes).await
+}
+
+/// `pandoras-forum react <ref> <react> [--quote …] [--against] [--remove]`.
+pub async fn react(ctx: &Ctx, args: ReactArgs) -> Result<(), CliError> {
+    if args.remove && args.against {
+        return Err(CliError::usage("--remove and --against conflict"));
+    }
+    opinion(ctx, &args.reference, args.intent(), "Reacted", args.yes).await
+}
+
+/// One opinion on an item: the interstitial, a quiet thread sync (the subject's version is the
+/// cached one, `engine-api.md` §3.5), the engine call and the write's report.
+async fn opinion(
+    ctx: &Ctx,
+    reference: &str,
+    intent: OpinionIntent,
+    done: &'static str,
+    yes: bool,
+) -> Result<(), CliError> {
+    let w = ctx.writer().await?;
+    let (uri, _) = refs::post_or_comment(ctx, &w.engine, reference).await?;
+    read::sync_thread_quietly(ctx, &w.engine, &uri).await;
+    acknowledge(ctx, &w, intent.public_kind(), yes).await?;
+    let at = w.engine.opinion(&uri, &intent).await?;
+    drive_action(ctx, &w, at, done).await?;
+    Ok(())
+}
+
+/// `pandoras-forum reacts`: the `default/1` palette (`social.md` §9.1).
+pub async fn reacts(ctx: &Ctx) -> Result<(), CliError> {
+    let reacts = palette::default_1();
+    if ctx.out.is_json() {
+        let v: Vec<Value> = reacts
+            .iter()
+            .map(|r| {
+                serde_json::json!({
+                    "id": r.id, "glyph": r.glyph, "label": r.label,
+                    "description": r.description, "group": r.group,
+                })
+            })
+            .collect();
+        ctx.out.json(&dto(&v));
+        return Ok(());
+    }
+    for r in reacts {
+        ctx.out.line(&[
+            (tt(&r.glyph), Style::Plain),
+            (lit(" "), Style::Plain),
+            (name(&r.id), Style::Bold),
+            (cat([lit("  "), tt(&r.label)]), Style::Plain),
+        ]);
+        ctx.out
+            .line(&[(tt(&format!("    {}", r.description)), Style::Dim)]);
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------------------------
+// notifications, activity
+
+/// `pandoras-forum notifications [--all] [--mark-read]`.
+pub async fn notifications(ctx: &Ctx, args: NotificationsArgs) -> Result<(), CliError> {
+    let engine = ctx.reader().await?;
+    if let Some(c) = args.karma_cadence {
+        engine.set_karma_notifications(c.into()).await?;
+        ctx.out.note(&[(
+            cat([
+                lit("Karma changes are notified "),
+                lit(match c {
+                    KarmaCadenceArg::Realtime => "as they happen",
+                    KarmaCadenceArg::Daily => "daily",
+                    KarmaCadenceArg::Weekly => "weekly",
+                }),
+                lit(" (saved)."),
+            ]),
+            Style::Dim,
+        )]);
+    }
+    let list = engine
+        .notifications(&NotificationsQuery {
+            all: args.all,
+            limit: args.limit,
+        })
+        .await?;
+    // the shown ones; with --all every notification, listed or not (`engine-api.md` §3.6
+    // `mark_all_notifications_read`)
+    if args.mark_read && args.all {
+        engine.mark_all_notifications_read().await?;
+    } else if args.mark_read && !list.items.is_empty() {
+        let ids: Vec<String> = list.items.iter().map(|n| n.id.clone()).collect();
+        engine.mark_notifications_read(&ids).await?;
+    }
+    if ctx.out.is_json() {
+        ctx.out.json(&list);
+        return Ok(());
+    }
+    if list.items.is_empty() {
+        ctx.out.line(&[(
+            lit(if args.all {
+                "No notifications."
+            } else {
+                "Nothing new."
+            }),
+            Style::Dim,
+        )]);
+        return Ok(());
+    }
+    for n in &list.items {
+        let who = n
+            .actor
+            .as_ref()
+            .map(render::actor)
+            .unwrap_or_else(|| lit("(you)"));
+        ctx.out.line(&[
+            (lit(if n.read { "  " } else { "• " }), Style::Plain),
+            (tt(&format!("{:?}", n.reason)), Style::Bold),
+            (lit(" "), Style::Plain),
+            (who, Style::Plain),
+            (cat([lit(" "), tt(&render::time(n.at_ms))]), Style::Dim),
+        ]);
+        if let Some(p) = &n.preview
+            && !p.is_empty()
+        {
+            let first = p.lines().next().unwrap_or_default();
+            ctx.out.line(&[(tt(&format!("    {first}")), Style::Dim)]);
+        }
+    }
+    if list.unread > 0 {
+        ctx.out.note(&[(
+            cat([
+                tt(&list.unread.to_string()),
+                lit(" unread (`pandoras-forum notifications --mark-read` marks these read)"),
+            ]),
+            Style::Dim,
+        )]);
+    }
+    Ok(())
+}
+
+/// `pandoras-forum mute|unmute <actor>...` (local: the lens shows a muted author's listed items
+/// collapsed, `social.md` §10.3; nothing is written to any repository).
+pub async fn mute(ctx: &Ctx, args: MuteArgs, on: bool) -> Result<(), CliError> {
+    let engine = ctx.reader().await?;
+    for a in &args.actors {
+        engine.mute(a, on).await?;
+        if !ctx.out.is_json() {
+            ctx.out.line(&[
+                (lit(if on { "Muted " } else { "Unmuted " }), Style::Good),
+                (name(a), Style::Bold),
+            ]);
+        }
+    }
+    if ctx.out.is_json() {
+        print_mutes(ctx, &engine.mutes().await?);
+    }
+    Ok(())
+}
+
+/// `pandoras-forum mutes`.
+pub async fn mutes(ctx: &Ctx) -> Result<(), CliError> {
+    let engine = ctx.reader().await?;
+    let list = engine.mutes().await?;
+    if ctx.out.is_json() {
+        print_mutes(ctx, &list);
+        return Ok(());
+    }
+    if list.is_empty() {
+        ctx.out.line(&[(lit("You muted nobody."), Style::Dim)]);
+    }
+    for a in &list {
+        ctx.out.line(&[
+            (render::actor(a), Style::Plain),
+            (cat([lit("  "), tt(&a.did)]), Style::Dim),
+        ]);
+    }
+    Ok(())
+}
+
+fn print_mutes(ctx: &Ctx, list: &[pandoras_forum_core::dto::ActorView]) {
+    ctx.out.json(&serde_json::json!({
+        "dto": pandoras_forum_core::dto::DTO_VERSION,
+        "mutes": list,
+    }));
+}
+
+/// `pandoras-forum activity [forum]`: Recent Discussion (`social.md` §12.4).
+pub async fn activity(ctx: &Ctx, args: ActivityArgs) -> Result<(), CliError> {
+    let engine = ctx.reader().await?;
+    let forum = refs::forum_or_current(ctx, &engine, args.forum.as_deref()).await?;
+    read::sync_forum_quietly(ctx, &engine, &forum).await;
+    let list = engine.recent_discussion(&forum, None, args.limit).await?;
+    if ctx.out.is_json() {
+        ctx.out.json(&list);
+        return Ok(());
+    }
+    if list.items.is_empty() {
+        ctx.out.line(&[(lit("No discussion yet."), Style::Dim)]);
+        return Ok(());
+    }
+    for (i, d) in list.items.iter().enumerate() {
+        ctx.out.line(&[
+            (tt(&format!("{:>2}", i + 1)), Style::Bold),
+            (lit("  "), Style::Plain),
+            (
+                tt(d.post.title.as_deref().unwrap_or("(untitled)")),
+                Style::Bold,
+            ),
+        ]);
+        for c in &d.comments {
+            ctx.out.line(&[(
+                tt(&format!(
+                    "      {} {}",
+                    render::actor(&c.author).to_plain_string(),
+                    c.body.text.lines().next().unwrap_or_default()
+                )),
+                Style::Dim,
+            )]);
+        }
+    }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------------------------
+// mods
+
+/// `pandoras-forum mods add|rm <actor>`.
+pub async fn mods(ctx: &Ctx, args: ModsArgs) -> Result<(), CliError> {
+    let w = ctx.writer().await?;
+    let forum = refs::forum_or_current(ctx, &w.engine, None).await?;
+    acknowledge(ctx, &w, PublicActionKind::ModAction, args.yes).await?;
+    // a removal that adopts: whom, and what they asserted (reported once it is sent)
+    let mut adopting = None;
+    let change = match args.action {
+        ModsAction::Add { actor, role } => ModsChange::Add {
+            did: actor,
+            role: role.into(),
+            title: None,
+        },
+        ModsAction::Rm { actor, skip_adopt } => {
+            let who = w.engine.resolve_actor(&actor).await?;
+            let originals = originals_of(ctx, &w, &forum, &who.did).await?;
+            if skip_adopt {
+                confirm_lapse(ctx, &who, &actor, &originals, args.yes)?;
+            } else {
+                adopting = Some((who, originals));
+            }
+            ModsChange::Remove {
+                did: actor,
+                skip_adopt,
+            }
+        }
+    };
+    let at = w.engine.mods_set(&forum, &change).await?;
+    let edit_id = at.id.clone();
+    let done = drive_action(
+        ctx,
+        &w,
+        at,
+        match change {
+            ModsChange::Add { .. } => "Added",
+            ModsChange::Remove { .. } => "Removed",
+        },
+    )
+    .await?;
+    if let (Some((who, originals)), true) = (adopting, done) {
+        let report = adoption_report(&w, &edit_id).await?;
+        report_adoption(ctx, &w, &forum, &who, &originals, &report).await?;
+    }
+    Ok(())
+}
+
+/// The adopt report (`WriteState.done.report`, `engine-api.md` §3.2) of the `mod adopt` that
+/// `mods rm` ran first: the declaration edit `edit_id` is sent only after that write (its
+/// `after`), whose ticket is still in the outbox once the edit is done.
+async fn adoption_report(w: &Writer, edit_id: &str) -> Result<Vec<String>, CliError> {
+    use pandoras_forum_core::outbox::model::write_id;
+    let Some(adopt) = w
+        .engine
+        .outbox()
+        .get(edit_id)
+        .await?
+        .and_then(|p| Some(write_id(&p.account, p.after?)))
+    else {
+        return Ok(Vec::new());
+    };
+    Ok(match w.engine.write_status(&adopt).await? {
+        Some(pandoras_forum_core::dto::WriteTicket {
+            state: WriteState::Done { report, .. },
+            ..
+        }) => report,
+        _ => Vec::new(),
+    })
+}
+
+/// Why the adopt report names the original `uri` (`cannot adopt <uri>: <why>`, `kept own
+/// assertion for <uri>`, `engine-api.md` §3.5 `mod_adopt`), if it does.
+fn reported_reason(report: &[String], uri: &str) -> Option<String> {
+    report.iter().find_map(|l| {
+        if let Some(why) = l
+            .strip_prefix("cannot adopt ")
+            .and_then(|r| r.strip_prefix(uri))
+            .and_then(|r| r.strip_prefix(": "))
+        {
+            return Some(format!("cannot adopt: {why}"));
+        }
+        (l.strip_prefix("kept own assertion for ") == Some(uri))
+            .then(|| "kept own assertion".to_owned())
+    })
+}
+
+/// The name of a mod-log status, as `dto/1` spells it.
+fn status_name(s: pandoras_forum_core::dto::ModLogStatus) -> String {
+    serde_json::to_value(s)
+        .ok()
+        .and_then(|v| v.as_str().map(str::to_owned))
+        .unwrap_or_default()
+}
+
+/// The moderator `did`'s forum-scope assertions that a removal from `moderators` ends
+/// (`data-model.md` §8.6 `originals`: valid, scope forum, not lapsed or expired), from the mod
+/// log after a sync of the forum: those that count now (`effective`) and those that never did
+/// (`overridden`, `stale`, `unauthorised`, `reservedUnknown`), which lapse just the same.
+async fn originals_of(
+    ctx: &Ctx,
+    w: &Writer,
+    forum: &str,
+    did: &str,
+) -> Result<Vec<pandoras_forum_core::dto::ModLogEntry>, CliError> {
+    use pandoras_forum_core::dto::ModLogStatus;
+    read::sync_forum_quietly(ctx, &w.engine, forum).await;
+    let mut out = Vec::new();
+    let mut cursor: Option<String> = None;
+    loop {
+        let page = w.engine.mod_log(forum, cursor.as_deref(), 200).await?;
+        out.extend(page.entries.into_iter().filter(|e| {
+            e.actor.did == did
+                && !e.author_scope
+                // a revision entry is not an assertion; a lapsed or expired one ended already
+                && !matches!(
+                    e.status,
+                    ModLogStatus::Lapsed
+                        | ModLogStatus::Expired
+                        | ModLogStatus::Edited
+                        | ModLogStatus::Removed
+                )
+        }));
+        match page.cursor {
+            Some(c) => cursor = Some(c),
+            None => break,
+        }
+    }
+    Ok(out)
+}
+
+/// After `mod adopt` or `mods rm` sent its write: the former moderator's `originals` that no
+/// own record adopts now (one whose `adopts` names it), read from the mod log after a sync.
+/// They lapse with the former's role. Each says why: an original that never counted names its
+/// status, one in effect the reason of the engine's adopt `report` ("cannot adopt …", "kept
+/// own assertion", `data-model.md` §8.6); a report line naming no listed original is shown
+/// as it is.
+async fn report_adoption(
+    ctx: &Ctx,
+    w: &Writer,
+    forum: &str,
+    who: &pandoras_forum_core::dto::ActorView,
+    originals: &[pandoras_forum_core::dto::ModLogEntry],
+    report: &[String],
+) -> Result<(), CliError> {
+    use pandoras_forum_core::dto::ModLogStatus;
+    if originals.is_empty() && report.is_empty() {
+        return Ok(());
+    }
+    let mine = originals_of(ctx, w, forum, &w.account.did).await?;
+    let adopted: std::collections::BTreeSet<&str> = mine
+        .iter()
+        .filter_map(|e| e.adopted_from.as_deref())
+        .collect();
+    let skipped: Vec<_> = originals
+        .iter()
+        .filter(|o| !adopted.contains(o.uri.as_str()))
+        .collect();
+    let unlisted: Vec<&String> = report
+        .iter()
+        .filter(|l| {
+            !originals
+                .iter()
+                .any(|o| reported_reason(std::slice::from_ref(l), &o.uri).is_some())
+        })
+        .collect();
+    let n = u32::try_from(originals.len()).unwrap_or(u32::MAX);
+    let k = u32::try_from(originals.len() - skipped.len()).unwrap_or(u32::MAX);
+    if skipped.is_empty() && unlisted.is_empty() {
+        ctx.out.note(&[(
+            cat([
+                lit("Adopted all "),
+                render::count(n, "assertion", "assertions"),
+                lit(" by "),
+                render::actor(who),
+                lit("."),
+            ]),
+            Style::Dim,
+        )]);
+        return Ok(());
+    }
+    ctx.out.warn(cat([
+        lit("adopted "),
+        tt(&k.to_string()),
+        lit(" of "),
+        render::count(n, "assertion", "assertions"),
+        lit(" by "),
+        render::actor(who),
+        lit("; not adopted (they lapse with the role):"),
+    ]));
+    for e in skipped {
+        let why = match e.status {
+            ModLogStatus::Effective => reported_reason(report, &e.uri)
+                .unwrap_or_else(|| "cannot adopt (rank or role), or kept own assertion".to_owned()),
+            s => format!("never counted ({})", status_name(s)),
+        };
+        let mut parts = vec![tt(&e.action), tt(&e.value), tt(&e.subject)];
+        if let Some(r) = &e.reason {
+            parts.push(tt(r));
+        }
+        parts.push(tt(&why));
+        ctx.out.warn(cat([lit("  "), cat(intersperse(parts))]));
+    }
+    for l in unlisted {
+        ctx.out.warn(cat([lit("  "), tt(l)]));
+    }
+    Ok(())
+}
+
+/// The confirmation of `mods rm --skip-adopt` (`social.md` §4.10, `data-model.md` §8.6): lists
+/// every forum-scope assertion of the moderator that lapses with the removal (`lapsing`, from
+/// [`originals_of`]), then asks on a terminal; headless use needs `--yes` (`yes`). Nothing to
+/// list asks nothing.
+fn confirm_lapse(
+    ctx: &Ctx,
+    who: &pandoras_forum_core::dto::ActorView,
+    actor: &str,
+    lapsing: &[pandoras_forum_core::dto::ModLogEntry],
+    yes: bool,
+) -> Result<(), CliError> {
+    if lapsing.is_empty() {
+        return Ok(());
+    }
+    let n = u32::try_from(lapsing.len()).unwrap_or(u32::MAX);
+    ctx.out.warn(cat([
+        lit("removing without adopting: "),
+        render::count(n, "assertion", "assertions"),
+        lit(" by "),
+        render::actor(who),
+        lit(" lapse at once:"),
+    ]));
+    for e in lapsing {
+        let mut parts = vec![tt(&e.action), tt(&e.value), tt(&e.subject)];
+        if let Some(r) = &e.reason {
+            parts.push(tt(r));
+        }
+        parts.push(tt(&status_name(e.status)));
+        ctx.out.warn(cat([lit("  "), cat(intersperse(parts))]));
+    }
+    if yes {
+        return Ok(());
+    }
+    if prompt::stdin_is_tty() && !ctx.out.is_json() {
+        if prompt::confirm("remove without adopting them?") {
+            return Ok(());
+        }
+        return Err(CliError::Reported(1));
+    }
+    Err(CliError::usage(format!(
+        "{n} assertion(s) by {actor} would lapse (listed above): add --yes to remove without \
+         adopting when not running interactively, or drop --skip-adopt to adopt them"
+    )))
+}
+
+// ---------------------------------------------------------------------------------------------
+// mod
+
+/// The forum a mod action acts in: `--forum`, else the subject item's forum, else the current
+/// forum.
+async fn mod_forum(
+    ctx: &Ctx,
+    engine: &pandoras_forum_core::engine::Engine<NativeHost>,
+    explicit: Option<&str>,
+    subject: &str,
+) -> Result<String, CliError> {
+    if let Some(f) = explicit {
+        return refs::forum(ctx, engine, f).await;
+    }
+    // an item subject carries its forum in the cached record
+    if let Ok(uri) = item_uri(ctx, engine, subject).await
+        && let Ok((_, v)) = write::cached(engine, &uri).await
+        && let Some(f) = v.get("forum").and_then(Value::as_str)
+    {
+        return Ok(f.to_owned());
+    }
+    refs::forum_or_current(ctx, engine, None).await
+}
+
+/// Resolves a mod-action subject to what the engine takes: an item ref becomes its at-uri;
+/// a DID, a handle or `tag:<slug>` is passed through.
+async fn subject_of(
+    ctx: &Ctx,
+    engine: &pandoras_forum_core::engine::Engine<NativeHost>,
+    subject: &str,
+) -> Result<String, CliError> {
+    match item_uri(ctx, engine, subject).await {
+        Ok(uri) => Ok(uri),
+        Err(_) if subject.starts_with("did:") || subject.starts_with("tag:") => {
+            Ok(subject.to_owned())
+        }
+        // a bare handle: the engine's mod_subject resolves it
+        Err(_) if !subject.contains('/') => Ok(subject.to_owned()),
+        Err(e) => Err(e),
+    }
+}
+
+/// An item reference as its at-uri, when it is one.
+async fn item_uri(
+    ctx: &Ctx,
+    engine: &pandoras_forum_core::engine::Engine<NativeHost>,
+    subject: &str,
+) -> Result<String, CliError> {
+    match refs::item(ctx, engine, subject).await? {
+        pandoras_forum_core::dto::Ref::Post { uri }
+        | pandoras_forum_core::dto::Ref::Comment { uri } => Ok(uri),
+        _ => Err(CliError::Engine(EngineError::invalid_ref(format!(
+            "{subject:?} is not a post or a comment"
+        )))),
+    }
+}
+
+/// `--until` as epoch milliseconds.
+fn until_ms(until: Option<&str>) -> Result<Option<i64>, CliError> {
+    until
+        .map(|s| {
+            Datetime::parse(s)
+                .map(|d| d.timestamp_micros() / 1000)
+                .map_err(|e| CliError::usage(format!("--until {s:?}: {e}")))
+        })
+        .transpose()
+}
+
+/// One mod action: the interstitial, the intent and the write's report.
+async fn mod_action(
+    ctx: &Ctx,
+    w: &Writer,
+    intent: ModActionIntent,
+    done: &'static str,
+    yes: bool,
+) -> Result<(), CliError> {
+    acknowledge(ctx, w, PublicActionKind::ModAction, yes).await?;
+    let at = w.engine.mod_action(&intent).await?;
+    drive_action(ctx, w, at, done).await?;
+    Ok(())
+}
+
+fn assert(
+    forum: String,
+    scope: ModScope,
+    subject: String,
+    action: ModActionValue,
+    reason: Option<String>,
+    until_ms: Option<i64>,
+) -> ModActionIntent {
+    ModActionIntent::Assert {
+        forum,
+        scope,
+        subject,
+        action,
+        reason,
+        until_ms,
+    }
+}
+
+fn remove(forum: String, scope: ModScope, subject: String, action_key: &str) -> ModActionIntent {
+    ModActionIntent::Remove {
+        forum,
+        scope,
+        subject,
+        action_key: action_key.to_owned(),
+    }
+}
+
+/// `pandoras-forum mod <action> …` (`social.md` §4).
+pub async fn run(ctx: &Ctx, args: ModArgs) -> Result<(), CliError> {
+    match args.action {
+        ModAction::Queue { forum } => queue(ctx, forum.as_deref()).await,
+        ModAction::Log { forum, limit } => log(ctx, forum.as_deref(), limit).await,
+        ModAction::Adopt { actor, forum } => adopt(ctx, &actor, forum.as_deref(), args.yes).await,
+        action => assert_or_remove(ctx, action, args.yes).await,
+    }
+}
+
+/// The mod queue's banner that is a notice, not a warning (`engine-api.md` §4.2 `Banner`).
+const APPLICANTS_VIA_HINTS: &str = "applicantsViaHints";
+
+/// `mod queue`.
+async fn queue(ctx: &Ctx, forum: Option<&str>) -> Result<(), CliError> {
+    let engine = ctx.reader().await?;
+    let forum = refs::forum_or_current(ctx, &engine, forum).await?;
+    read::sync_forum_quietly(ctx, &engine, &forum).await;
+    let q = engine.mod_queue(&forum).await?;
+    if ctx.out.is_json() {
+        ctx.out.json(&q);
+        return Ok(());
+    }
+    // above the queue, also when it is empty: in approval mode, where the applicants come from
+    // (`sync.md` §4.4, decision O-8), a notice with assisted sources and a warning with direct
+    // ones, which look for none
+    for b in &q.banners {
+        if b.code == APPLICANTS_VIA_HINTS {
+            ctx.out
+                .line(&[(cat([lit("note: "), tt(&b.message)]), Style::Dim)]);
+        } else {
+            ctx.out
+                .line(&[(cat([lit("! "), tt(&b.message)]), Style::Warn)]);
+        }
+    }
+    if q.items.is_empty() {
+        ctx.out.line(&[(lit("The queue is empty."), Style::Dim)]);
+        return Ok(());
+    }
+    for item in &q.items {
+        ctx.out.line(&[
+            (tt(&item.item_kind), Style::Bold),
+            (lit("  "), Style::Plain),
+            (
+                item.actor
+                    .as_ref()
+                    .map(render::actor)
+                    .unwrap_or_else(|| tt(&item.subject)),
+                Style::Plain,
+            ),
+            (cat([lit("  "), tt(&item.reason)]), Style::Dim),
+        ]);
+        if let Some(d) = &item.detail {
+            ctx.out.line(&[(tt(&format!("    {d}")), Style::Dim)]);
+        }
+    }
+    Ok(())
+}
+
+/// `mod log`.
+async fn log(ctx: &Ctx, forum: Option<&str>, limit: u32) -> Result<(), CliError> {
+    let engine = ctx.reader().await?;
+    let forum = refs::forum_or_current(ctx, &engine, forum).await?;
+    read::sync_forum_quietly(ctx, &engine, &forum).await;
+    let log = engine.mod_log(&forum, None, limit).await?;
+    if ctx.out.is_json() {
+        ctx.out.json(&log);
+        return Ok(());
+    }
+    if log.entries.is_empty() {
+        ctx.out.line(&[(lit("No moderation yet."), Style::Dim)]);
+        return Ok(());
+    }
+    for e in &log.entries {
+        let mut parts = vec![
+            tt(&render::time(e.at_ms)),
+            render::actor(&e.actor),
+            tt(&e.action),
+            tt(&e.subject),
+        ];
+        if let Some(r) = &e.reason {
+            parts.push(tt(r));
+        }
+        parts.push(tt(&format!("{:?}", e.status).to_lowercase()));
+        ctx.out.line(&[(cat(intersperse(parts)), Style::Plain)]);
+    }
+    Ok(())
+}
+
+fn intersperse(parts: Vec<crate::out::TermText>) -> Vec<crate::out::TermText> {
+    let mut out = Vec::with_capacity(parts.len() * 2);
+    for (i, p) in parts.into_iter().enumerate() {
+        if i > 0 {
+            out.push(tt(" · "));
+        }
+        out.push(p);
+    }
+    out
+}
+
+/// `mod adopt <former-mod>`.
+async fn adopt(ctx: &Ctx, actor: &str, forum: Option<&str>, yes: bool) -> Result<(), CliError> {
+    let w = ctx.writer().await?;
+    let forum = refs::forum_or_current(ctx, &w.engine, forum).await?;
+    acknowledge(ctx, &w, PublicActionKind::ModAction, yes).await?;
+    let who = w.engine.resolve_actor(actor).await?;
+    let originals = originals_of(ctx, &w, &forum, &who.did).await?;
+    let ticket = w.engine.mod_adopt(&forum, actor).await?;
+    let t = write::drive(ctx, &w, ticket).await?;
+    write::report(ctx, &t, "Adopted")?;
+    if let WriteState::Done { report, .. } = &t.state {
+        report_adoption(ctx, &w, &forum, &who, &originals, report).await?;
+    }
+    Ok(())
+}
+
+/// Every `mod <verb> <subject>` that asserts or removes one action. The value asserted is
+/// [`ModAction::asserted`]'s.
+async fn assert_or_remove(ctx: &Ctx, action: ModAction, yes: bool) -> Result<(), CliError> {
+    let w = ctx.writer().await?;
+    let is_restrict = matches!(&action, ModAction::Restrict(_) | ModAction::Nullify(_));
+    let asserted = action.asserted();
+    let (subject, forum_opt, scope, reason, until, done) = match action {
+        ModAction::Hide(a) => (
+            a.subject.clone(),
+            a.forum.clone(),
+            scope_of(a.author_scope),
+            a.reason.clone(),
+            until_ms(a.until.as_deref())?,
+            "Hidden",
+        ),
+        ModAction::Keep(a) => (
+            a.subject.clone(),
+            a.forum.clone(),
+            scope_of(a.author_scope),
+            a.reason.clone(),
+            until_ms(a.until.as_deref())?,
+            "Kept",
+        ),
+        ModAction::Ban(a) => (
+            a.subject.clone(),
+            a.forum.clone(),
+            scope_of(a.author_scope),
+            a.reason.clone(),
+            until_ms(a.until.as_deref())?,
+            "Banned",
+        ),
+        ModAction::Restrict(a) => (
+            a.subject.clone(),
+            a.forum.clone(),
+            scope_of(a.author_scope),
+            a.reason.clone(),
+            until_ms(a.until.as_deref())?,
+            "Restricted",
+        ),
+        ModAction::Nullify(a) => (
+            a.subject.clone(),
+            a.forum.clone(),
+            scope_of(a.author_scope),
+            a.reason.clone(),
+            until_ms(a.until.as_deref())?,
+            "Votes nullified",
+        ),
+        ModAction::Personal(s) => {
+            return tier(ctx, &w, s, asserted, "Moved to personal", yes).await;
+        }
+        ModAction::Frontpage(s) => {
+            return tier(ctx, &w, s, asserted, "Moved to frontpage", yes).await;
+        }
+        ModAction::Curate(s) => {
+            return tier(ctx, &w, s, asserted, "Curated", yes).await;
+        }
+        ModAction::Pin(a) => {
+            return pin(ctx, &w, a, asserted, "Pinned", yes).await;
+        }
+        ModAction::Unpin(a) => {
+            return pin(ctx, &w, a, asserted, "Unpinned", yes).await;
+        }
+        ModAction::Lock(s) => (
+            s.subject.clone(),
+            s.forum.clone(),
+            scope_of(s.author_scope),
+            None,
+            None,
+            "Locked",
+        ),
+        ModAction::Unlock(s) => (
+            s.subject.clone(),
+            s.forum.clone(),
+            scope_of(s.author_scope),
+            None,
+            None,
+            "Unlocked",
+        ),
+        ModAction::Tag(a) => {
+            // a tag is a forum subject: its forum is --forum or the current one, and a
+            // `--head` revision must be in the cache (a sync of the forum brings it)
+            let forum = refs::forum_or_current(ctx, &w.engine, a.forum.as_deref()).await?;
+            read::sync_forum_quietly(ctx, &w.engine, &forum).await;
+            let done = match (a.removed, &a.head) {
+                (true, _) => "Tag removed",
+                (false, Some(_)) => "Tag page head set",
+                (false, None) => "Tag restored",
+            };
+            let Some(value) = asserted else {
+                return Err(EngineError::internal("mod tag asserts a value").into());
+            };
+            return mod_action(
+                ctx,
+                &w,
+                assert(
+                    forum,
+                    ModScope::Forum,
+                    tag_subject(&a.slug),
+                    value,
+                    a.reason.clone(),
+                    until_ms(a.until.as_deref())?,
+                ),
+                done,
+                yes,
+            )
+            .await;
+        }
+        ModAction::Untag(t) => {
+            return untag(ctx, &w, t, yes).await;
+        }
+        ModAction::Unhide(s) => {
+            return removal(ctx, &w, s, "hide", "Unhidden", yes).await;
+        }
+        ModAction::Unban(s) => {
+            return removal(ctx, &w, s, "access", "Unbanned", yes).await;
+        }
+        ModAction::Unrestrict(s) => {
+            return removal(ctx, &w, s, "restrict", "Unrestricted", yes).await;
+        }
+        ModAction::Approve(s) => {
+            if s.author_scope {
+                return Err(CliError::usage(
+                    "a grant is a forum action; --author-scope does not apply",
+                ));
+            }
+            let forum = refs::forum_or_current(ctx, &w.engine, s.forum.as_deref()).await?;
+            // a grant is an `#access` mod action (`social.md` §17)
+            acknowledge(ctx, &w, PublicActionKind::ModAction, yes).await?;
+            let tickets = w
+                .engine
+                .grant(&forum, std::slice::from_ref(&s.subject))
+                .await?;
+            let mut out = Vec::new();
+            for t in tickets {
+                out.push(write::drive(ctx, &w, t).await?);
+            }
+            if ctx.out.is_json() {
+                // one JSON value, like `approve`
+                let failure = out.iter().find_map(|t| match &t.state {
+                    WriteState::Failed { error } => Some(error.clone()),
+                    _ => None,
+                });
+                ctx.out.json(&serde_json::json!({
+                    "dto": pandoras_forum_core::dto::DTO_VERSION,
+                    "writes": out,
+                }));
+                if let Some(e) = failure {
+                    return Err(CliError::Engine(e));
+                }
+                return Ok(());
+            }
+            for t in &out {
+                write::report(ctx, t, "Approved")?;
+            }
+            return Ok(());
+        }
+        ModAction::Queue { .. } | ModAction::Log { .. } | ModAction::Adopt { .. } => {
+            unreachable!("handled in run()")
+        }
+    };
+    let forum = mod_forum(ctx, &w.engine, forum_opt.as_deref(), &subject).await?;
+    let subject = subject_of(ctx, &w.engine, &subject).await?;
+    read::sync_thread_quietly(ctx, &w.engine, &subject).await;
+    if is_restrict {
+        // `#restrict` is one record per (actor, scope, subject) carrying both the capability
+        // set and `nullifyVotes`; the engine keeps the dimension the verb leaves out from the
+        // account's last unsent write of it, else the cached record (`engine-api.md` §3.5,
+        // m3r-2). A record written from another device reaches the cache by this sync.
+        read::sync_forum_quietly(ctx, &w.engine, &forum).await;
+    }
+    let Some(value) = asserted else {
+        return Err(EngineError::internal("this mod verb asserts no value").into());
+    };
+    mod_action(
+        ctx,
+        &w,
+        assert(forum, scope, subject, value, reason, until),
+        done,
+        yes,
+    )
+    .await
+}
+
+/// A tier action (`mod personal|frontpage|curate`): an assertion on the item.
+async fn tier(
+    ctx: &Ctx,
+    w: &Writer,
+    s: ModSubject,
+    value: Option<ModActionValue>,
+    done: &'static str,
+    yes: bool,
+) -> Result<(), CliError> {
+    let Some(value) = value else {
+        return Err(EngineError::internal("a tier verb asserts a tier").into());
+    };
+    let forum = mod_forum(ctx, &w.engine, s.forum.as_deref(), &s.subject).await?;
+    let subject = subject_of(ctx, &w.engine, &s.subject).await?;
+    read::sync_thread_quietly(ctx, &w.engine, &subject).await;
+    mod_action(
+        ctx,
+        w,
+        assert(forum, scope_of(s.author_scope), subject, value, None, None),
+        done,
+        yes,
+    )
+    .await
+}
+
+/// `mod pin|unpin`.
+async fn pin(
+    ctx: &Ctx,
+    w: &Writer,
+    a: PinArgs,
+    value: Option<ModActionValue>,
+    done: &'static str,
+    yes: bool,
+) -> Result<(), CliError> {
+    let Some(value) = value else {
+        return Err(EngineError::internal("a pin verb asserts a pin").into());
+    };
+    let forum = mod_forum(ctx, &w.engine, a.forum.as_deref(), &a.subject).await?;
+    let subject = subject_of(ctx, &w.engine, &a.subject).await?;
+    read::sync_thread_quietly(ctx, &w.engine, &subject).await;
+    mod_action(
+        ctx,
+        w,
+        assert(
+            forum,
+            scope_of(a.author_scope),
+            subject,
+            value,
+            a.reason.clone(),
+            None,
+        ),
+        done,
+        yes,
+    )
+    .await
+}
+
+/// `mod untag <slug>`: removes the account's `#tag` assertion of the tag (a forum record).
+async fn untag(ctx: &Ctx, w: &Writer, t: ModTagSubject, yes: bool) -> Result<(), CliError> {
+    let forum = refs::forum_or_current(ctx, &w.engine, t.forum.as_deref()).await?;
+    mod_action(
+        ctx,
+        w,
+        remove(forum, ModScope::Forum, tag_subject(&t.slug), "tag"),
+        "Tag assertion removed",
+        yes,
+    )
+    .await
+}
+
+/// A removal of one of the account's assertions (`mod unhide|unban|unrestrict`), of the forum
+/// or (`--author-scope`) the author scope: the scope is part of the record's key.
+async fn removal(
+    ctx: &Ctx,
+    w: &Writer,
+    s: ModSubject,
+    action_key: &str,
+    done: &'static str,
+    yes: bool,
+) -> Result<(), CliError> {
+    let forum = mod_forum(ctx, &w.engine, s.forum.as_deref(), &s.subject).await?;
+    let subject = subject_of(ctx, &w.engine, &s.subject).await?;
+    mod_action(
+        ctx,
+        w,
+        remove(forum, scope_of(s.author_scope), subject, action_key),
+        done,
+        yes,
+    )
+    .await
+}
+
+/// `export`: content (`cmd/export.rs`), or with `--local` this device's local state as JSON,
+/// or `--import` to merge one back (`engine-api.md` §3.6, `threat-model.md` PRIV-8/PRIV-10).
+///
+/// `--local --scope mine` is the default: the active account's state plus the rows that belong
+/// to no account. An import merges, so a partial or older export never destroys state it does
+/// not mention.
+pub async fn export(ctx: &Ctx, args: ExportArgs) -> Result<(), CliError> {
+    if !args.local && args.import.is_none() {
+        return crate::cmd::export::content(ctx, args).await;
+    }
+    let engine = ctx.reader().await?;
+    if let Some(path) = args.import {
+        let text = std::fs::read_to_string(&path)
+            .map_err(|e| CliError::usage(format!("could not read {}: {e}", path.display())))?;
+        let parsed: pandoras_forum_core::engine::LocalExport = serde_json::from_str(&text)
+            .map_err(|e| CliError::usage(format!("{} is not an export: {e}", path.display())))?;
+        let scope = scope_of_export(args.scope);
+        let report = engine.import_local(&parsed, scope).await?;
+        if ctx.out.is_json() {
+            ctx.out.json(&report);
+        } else {
+            ctx.out.line(&[(
+                crate::out::tt(&format!(
+                    "Imported {} rows ({} out of scope, {} unreadable, {} refused).",
+                    report.imported, report.out_of_scope, report.undecodable, report.refused
+                )),
+                crate::out::Style::Plain,
+            )]);
+        }
+        return Ok(());
+    }
+    let scope = scope_of_export(args.scope);
+    let x = engine.export_local(scope).await?;
+    match args.out {
+        Some(path) => {
+            let text = serde_json::to_string_pretty(&x)
+                .map_err(|e| CliError::usage(format!("could not serialise the export: {e}")))?;
+            std::fs::write(&path, text)
+                .map_err(|e| CliError::usage(format!("could not write {}: {e}", path.display())))?;
+            if !ctx.out.is_quiet() {
+                ctx.out.line(&[(
+                    crate::out::tt(&format!(
+                        "Wrote {} rows to {}.",
+                        x.members.len(),
+                        path.display()
+                    )),
+                    crate::out::Style::Plain,
+                )]);
+            }
+        }
+        None => ctx.out.json(&x),
+    }
+    Ok(())
+}
+
+fn scope_of_export(a: ExportScopeArg) -> pandoras_forum_core::engine::ExportScope {
+    match a {
+        ExportScopeArg::Mine => pandoras_forum_core::engine::ExportScope::Mine,
+        ExportScopeArg::Everything => pandoras_forum_core::engine::ExportScope::Everything,
+    }
+}

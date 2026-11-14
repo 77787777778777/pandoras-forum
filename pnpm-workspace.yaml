@@ -1,0 +1,16 @@
+packages:
+  - web
+  - packages/*
+
+# Supply-chain hygiene (docs/spec/threat-model.md): wait a week before adopting new releases,
+# and only run install scripts for the packages that genuinely need them.
+minimumReleaseAge: 10080
+onlyBuiltDependencies:
+  - better-sqlite3
+minimumReleaseAgeExclude:
+  - "@atproto/*"
+  - "@did-plc/*"
+# The browser OAuth client sits on the token path (threat-model SUP-6): its own dependency on
+# @atproto/oauth-client is pinned to the release it was published with (synthesis §6.6).
+overrides:
+  "@atproto/oauth-client-browser>@atproto/oauth-client": 0.8.9

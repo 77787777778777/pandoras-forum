@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Normative limits (mirrors `docs/spec/limits.md`). Changing a value that feeds the fold
+//! (fetch caps) changes behaviour and needs a new behaviour ID.
+
+/// Default cap on an HTTP response body (bytes, after decompression).
+pub const DEFAULT_RESPONSE_MAX_BYTES: u64 = 4 * 1024 * 1024;
+/// Cap on a single record's JSON (bytes).
+pub const RECORD_JSON_MAX_BYTES: u64 = 1_000_000;
+/// Cap on a `listRecords` page (bytes).
+pub const LIST_PAGE_MAX_BYTES: u64 = 4 * 1024 * 1024;
+/// Cap on a proof CAR (bytes).
+pub const PROOF_CAR_MAX_BYTES: u64 = 1_000_000;
+/// Cap on an indexer proof bundle (bytes).
+pub const INDEXER_BUNDLE_MAX_BYTES: u64 = 8 * 1024 * 1024;
+/// Images up to this size may load automatically (bytes).
+pub const BLOB_AUTOLOAD_MAX_BYTES: u64 = 5 * 1024 * 1024;
+/// Hard cap on any blob (bytes).
+pub const BLOB_HARD_MAX_BYTES: u64 = 300 * 1024 * 1024;
+/// Cap on a `textBlob` body fetch: the lexicon's `maxSize` (`limits.md` §5).
+pub const BLOB_TEXT_MAX_BYTES: u64 = 1_000_000;
+/// A spilled body (`textBlob`) that could not be fetched (the network; a missing blob is not
+/// asked for again) stays pending this long before it is asked for again (`limits.md` §5).
+pub const BODY_BLOB_RETRY_MS: i64 = 60_000;
+/// How long a view waits for a spilled body before it renders it pending (`limits.md` §5).
+pub const BODY_BLOB_WAIT_MS: u64 = 3_000;
+/// The prefix of a fetched blob whose type is sniffed for display (`limits.md` §5).
+pub const BLOB_SNIFF_PREFIX_BYTES: u32 = 4_096;
+/// Blob bytes the core may copy into wasm linear memory while preparing an upload; larger files
+/// are refused before they cross (`limits.md` §6, INFRA-6).
+pub const MEDIA_WASM_WINDOW_BYTES: u64 = 64 * 1024 * 1024;
+/// The first downscale target of an image upload (`limits.md` §12).
+pub const IMAGE_UPLOAD_TARGET_BYTES: u64 = 5 * 1024 * 1024;
+/// Re-encodings at half the last size after a 413, before the upload is refused (`limits.md`
+/// §12).
+pub const IMAGE_UPLOAD_413_RETRIES: u32 = 3;
+/// Prepared media bytes of a draft that is never sent are removed after this long (ms,
+/// `limits.md` §12).
+pub const PREPARED_MEDIA_TTL_MS: i64 = 7 * 24 * 60 * 60 * 1000;
+/// Jetstream message cap (bytes).
+pub const JETSTREAM_MESSAGE_MAX_BYTES: u32 = 1_200_000;
+
+/// Connect timeout (ms).
+pub const CONNECT_TIMEOUT_MS: u32 = 5_000;
+/// Request timeout (ms).
+pub const REQUEST_TIMEOUT_MS: u32 = 20_000;
+/// CAR download timeout (ms).
+pub const CAR_TIMEOUT_MS: u32 = 60_000;
+/// Blob downloads fail after this long without progress (ms).
+pub const BLOB_IDLE_TIMEOUT_MS: u32 = 20_000;
+/// Total timeout of a blob download (ms).
+pub const BLOB_TOTAL_TIMEOUT_MS: u32 = 300_000;
+/// Hard cap on redirects followed by one anonymous request (`threat-model.md` §5.6.2).
+pub const MAX_REDIRECTS: u8 = 5;
+/// Redirects followed by identity lookups (`/.well-known/atproto-did`, did:web documents).
+pub const IDENTITY_REDIRECTS: u8 = 3;
+
+/// Normative fetch cap per (repo, forum, collection): the first N keys in descending rkey order
+/// of the `{fk}-` range. Beyond it the view is `[partial]` (`data-model.md` §7.4).
+pub const FETCH_CAP_DEFAULT: u32 = 20_000;
+/// Normative fetch cap for `opinion` (see [`FETCH_CAP_DEFAULT`]).
+pub const FETCH_CAP_OPINION: u32 = 100_000;
+
+/// Maximum future skew accepted for revs and timestamps before items count as future-dated.
+pub const FUTURE_SKEW_MS: i64 = 5 * 60 * 1000;
+
+/// Requests in flight (native).
+pub const INFLIGHT_NATIVE: usize = 32;
+/// Requests in flight (browser).
+pub const INFLIGHT_BROWSER: usize = 16;
+/// Requests in flight per host.
+pub const INFLIGHT_PER_HOST: usize = 6;
+/// PLC requests in flight.
+pub const INFLIGHT_PLC: usize = 8;
+/// DoH requests in flight.
+pub const INFLIGHT_DOH: usize = 8;
+
+/// Cap on a DID document (bytes, `sync.md` §3.2).
+pub const DID_DOC_MAX_BYTES: u64 = 65_536;
+/// Cap on `/.well-known/atproto-did` (bytes, `sync.md` §3.1).
+pub const WELLKNOWN_DID_MAX_BYTES: u64 = 2_048;
+/// Cap on a DNS-over-HTTPS JSON response (bytes).
+pub const DOH_RESPONSE_MAX_BYTES: u64 = 65_536;
+/// Cap on `/.well-known/oauth-protected-resource` (bytes, `sync.md` §3.6).
+pub const OAUTH_METADATA_MAX_BYTES: u64 = 65_536;
+/// Cap on small XRPC JSON responses (`resolveHandle`, `getLatestCommit`, mini-docs, errors).
+pub const SMALL_RESPONSE_MAX_BYTES: u64 = 65_536;
+/// Cap on a `com.atproto.repo.getRecord` response: one record's JSON plus the envelope.
+pub const RECORD_RESPONSE_MAX_BYTES: u64 = RECORD_JSON_MAX_BYTES + 16 * 1024;
+
+/// GET retries on network errors, timeouts, 5xx and 429 (`sync.md` §9.3, *tunable*).
+pub const RETRY_MAX: u32 = 3;
+/// Base of the full-jitter exponential backoff (ms).
+pub const RETRY_BASE_MS: u64 = 250;
+/// Cap of the full-jitter exponential backoff (ms).
+pub const RETRY_CAP_MS: u64 = 8_000;
+/// The transport waits at most this long for a `Retry-After` inside one call; a longer wait is
+/// returned to the caller as `RateLimited` (the scheduler owns longer pauses).
+pub const RETRY_AFTER_MAX_WAIT_MS: u64 = 60_000;
+
+/// Nesting depth of a record value, in JSON or DAG-CBOR (`limits.md` §6, rule G10). Deeper: the
+/// record is stored as an invalid version.
+pub const NESTING_MAX_RECORD: usize = 32;
+/// Nesting depth of any JSON response document or DAG-CBOR block (`limits.md` §6). Deeper: the
+/// response is rejected whole (R1).
+pub const NESTING_MAX_DOCUMENT: usize = 36;
+/// DAG-CBOR size of a record value (`limits.md` §4, rule G6). Larger: the record is invalid.
+pub const RECORD_CBOR_MAX_BYTES: usize = 1_000_000;
+/// Tombstones are kept at least this long (`limits.md` §15, I4).
+pub const TOMBSTONE_MIN_RETENTION_MS: i64 = 30 * 24 * 60 * 60 * 1000;
+/// Dirty marks kept per repo (`sync.md` §6.5); beyond it `marksOverflow` is set.
+pub const REPO_MARKS_MAX: usize = 1_000;
+
+// ---------------------------------------------------------------------------------------------
+// Write path (`limits.md` §4, §14; `data-model.md` §5.3, §8)
+
+/// A spillable `md` field whose UTF-8 source is longer is written as `textBlob` (W).
+pub const SPILL_THRESHOLD_BYTES: usize = 65_536;
+/// The exact JSON request body of `createRecord`, `putRecord` or `applyWrites` (W).
+pub const WRITE_BODY_MAX_BYTES: usize = 900_000;
+/// Opinion intents are held this long so they can be undone or coalesced (ms).
+pub const OPINION_HOLD_MS: i64 = 4_000;
+/// Attempts of an edit, opinion write, modAction removal or `mod adopt` batch on `InvalidSwap`.
+pub const SWAP_RETRY_MAX: u32 = 3;
+/// Lower bound of the delay before such a retry (ms).
+pub const SWAP_RETRY_JITTER_MIN_MS: u64 = 200;
+/// Upper bound of the delay before such a retry (ms).
+pub const SWAP_RETRY_JITTER_MAX_MS: u64 = 800;
+/// Ops per `applyWrites` (delete chunks, redaction, `mod adopt`).
+pub const APPLYWRITES_MAX_OPS: usize = 200;
+/// Write budget per account and hour (points).
+pub const WRITE_BUDGET_POINTS_PER_HOUR: u32 = 5_000;
+/// Write budget per account and day (points).
+pub const WRITE_BUDGET_POINTS_PER_DAY: u32 = 35_000;
+/// Points of a create op.
+pub const WRITE_COST_CREATE: u32 = 3;
+/// Points of an update op.
+pub const WRITE_COST_UPDATE: u32 = 2;
+/// Points of a delete op.
+pub const WRITE_COST_DELETE: u32 = 1;
+/// `#lock.allowed` entries; a longer computed allow-list is refused.
+pub const LOCK_ALLOWED_MAX: usize = 5_000;
+/// A comment whose depth would exceed this is re-attached to the thread root and flagged
+/// `Orphaned` (`social.md` §11 step 4).
+pub const THREAD_DEPTH_MAX: u32 = 1_000;
+/// Render-cache entries kept in memory (`sync.md` §13, *tunable*).
+pub const RENDER_CACHE_ENTRIES: usize = 512;
+/// Default page size of `list_posts` (*tunable*).
+pub const LIST_PAGE_DEFAULT: u32 = 30;
+/// Largest page size of `list_posts` (*tunable*).
+pub const LIST_PAGE_MAX: u32 = 500;
+/// A cached forum model older than this is rebuilt on the next query, so that `now` (ranking,
+/// future-dated badges) follows the clock (ms, *tunable*).
+pub const MODEL_MAX_AGE_MS: i64 = 60_000;
+/// Forum models kept in memory (*tunable*).
+pub const MODEL_CACHE_ENTRIES: usize = 16;
+/// Pages of own `membership` records read when seeding the followed list (`sync.md` §4.8).
+pub const FOLLOW_SEED_PAGES: u32 = 10;
+/// A forum opened again within this time reuses its last `open_forum` result (no declaration
+/// refetch; ms, *tunable*).
+pub const FORUM_REOPEN_MS: i64 = 300_000;
+/// Time budget of the P0 sync `forum_open` runs for authorities never synced (ms, *tunable*).
+pub const FORUM_OPEN_SYNC_BUDGET_MS: i64 = 10_000;
+/// The longest a client-started forum sync waits for the first post pages being read (hydrated
+/// from an indexer and listed) before it starts (`sync.md` §14.3 step 4; ms, *tunable*).
+pub const COLD_PAGE_HOLD_MS: u64 = 3_000;
+/// The time budget (ms) of a forum open's declaration fetch when the declaration is cached:
+/// past it the cached declaration is used (`sync.md` §4.2), so a hung owner PDS never blocks a
+/// view of cached content for longer (*tunable*).
+pub const FORUM_DECL_CACHED_BUDGET_MS: i64 = 5_000;
+/// The time budget (ms) of a forum open's declaration fetch when nothing is cached (one full
+/// request and a retry, *tunable*).
+pub const FORUM_DECL_FIRST_BUDGET_MS: i64 = 30_000;
+/// Longest sleep of `live_tail` between rounds (ms, *tunable*).
+pub const LIVE_TAIL_IDLE_MS: i64 = 60_000;
+/// Dirty-queue items served per `live_tail` round (*tunable*).
+pub const LIVE_TAIL_BATCH: usize = 16;
+/// Author handles verified per `live_tail` round (`sync.md` §3.3, *tunable*).
+pub const HANDLE_VERIFY_BATCH: usize = 32;
+/// Authors waiting for handle verification, at most (*tunable*).
+pub const HANDLE_VERIFY_QUEUE_MAX: usize = 1_000;
+/// How often `live_tail` drops expired tombstones (ms).
+pub const TOMBSTONE_GC_EVERY_MS: i64 = 86_400_000;
+/// Latest comments shown per post by `recent_discussion` (*tunable*).
+pub const DISCUSSION_COMMENTS: usize = 3;

@@ -1,0 +1,28 @@
+---
+source: crates/tui/tests/social.rs
+expression: t.render()
+---
+ Pandora's Forum › React forum › Bob's post                  @carol.example.com
+ React forum · 2 of 3 repositories · synced
+▌ Bob's post
+▌ @bob.example.com · 2025-10-09 09:01 UTC · 0 comments · 1 point
+▌
+▌ Bob writes.
+▌ ✅ Agreed by did:plc:i6diupmm… [yours]
+
+  No comments yet.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ React recorded (Backspace undoes).

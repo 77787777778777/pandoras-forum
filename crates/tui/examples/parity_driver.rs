@@ -1,0 +1,489 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! The TUI's part of the M2 parity scenario (`docs/plan.md` §4.2, text subset;
+//! `packages/e2e/README.md`): a command-line driver over the headless TUI
+//! ([`pandoras_forum_tui::Headless`]). The Playwright scenario (`web/e2e/devnet/scenario.spec.ts`)
+//! runs it as a separate process, next to the `pandoras-forum` binary.
+//!
+//! It opens the engine the way `pandoras-forum --dev tui` does: the data directory of
+//! `PANDORAS_FORUM_DATA_DIR`, the devnet of `PANDORAS_FORUM_PLC_URL` and `PANDORAS_FORUM_PDS_URL`, parity mode
+//! from `PANDORAS_FORUM_PARITY_NOW_MS` (`engine-api.md` §2.1), the session `pandoras-forum login` stored
+//! there, and `$EDITOR` for writing.
+//!
+//! ```text
+//! parity_driver reply <forum-uri> <post-uri>
+//!     As the logged-in account: opens the forum (which syncs it), selects the post, opens it,
+//!     presses `c` and writes the comment in $EDITOR. The write is sent before it returns (the
+//!     outbox is flushed, as the runtime's pump would). Prints {"uri": <the comment>}.
+//! parity_driver read <forum-uri> <post-uri> <out-dir>
+//!     Read-only (a fresh data directory is an anonymous reader): opens the forum (which syncs
+//!     it), then the post's thread (which syncs it). Writes to <out-dir>: list.json and
+//!     thread.json (the Forum screen's query with the other clients' page size,
+//!     `exec::PARITY_LIST_LIMIT`, checked against the screen, and the Thread screen's ThreadView, dto/1 JSON
+//!     exactly as dto.rs serialises it, the bytes the wasm boundary carries), list.pretty.json
+//!     and thread.pretty.json (the same, as `pandoras-forum --json` prints them to a pipe), and the
+//!     screens as text (forum-screen.txt, thread-screen.txt, thread-document.txt).
+//! parity_driver tag <forum-uri> <post-uri> <slug>
+//!     As the logged-in account: opens the post and types `:vote up --tag <slug>` (`docs/plan.md`
+//!     §4.2 step 7, the tag applied from the TUI), past the public-action interstitial; the
+//!     write is sent before it returns. Prints {"subject": <post>, "tag": <slug>}.
+//! ```
+//!
+//! Options: `--width N` and `--height N` (default 100 × 30). Exit code 0 on success, 1 on an
+//! error (on stderr).
+//!
+//! Build: `cargo build -p pandoras-forum-tui --example parity_driver`
+//! (`target/debug/examples/parity_driver`).
+
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+
+use pandoras_forum_core::dto::{PostList, ThreadRoot};
+use pandoras_forum_core::engine::Engine;
+use pandoras_forum_native::auth::{SecretStore, restore_session};
+use pandoras_forum_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
+use pandoras_forum_native::engine::open_engine;
+use pandoras_forum_native::host::NativeHost;
+use pandoras_forum_tui::app::ScreenKind;
+use pandoras_forum_tui::exec;
+use pandoras_forum_tui::{CaptureOpts, EditorConfig, Headless, HeadlessOpts, capture_thread};
+
+type Res<T> = Result<T, String>;
+
+/// The devnet engine of `PANDORAS_FORUM_DATA_DIR`, as `pandoras-forum --dev` opens it.
+struct Device {
+    engine: Engine<NativeHost>,
+    paths: Paths,
+    keyring_service: String,
+}
+
+fn var(k: &str) -> Res<String> {
+    std::env::var(k)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| format!("{k} is not set"))
+}
+
+fn open() -> Res<Device> {
+    let dir = PathBuf::from(var("PANDORAS_FORUM_DATA_DIR")?);
+    let url =
+        |k: &str| -> Res<url::Url> { url::Url::parse(&var(k)?).map_err(|e| format!("{k}: {e}")) };
+    let profile = DevnetProfile {
+        plc: url("PANDORAS_FORUM_PLC_URL")?,
+        pds: url("PANDORAS_FORUM_PDS_URL")?,
+        jetstream: None,
+    };
+    let paths = Paths::resolve(Some(&dir)).map_err(|e| e.to_string())?;
+    let mut config = Config::load(&paths.config_file).unwrap_or_default();
+    config.plc = profile.plc.clone();
+    config.network = NetworkProfile::Devnet(profile.clone());
+    config.validate().map_err(|e| e.to_string())?;
+    let paths = paths.for_devnet(&profile);
+    let engine = open_engine(&paths, &config).map_err(|e| e.message)?;
+    Ok(Device {
+        engine,
+        paths,
+        keyring_service: profile.keyring_service(),
+    })
+}
+
+/// The Forum screen's post list (the screen on top must be the forum).
+fn forum_list<H: pandoras_forum_core::host::Host>(h: &Headless<H>) -> Res<PostList> {
+    match h.state.top().map(|s| &s.kind) {
+        Some(ScreenKind::Forum(f)) => f
+            .data
+            .as_ref()
+            .map(|d| d.list.clone())
+            .ok_or_else(|| format!("the forum did not load: {:?}", h.top_error())),
+        _ => Err("the forum is not on top".into()),
+    }
+}
+
+/// Answers `y` to the "this is public" interstitial, which the first opinion of each kind on
+/// a fresh account opens (`social.md` §17).
+async fn go_past_public_notice<H: pandoras_forum_core::host::Host>(h: &mut Headless<H>) {
+    if h.state.public_notice.is_some() {
+        h.press("y").await;
+    }
+}
+
+/// Opens `forum` (Home under it), applies any pending update, selects `post` and opens it.
+async fn open_post<H: pandoras_forum_core::host::Host>(
+    h: &mut Headless<H>,
+    forum: &str,
+    post: &str,
+) -> Res<PostList> {
+    h.start(Some(forum.to_owned())).await;
+    h.state.show_pending();
+    let list = forum_list(h)?;
+    let i = list
+        .items
+        .iter()
+        .position(|p| p.uri == post)
+        .ok_or_else(|| format!("{post} is not in the forum's list:\n{}", h.render()))?;
+    for _ in 0..i {
+        h.press("j").await;
+    }
+    h.press("Enter").await;
+    let opened = h.thread_view().and_then(|v| match &v.post {
+        ThreadRoot::Post(p) => Some(p.post.uri.clone()),
+        ThreadRoot::Missing { .. } => None,
+    });
+    if opened.as_deref() != Some(post) {
+        return Err(format!(
+            "the thread of {post} did not open:\n{}",
+            h.render()
+        ));
+    }
+    Ok(list)
+}
+
+async fn reply(forum: &str, post: &str, size: (u16, u16)) -> Res<()> {
+    let d = open()?;
+    let account = d
+        .engine
+        .active_account()
+        .await
+        .map_err(|e| e.message)?
+        .ok_or("not logged in: run `pandoras-forum --dev login` with this data directory first")?;
+    let store = SecretStore::new(&d.paths).with_keyring_service(d.keyring_service.clone());
+    let account = restore_session(&d.engine, &store, &d.paths, &account)
+        .await
+        .map_err(|e| e.message)?;
+    let engine = d
+        .engine
+        .acting_as(&account.did)
+        .await
+        .map_err(|e| e.message)?;
+    let mut h = Headless::new(
+        engine.clone(),
+        HeadlessOpts {
+            width: size.0,
+            height: size.1,
+            // template files for $EDITOR, as `pandoras-forum tui` keeps them
+            editor: Some(EditorConfig::from_env(d.paths.data_dir.join("tmp"))),
+            ..HeadlessOpts::default()
+        },
+    )
+    .await
+    .map_err(|e| e.message)?;
+    open_post(&mut h, forum, post).await?;
+    let before: Vec<String> = h
+        .thread_view()
+        .map(|v| v.comments.iter().map(|c| c.uri.clone()).collect())
+        .unwrap_or_default();
+    h.press("c").await;
+    let screen = h.render();
+    let view = h.thread_view().ok_or("the thread is gone")?;
+    let mine = view
+        .comments
+        .iter()
+        .find(|c| c.author.did == account.did && !before.contains(&c.uri))
+        .ok_or_else(|| format!("no new comment by {} on the screen:\n{screen}", account.did))?;
+    if mine.badges.pending {
+        let writes = engine.writes().await.map_err(|e| e.message)?;
+        return Err(format!(
+            "the comment was not sent: {}\n{screen}",
+            serde_json::to_string(&writes).unwrap_or_default()
+        ));
+    }
+    eprintln!("{screen}");
+    println!("{}", serde_json::json!({ "uri": mine.uri }));
+    Ok(())
+}
+
+/// The M3 parity scenario's social half (`docs/plan.md` §4.2 step 4): carol votes, agrees and
+/// reacts through the TUI's KEYS, so the scenario proves the keys work and not merely the engine
+/// API. Prints the viewer's own opinion afterwards, which is what the scenario compares.
+async fn votes(forum: &str, post: &str, size: (u16, u16)) -> Res<()> {
+    let d = open()?;
+    let account = d
+        .engine
+        .active_account()
+        .await
+        .map_err(|e| e.message)?
+        .ok_or("not logged in: run `pandoras-forum --dev login` with this data directory first")?;
+    let store = SecretStore::new(&d.paths).with_keyring_service(d.keyring_service.clone());
+    let account = restore_session(&d.engine, &store, &d.paths, &account)
+        .await
+        .map_err(|e| e.message)?;
+    let engine = d
+        .engine
+        .acting_as(&account.did)
+        .await
+        .map_err(|e| e.message)?;
+    let mut h = Headless::new(
+        engine.clone(),
+        HeadlessOpts {
+            width: size.0,
+            height: size.1,
+            ..HeadlessOpts::default()
+        },
+    )
+    .await
+    .map_err(|e| e.message)?;
+    open_post(&mut h, forum, post).await?;
+
+    // `u` upvote, `a` agree. Each write is sent before the next key, so the item's own view is
+    // settled and nothing is left in the undo window when the scenario compares the clients.
+    for key in ["u", "a"] {
+        h.press(key).await;
+        go_past_public_notice(&mut h).await;
+        let screen = h.render();
+        if let Some(s) = &h.state.status {
+            let text = s.text.to_plain_string();
+            if text.contains("cannot") || text.contains("Cannot") || text.contains("refused") {
+                return Err(format!("{key} was refused: {text}\n{screen}"));
+            }
+        }
+        engine
+            .outbox_flush()
+            .await
+            .map_err(|e| format!("sending {key}: {}", e.message))?;
+        h.settle().await;
+    }
+    // the react palette (`x`), picking the highlighted entry with Enter
+    h.press("x").await;
+    h.press("Enter").await;
+    go_past_public_notice(&mut h).await;
+    engine
+        .outbox_flush()
+        .await
+        .map_err(|e| format!("sending the react: {}", e.message))?;
+    h.settle().await;
+    let screen = h.render();
+
+    // the viewer's own opinion as the engine now holds it: this is what the scenario reports
+    let view = h
+        .thread_view()
+        .ok_or("the thread is gone after the opinions")?;
+    let mine = match &view.post {
+        pandoras_forum_core::dto::ThreadRoot::Post(p) => p.post.score.mine.clone(),
+        pandoras_forum_core::dto::ThreadRoot::Missing { .. } => None,
+    };
+    let Some(mine) = mine else {
+        return Err(format!(
+            "the keys wrote nothing: the viewer has no opinion\n{screen}"
+        ));
+    };
+    if mine.pending {
+        let writes = engine.writes().await.map_err(|e| e.message)?;
+        return Err(format!(
+            "an opinion was never sent: {}\n{screen}",
+            serde_json::to_string(&writes).unwrap_or_default()
+        ));
+    }
+    if mine.karma.is_none() && mine.agreement.is_none() {
+        return Err(format!(
+            "neither a vote nor an agreement was recorded\n{screen}"
+        ));
+    }
+    eprintln!("{screen}");
+    println!(
+        "{}",
+        serde_json::json!({
+            "subject": post,
+            "karma": mine.karma,
+            "agreement": mine.agreement,
+            "not_yet_counted": mine.not_yet_counted,
+        })
+    );
+    Ok(())
+}
+
+/// The parity scenario's step 7 (`docs/plan.md` §4.2): the account applies `slug` to `post`
+/// through the `:` command line (`vote up --tag <slug>`), as a TUI user types it.
+async fn tag(forum: &str, post: &str, slug: &str, size: (u16, u16)) -> Res<()> {
+    let d = open()?;
+    let account = d
+        .engine
+        .active_account()
+        .await
+        .map_err(|e| e.message)?
+        .ok_or("not logged in: run `pandoras-forum --dev login` with this data directory first")?;
+    let store = SecretStore::new(&d.paths).with_keyring_service(d.keyring_service.clone());
+    let account = restore_session(&d.engine, &store, &d.paths, &account)
+        .await
+        .map_err(|e| e.message)?;
+    let engine = d
+        .engine
+        .acting_as(&account.did)
+        .await
+        .map_err(|e| e.message)?;
+    let mut h = Headless::new(
+        engine.clone(),
+        HeadlessOpts {
+            width: size.0,
+            height: size.1,
+            ..HeadlessOpts::default()
+        },
+    )
+    .await
+    .map_err(|e| e.message)?;
+    open_post(&mut h, forum, post).await?;
+    h.press(":").await;
+    for c in format!("vote up --tag {slug}").chars() {
+        h.press(&c.to_string()).await;
+    }
+    h.press("Enter").await;
+    go_past_public_notice(&mut h).await;
+    let screen = h.render();
+    let status = h
+        .state
+        .status
+        .as_ref()
+        .map(|s| s.text.to_plain_string())
+        .unwrap_or_default();
+    if !status.contains("Tag vote recorded") {
+        return Err(format!("the tag vote was not queued: {status}\n{screen}"));
+    }
+    engine
+        .outbox_flush()
+        .await
+        .map_err(|e| format!("sending the tag vote: {}", e.message))?;
+    h.settle().await;
+    let writes = engine.writes().await.map_err(|e| e.message)?;
+    let open: Vec<_> = writes
+        .iter()
+        .filter(|w| !matches!(w.state, pandoras_forum_core::dto::WriteState::Done { .. }))
+        .collect();
+    if !open.is_empty() {
+        return Err(format!(
+            "the tag vote was not sent: {}\n{screen}",
+            serde_json::to_string(&open).unwrap_or_default()
+        ));
+    }
+    eprintln!("{}", h.render());
+    println!("{}", serde_json::json!({ "subject": post, "tag": slug }));
+    Ok(())
+}
+
+fn write(dir: &Path, name: &str, text: &str) -> Res<()> {
+    std::fs::write(dir.join(name), text).map_err(|e| format!("{name}: {e}"))
+}
+
+async fn read(forum: &str, post: &str, out: &Path, size: (u16, u16)) -> Res<()> {
+    let d = open()?;
+    std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
+    // the Forum screen: opening it syncs the forum (as the TUI does)
+    let mut h = Headless::new(
+        d.engine.clone(),
+        HeadlessOpts {
+            width: size.0,
+            height: size.1,
+            ..HeadlessOpts::default()
+        },
+    )
+    .await
+    .map_err(|e| e.message)?;
+    h.start(Some(forum.to_owned())).await;
+    h.state.show_pending();
+    let screen = forum_list(&h)?;
+    let (sort, filter) = match h.state.top().map(|s| &s.kind) {
+        Some(ScreenKind::Forum(f)) => (f.sort, f.filter),
+        _ => return Err("the forum is not on top".into()),
+    };
+    // The page the other clients compare: the screen's query with their page size. The
+    // screen lists more (LIST_LIMIT); its first posts must be this page, in this order.
+    let list = d
+        .engine
+        .list_posts(&exec::posts_query(
+            forum,
+            sort,
+            filter,
+            exec::PARITY_LIST_LIMIT,
+        ))
+        .await
+        .map_err(|e| e.message)?;
+    let uris = |l: &PostList| l.items.iter().map(|p| p.uri.clone()).collect::<Vec<_>>();
+    let shown = uris(&screen);
+    if !shown.starts_with(&uris(&list)) || (list.cursor.is_none() && shown != uris(&list)) {
+        return Err(format!(
+            "the Forum screen does not start with the compared page:\nscreen {shown:?}\npage {:?}",
+            uris(&list)
+        ));
+    }
+    write(out, "forum-screen.txt", &h.render())?;
+    drop(h);
+    // the Thread screen through the parity hook: opening it syncs the thread
+    let t = capture_thread(
+        &d.engine,
+        post,
+        CaptureOpts {
+            width: size.0,
+            height: size.1,
+            sync: true,
+        },
+    )
+    .await
+    .map_err(|e| e.message)?;
+    // Evidence that the TUI really opened the requested direct/assisted configuration.
+    let settings = d.engine.settings().await.map_err(|e| e.message)?;
+    write(
+        out,
+        "settings.json",
+        &serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?,
+    )?;
+    // as `capture_thread` serialises the ThreadView
+    let list_compact = serde_json::to_string(&list).map_err(|e| e.to_string())?;
+    let mut list_pretty = serde_json::to_string_pretty(&list).map_err(|e| e.to_string())?;
+    list_pretty.push('\n');
+    write(out, "list.json", &list_compact)?;
+    write(out, "list.pretty.json", &list_pretty)?;
+    write(out, "thread.json", &t.json)?;
+    write(out, "thread.pretty.json", &t.json_pretty)?;
+    write(out, "thread-screen.txt", &t.screen)?;
+    write(out, "thread-document.txt", &t.document)?;
+    Ok(())
+}
+
+const USAGE: &str = "usage: parity_driver reply <forum-uri> <post-uri> [--width N] [--height N]\n       parity_driver read <forum-uri> <post-uri> <out-dir> [--width N] [--height N]\n       parity_driver votes <forum-uri> <post-uri> [--width N] [--height N]\n       parity_driver tag <forum-uri> <post-uri> <slug> [--width N] [--height N]";
+
+fn main() -> ExitCode {
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    let mut size = (100u16, 30u16);
+    let mut i = 0;
+    while i < args.len() {
+        let target = match args[i].as_str() {
+            "--width" => &mut size.0,
+            "--height" => &mut size.1,
+            _ => {
+                i += 1;
+                continue;
+            }
+        };
+        let Some(n) = args.get(i + 1).and_then(|v| v.parse().ok()) else {
+            eprintln!("{USAGE}");
+            return ExitCode::from(2);
+        };
+        *target = n;
+        args.drain(i..i + 2);
+    }
+    let rt = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(rt) => rt,
+        Err(e) => {
+            eprintln!("parity_driver: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    let res = match args.as_slice() {
+        ["reply", forum, post] => rt.block_on(reply(forum, post, size)),
+        ["votes", forum, post] => rt.block_on(votes(forum, post, size)),
+        ["tag", forum, post, slug] => rt.block_on(tag(forum, post, slug, size)),
+        ["read", forum, post, out] => rt.block_on(read(forum, post, Path::new(out), size)),
+        _ => {
+            eprintln!("{USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    match res {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(e) => {
+            eprintln!("parity_driver: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}

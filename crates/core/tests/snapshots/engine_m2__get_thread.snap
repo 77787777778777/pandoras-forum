@@ -1,0 +1,204 @@
+---
+source: crates/core/tests/engine_m2.rs
+expression: thread
+---
+{
+  "dto": 1,
+  "post": {
+    "dto": 1,
+    "post": {
+      "uri": "at://did:plc:h4766ro2evcftdlfxunpn6uh/forum.pandoras.temp.post/wzk76uowxnbc-3m2qrta53s3hj",
+      "cid": "bafyreigzxs5ilqizuhz7nk2cszkck66bf6i5xsrh3zus73vqwnojvlpfca",
+      "forum": "at://did:plc:h4766ro2evcftdlfxunpn6uh/forum.pandoras.temp.forum/meta",
+      "author": {
+        "did": "did:plc:h4766ro2evcftdlfxunpn6uh",
+        "handle": "alice.example.com",
+        "handleState": "verified",
+        "shortDid": "did:plc:h4766ro2…"
+      },
+      "kind": "article",
+      "title": "Welcome!",
+      "excerpt": "Hello everyone. Read the rules.",
+      "tags": [],
+      "tier": "frontpage",
+      "pinned": false,
+      "locked": false,
+      "createdAtMs": 1760000060000,
+      "tRankMs": 1760000060000,
+      "commentCount": 3,
+      "lastCommentAtMs": 1760000420050,
+      "score": {
+        "score": 1,
+        "agreement": 0,
+        "unweighted": 0,
+        "earlierVersionVotes": 0
+      },
+      "state": {
+        "kind": "visible"
+      },
+      "badges": {
+        "edited": true
+      },
+      "labels": []
+    },
+    "body": {
+      "html": "<div class=\"lfm\" dir=\"auto\">\n<p dir=\"auto\">Hello <strong>everyone</strong>. Read the rules.</p>\n</div>\n",
+      "text": "Hello everyone. Read the rules.",
+      "toc": [],
+      "wordCount": 5,
+      "readMinutes": 1,
+      "media": [],
+      "excerpt": "Hello everyone. Read the rules.",
+      "notices": [],
+      "rendererVersion": "6"
+    },
+    "reacts": [],
+    "history": {
+      "revisions": 1,
+      "redacted": false
+    },
+    "sequences": []
+  },
+  "comments": [
+    {
+      "uri": "at://did:plc:i6diupmmz27z4hmdn7ighkbx/forum.pandoras.temp.comment/wzk76uowxnbc-3m2qrta53s3hj-3m2qs46bvelzh",
+      "cid": "bafyreic2nybq4p47b3azxgxr3jh3wob4mu5pszwoeip6wpucewajxtxpzu",
+      "root": "at://did:plc:h4766ro2evcftdlfxunpn6uh/forum.pandoras.temp.post/wzk76uowxnbc-3m2qrta53s3hj",
+      "depth": 1,
+      "author": {
+        "did": "did:plc:i6diupmmz27z4hmdn7ighkbx",
+        "handle": "carol.example.com",
+        "handleState": "verified",
+        "shortDid": "did:plc:i6diupmm…"
+      },
+      "body": {
+        "html": "<div class=\"lfm\" dir=\"auto\">\n<p dir=\"auto\">Glad to be here.</p>\n</div>\n",
+        "text": "Glad to be here.",
+        "toc": [],
+        "wordCount": 4,
+        "readMinutes": 1,
+        "media": [],
+        "excerpt": "Glad to be here.",
+        "notices": [],
+        "rendererVersion": "6"
+      },
+      "createdAtMs": 1760000360050,
+      "tRankMs": 1760000360050,
+      "score": {
+        "score": 1,
+        "agreement": 0,
+        "unweighted": 0,
+        "earlierVersionVotes": 0
+      },
+      "reacts": [],
+      "state": {
+        "kind": "visible"
+      },
+      "badges": {},
+      "retracted": false,
+      "moderatorHat": false,
+      "version": {
+        "revision": 1
+      },
+      "orphaned": false,
+      "missing": false,
+      "unread": false,
+      "pinned": false
+    },
+    {
+      "uri": "at://did:plc:5aq7fggxfazonlpr3kpo42po/forum.pandoras.temp.comment/wzk76uowxnbc-3m2qrta53s3hj-3m2qryltrulqi",
+      "cid": "bafyreibbnmruvezh7efrqyi6wwytcil76ly5scjdu72ltgxv3zfc6jhjo4",
+      "root": "at://did:plc:h4766ro2evcftdlfxunpn6uh/forum.pandoras.temp.post/wzk76uowxnbc-3m2qrta53s3hj",
+      "depth": 1,
+      "author": {
+        "did": "did:plc:5aq7fggxfazonlpr3kpo42po",
+        "handle": "bob.example.com",
+        "handleState": "verified",
+        "shortDid": "did:plc:5aq7fggx…"
+      },
+      "body": {
+        "html": "<div class=\"lfm\" dir=\"auto\">\n<p dir=\"auto\">Thanks for the forum!</p>\n</div>\n",
+        "text": "Thanks for the forum!",
+        "toc": [],
+        "wordCount": 4,
+        "readMinutes": 1,
+        "media": [],
+        "excerpt": "Thanks for the forum!",
+        "notices": [],
+        "rendererVersion": "6"
+      },
+      "createdAtMs": 1760000240050,
+      "tRankMs": 1760000240050,
+      "score": {
+        "score": 1,
+        "agreement": 0,
+        "unweighted": 0,
+        "earlierVersionVotes": 0
+      },
+      "reacts": [],
+      "state": {
+        "kind": "visible"
+      },
+      "badges": {},
+      "retracted": false,
+      "moderatorHat": false,
+      "version": {
+        "revision": 1
+      },
+      "orphaned": false,
+      "missing": false,
+      "unread": false,
+      "pinned": false
+    },
+    {
+      "uri": "at://did:plc:i6diupmmz27z4hmdn7ighkbx/forum.pandoras.temp.comment/wzk76uowxnbc-3m2qrta53s3hj-3m2qs5xix4lzh",
+      "cid": "bafyreibxkur36ub2a4fou46t76t5r6rp7a2ly6auqzz5yci4two5opocci",
+      "root": "at://did:plc:h4766ro2evcftdlfxunpn6uh/forum.pandoras.temp.post/wzk76uowxnbc-3m2qrta53s3hj",
+      "parent": "at://did:plc:5aq7fggxfazonlpr3kpo42po/forum.pandoras.temp.comment/wzk76uowxnbc-3m2qrta53s3hj-3m2qryltrulqi",
+      "depth": 2,
+      "author": {
+        "did": "did:plc:i6diupmmz27z4hmdn7ighkbx",
+        "handle": "carol.example.com",
+        "handleState": "verified",
+        "shortDid": "did:plc:i6diupmm…"
+      },
+      "body": {
+        "html": "<div class=\"lfm\" dir=\"auto\">\n<p dir=\"auto\">Agreed!</p>\n</div>\n",
+        "text": "Agreed!",
+        "toc": [],
+        "wordCount": 1,
+        "readMinutes": 1,
+        "media": [],
+        "excerpt": "Agreed!",
+        "notices": [],
+        "rendererVersion": "6"
+      },
+      "createdAtMs": 1760000420050,
+      "tRankMs": 1760000420050,
+      "score": {
+        "score": 1,
+        "agreement": 0,
+        "unweighted": 0,
+        "earlierVersionVotes": 0
+      },
+      "reacts": [],
+      "state": {
+        "kind": "visible"
+      },
+      "badges": {},
+      "retracted": false,
+      "moderatorHat": false,
+      "orphaned": false,
+      "missing": false,
+      "unread": false,
+      "pinned": false
+    }
+  ],
+  "sort": "magic",
+  "completeness": {
+    "partial": false,
+    "reposComplete": 3,
+    "reposTotal": 3,
+    "degraded": false
+  }
+}

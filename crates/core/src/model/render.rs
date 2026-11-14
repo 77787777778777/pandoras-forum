@@ -1,0 +1,764 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Rendering bodies through `pandoras_forum_markdown` into [`RenderedBody`] DTOs, with the in-memory
+//! LRU keyed by `(cid, RENDERER_VERSION)` (`sync.md` §13, `lfm-1.md` §1.2).
+//!
+//! A body is an `NS.markdown` union value (`data-model.md` §5): inline `text`, or a `textBlob`.
+//! A spilled body is rendered from its fetched source ([`RenderCache::put_spilled`], fetched by
+//! the engine from the author's PDS, `lfm-1.md` §1.3); until it is there it is **pending**: a
+//! notice with the record's `excerpt` as text, never cached. An unknown union member renders as
+//! a notice.
+//!
+//! The cached value does not depend on who renders it: the author and PDS of media views, and
+//! their autoload verdict (`sync.md` §11.3), are filled in per call ([`RenderCache::body`]).
+
+use std::collections::BTreeMap;
+use std::sync::{Arc, Mutex};
+
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_markdown::{MediaItem, RENDERER_VERSION, RenderOpts, Rendered};
+use serde_json::Value;
+
+use crate::dto::{AspectRatio, MediaView, RenderedBody, TocEntry};
+use crate::media::policy::{self, Autoload, MediaCandidate};
+
+/// The presentation version as written in DTOs.
+pub fn renderer_version() -> String {
+    RENDERER_VERSION.to_string()
+}
+
+/// Notice for a spilled body that is not fetched yet (pending, `lfm-1.md` §1.3).
+pub const NOTICE_SPILLED: &str = "[the body is stored as a blob and is not loaded yet]";
+/// Notice for a spilled body whose fetched bytes do not match its CID (`data-model.md` §5.2
+/// rule 3: an "unreadable body" placeholder; the record stays valid).
+pub const NOTICE_UNVERIFIED_BODY: &str = "[unreadable body: it does not match its CID]";
+/// Notice for a spilled body whose blob the author's PDS reports missing (`sync.md` §11.1,
+/// HTTP 400 "Blob not found": not asked for again).
+pub const NOTICE_MISSING_BODY: &str = "[the body is missing: the author's PDS does not have it]";
+/// Notice for a body of an unknown union member.
+pub const NOTICE_UNKNOWN_BODY: &str = "[unsupported body format]";
+/// Notice for flattened structure (`lfm-1.md` §8.4).
+pub const NOTICE_DEPTH: &str = "[some nested content was flattened]";
+/// Notice for an unknown `profile` (rendered as `lfm/1`).
+pub const NOTICE_PROFILE: &str = "[unknown markdown profile: rendered as lfm/1]";
+
+/// An empty body (tombstones, placeholders).
+pub fn empty_body() -> RenderedBody {
+    RenderedBody {
+        html: String::new(),
+        text: String::new(),
+        toc: Vec::new(),
+        word_count: 0,
+        read_minutes: 0,
+        media: Vec::new(),
+        excerpt: String::new(),
+        notices: Vec::new(),
+        renderer_version: renderer_version(),
+    }
+}
+
+fn notices(r: &Rendered) -> Vec<String> {
+    let mut n = Vec::new();
+    if let Some(e) = r.error {
+        n.push(e.notice().to_owned());
+    }
+    if r.flags.truncated {
+        n.push(pandoras_forum_markdown::html::fixed::TRUNCATED.to_owned());
+    }
+    if r.flags.depth_limited {
+        n.push(NOTICE_DEPTH.to_owned());
+    }
+    if r.flags.unknown_profile {
+        n.push(NOTICE_PROFILE.to_owned());
+    }
+    if r.flags.math_errors > 0 {
+        n.push(format!(
+            "[{} math expression{} could not be rendered]",
+            r.flags.math_errors,
+            if r.flags.math_errors == 1 { "" } else { "s" }
+        ));
+    }
+    n
+}
+
+fn media_views(media: &Value) -> Vec<MediaView> {
+    let Some(items) = media.as_array() else {
+        return Vec::new();
+    };
+    items
+        .iter()
+        .enumerate()
+        .map(|(i, m)| {
+            let blob = m.get("blob");
+            let ar = m.get("aspectRatio").and_then(|a| {
+                Some(AspectRatio {
+                    width: u32::try_from(a.get("width")?.as_u64()?).ok()?,
+                    height: u32::try_from(a.get("height")?.as_u64()?).ok()?,
+                })
+            });
+            MediaView {
+                index: u16::try_from(i).unwrap_or(u16::MAX),
+                cid: blob
+                    .and_then(|b| b.get("ref"))
+                    .and_then(|r| r.get("$link"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                mime: blob
+                    .and_then(|b| b.get("mimeType"))
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+                alt: m.get("alt").and_then(Value::as_str).map(str::to_owned),
+                aspect_ratio: ar,
+                duration_ms: m.get("durationMs").and_then(Value::as_u64),
+                name: m.get("name").and_then(Value::as_str).map(str::to_owned),
+                author: String::new(),
+                pds: String::new(),
+                // TODO(M4): the autoload policy (`sync.md` §11.3)
+                autoload: false,
+                size_bytes: blob
+                    .and_then(|b| b.get("size"))
+                    .and_then(Value::as_u64)
+                    .unwrap_or(0),
+            }
+        })
+        .collect()
+}
+
+#[derive(Clone, Debug)]
+struct CachedBody {
+    body: RenderedBody,
+    /// Links produced by the renderer; record `markdown.links` hints never enter this cache.
+    links: Vec<AtUri>,
+}
+
+fn cached_rendered(r: Rendered, media: &Value) -> CachedBody {
+    CachedBody {
+        body: from_rendered(r.clone(), media),
+        links: r.links,
+    }
+}
+
+fn cached_markdown(src: &str, media: &Value, profile: Option<&str>) -> CachedBody {
+    let items: Vec<MediaItem> = media
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|m| serde_json::from_value(m.clone()).unwrap_or_default())
+                .collect()
+        })
+        .unwrap_or_default();
+    let opts = RenderOpts {
+        html: true,
+        styled: false,
+        text: true,
+    };
+    cached_rendered(
+        pandoras_forum_markdown::render_profile(src, &items, profile, &opts),
+        media,
+    )
+}
+
+/// Renders a markdown source with its `media[]` value (`defs#media` JSON) and `profile`.
+pub fn render_markdown(src: &str, media: &Value, profile: Option<&str>) -> RenderedBody {
+    cached_markdown(src, media, profile).body
+}
+
+fn from_rendered(r: Rendered, media: &Value) -> RenderedBody {
+    RenderedBody {
+        notices: notices(&r),
+        html: r.html,
+        text: r.text,
+        toc: r
+            .toc
+            .into_iter()
+            .map(|t| TocEntry {
+                level: t.level,
+                id: t.id,
+                text: t.text,
+            })
+            .collect(),
+        word_count: r.word_count,
+        read_minutes: r.read_minutes,
+        media: media_views(media),
+        excerpt: r.excerpt,
+        renderer_version: renderer_version(),
+    }
+}
+
+/// The CID of an `md` value's `textBlob` (`None`: an inline body).
+pub fn text_blob_cid(md: &Value) -> Option<&str> {
+    md.get("textBlob")?.get("ref")?.get("$link")?.as_str()
+}
+
+/// A spilled body as the engine fetched it (`lfm-1.md` §1.3), by its blob's CID.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Spilled {
+    /// The decoded source (UTF-8, one leading U+FEFF stripped).
+    Text(Arc<str>),
+    /// It cannot be rendered: not UTF-8, or larger than the lexicon allows.
+    Error(pandoras_forum_markdown::BodyError),
+    /// The bytes did not match the CID (`data-model.md` §5.2 rule 3).
+    Unverified,
+    /// The author's PDS does not have the blob (`sync.md` §11.1: missing, not retried).
+    Missing,
+}
+
+fn render_spilled_cached(md: &Value, spilled: &Spilled) -> CachedBody {
+    let media = md.get("media").cloned().unwrap_or(Value::Null);
+    let profile = md.get("profile").and_then(Value::as_str);
+    match spilled {
+        Spilled::Text(src) => cached_markdown(src, &media, profile),
+        Spilled::Error(e) => {
+            cached_rendered(pandoras_forum_markdown::render_error(*e, profile), &media)
+        }
+        Spilled::Unverified => CachedBody {
+            body: placeholder(NOTICE_UNVERIFIED_BODY, &media),
+            links: Vec::new(),
+        },
+        Spilled::Missing => CachedBody {
+            body: placeholder(NOTICE_MISSING_BODY, &media),
+            links: Vec::new(),
+        },
+    }
+}
+
+/// Renders a spilled body from what was fetched for it.
+fn render_spilled(md: &Value, spilled: &Spilled) -> RenderedBody {
+    render_spilled_cached(md, spilled).body
+}
+
+/// A body that is only `notice` (the record stays valid), with its media.
+fn placeholder(notice: &str, media: &Value) -> RenderedBody {
+    RenderedBody {
+        notices: vec![notice.to_owned()],
+        media: media_views(media),
+        ..empty_body()
+    }
+}
+
+/// Renders an `md` union value; `excerpt` is the record's own excerpt, the text of a spilled
+/// body while it is pending (this function never fetches; [`RenderCache::body`] renders a
+/// fetched one).
+pub fn render_md(md: &Value, ns: &str, excerpt: Option<&str>) -> RenderedBody {
+    let markdown_type = format!("{ns}.markdown");
+    let known = md
+        .get("$type")
+        .and_then(Value::as_str)
+        .is_some_and(|t| t == markdown_type || t == format!("{markdown_type}#main"));
+    if !known {
+        return RenderedBody {
+            notices: vec![NOTICE_UNKNOWN_BODY.to_owned()],
+            ..empty_body()
+        };
+    }
+    let media = md.get("media").cloned().unwrap_or(Value::Null);
+    let profile = md.get("profile").and_then(Value::as_str);
+    match md.get("text").and_then(Value::as_str) {
+        Some(text) => render_markdown(text, &media, profile),
+        None => {
+            // pending: the engine fetches the `textBlob` (`lfm-1.md` §1.3) before the views
+            let text = excerpt.unwrap_or_default().to_owned();
+            RenderedBody {
+                excerpt: text.clone(),
+                text,
+                notices: vec![NOTICE_SPILLED.to_owned()],
+                media: media_views(&media),
+                ..empty_body()
+            }
+        }
+    }
+}
+
+fn render_md_cached(md: &Value, ns: &str, excerpt: Option<&str>) -> CachedBody {
+    let markdown_type = format!("{ns}.markdown");
+    let known = md
+        .get("$type")
+        .and_then(Value::as_str)
+        .is_some_and(|t| t == markdown_type || t == format!("{markdown_type}#main"));
+    let media = md.get("media").cloned().unwrap_or(Value::Null);
+    let profile = md.get("profile").and_then(Value::as_str);
+    if known && let Some(text) = md.get("text").and_then(Value::as_str) {
+        return cached_markdown(text, &media, profile);
+    }
+    CachedBody {
+        body: render_md(md, ns, excerpt),
+        links: Vec::new(),
+    }
+}
+
+struct Lru {
+    cap: usize,
+    tick: u64,
+    map: BTreeMap<(String, u32), (u64, Arc<CachedBody>)>,
+    order: BTreeMap<u64, (String, u32)>,
+}
+
+impl Lru {
+    fn get(&mut self, k: &(String, u32)) -> Option<Arc<CachedBody>> {
+        self.tick += 1;
+        let tick = self.tick;
+        let (t, v) = self.map.get_mut(k)?;
+        self.order.remove(t);
+        *t = tick;
+        self.order.insert(tick, k.clone());
+        Some(Arc::clone(v))
+    }
+
+    fn put(&mut self, k: (String, u32), v: Arc<CachedBody>) {
+        self.tick += 1;
+        if let Some((t, _)) = self.map.insert(k.clone(), (self.tick, v)) {
+            self.order.remove(&t);
+        }
+        self.order.insert(self.tick, k);
+        while self.map.len() > self.cap {
+            let Some((_, oldest)) = self.order.pop_first() else {
+                break;
+            };
+            self.map.remove(&oldest);
+        }
+    }
+}
+
+/// The spilled bodies fetched, at most [`SPILLED_ENTRIES`] sources and as many other results,
+/// oldest dropped first, and the ones that could not be fetched, with the time to ask again and
+/// whose they are, at most [`SPILLED_PENDING_ENTRIES`], the soonest due dropped first.
+///
+/// Only a verified source is the same whoever's PDS served it, so only [`Spilled::Text`] is kept
+/// by the bare blob CID; anything else (missing, unverified, too large, unreadable) and a pending
+/// fetch are kept by (author DID, blob CID): another author's PDS may answer otherwise, and one
+/// author's failing copy must not change another's body (review m3m4-continuation-1).
+#[derive(Default)]
+struct SpilledMap {
+    tick: u64,
+    texts: BTreeMap<String, (u64, Arc<Spilled>)>,
+    failed: BTreeMap<(String, String), (u64, Arc<Spilled>)>,
+    pending: BTreeMap<(String, String), PendingSpilled>,
+}
+
+/// The `(author, blob)` key of the per-author entries.
+fn by_author(did: &str, blob: &str) -> (String, String) {
+    (did.to_owned(), blob.to_owned())
+}
+
+/// Drops the least recently put entries of `m` past `cap`.
+fn evict<K: Ord + Clone>(m: &mut BTreeMap<K, (u64, Arc<Spilled>)>, cap: usize) {
+    while m.len() > cap {
+        let Some(oldest) = m
+            .iter()
+            .min_by_key(|(_, (t, _))| *t)
+            .map(|(k, _)| k.clone())
+        else {
+            break;
+        };
+        m.remove(&oldest);
+    }
+}
+
+/// Spilled sources kept in memory: each is at most `BLOB_TEXT_MAX_BYTES`, and once rendered the
+/// body is in the LRU anyway (the host still has the verified bytes).
+pub const SPILLED_ENTRIES: usize = 16;
+
+/// Pending spilled bodies remembered for `live_tail` to fetch again (a view asks for one it
+/// does not remember at once).
+pub const SPILLED_PENDING_ENTRIES: usize = 64;
+
+/// A spilled body a view left pending (`lfm-1.md` §1.3): when it may be asked for again, and
+/// the item it is the body of, so `live_tail` can fetch it and announce it (`Changed`).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PendingSpilled {
+    /// When it may be asked for again (ms).
+    pub at_ms: i64,
+    /// The forum's uri.
+    pub forum: String,
+    /// The item's uri (a post, or the forum for its `about`).
+    pub uri: String,
+    /// Its author, whose PDS has the blob.
+    pub did: String,
+}
+
+/// The render cache: `(cid, RENDERER_VERSION) → RenderedBody`, least recently used dropped
+/// first, and the fetched sources of spilled bodies.
+pub struct RenderCache {
+    lru: Mutex<Lru>,
+    spilled: Mutex<SpilledMap>,
+}
+
+impl std::fmt::Debug for RenderCache {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RenderCache")
+            .field("len", &self.len())
+            .finish()
+    }
+}
+
+impl Default for RenderCache {
+    fn default() -> Self {
+        Self::new(crate::limits::RENDER_CACHE_ENTRIES)
+    }
+}
+
+impl RenderCache {
+    /// A cache of at most `cap` bodies.
+    pub fn new(cap: usize) -> Self {
+        Self {
+            lru: Mutex::new(Lru {
+                cap: cap.max(1),
+                tick: 0,
+                map: BTreeMap::new(),
+                order: BTreeMap::new(),
+            }),
+            spilled: Mutex::new(SpilledMap::default()),
+        }
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Lru> {
+        self.lru
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn spilled_map(&self) -> std::sync::MutexGuard<'_, SpilledMap> {
+        self.spilled
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// `true` when the body of record `cid` is rendered and cached.
+    pub fn contains(&self, cid: &str) -> bool {
+        self.lock()
+            .map
+            .contains_key(&(cid.to_owned(), RENDERER_VERSION))
+    }
+
+    /// What was fetched for the spilled body of `did` whose blob is `blob` (`None`: pending): the
+    /// verified source, whoever's copy it came from, else what the fetch from `did`'s PDS found.
+    pub fn spilled(&self, did: &str, blob: &str) -> Option<Arc<Spilled>> {
+        let m = self.spilled_map();
+        m.texts
+            .get(blob)
+            .or_else(|| m.failed.get(&by_author(did, blob)))
+            .map(|(_, v)| Arc::clone(v))
+    }
+
+    /// Records what was fetched for the blob `blob` from `did`'s PDS: a verified source by the
+    /// blob alone, anything else for `did` only.
+    pub fn put_spilled(&self, did: &str, blob: &str, v: Spilled) {
+        let mut m = self.spilled_map();
+        m.tick += 1;
+        let tick = m.tick;
+        let key = by_author(did, blob);
+        m.pending.remove(&key);
+        if matches!(v, Spilled::Text(_)) {
+            m.failed.remove(&key);
+            m.texts.insert(blob.to_owned(), (tick, Arc::new(v)));
+            evict(&mut m.texts, SPILLED_ENTRIES);
+        } else {
+            m.failed.insert(key, (tick, Arc::new(v)));
+            evict(&mut m.failed, SPILLED_ENTRIES);
+        }
+    }
+
+    /// When the blob `blob` of `did`, which could not be fetched, may be asked for again (ms).
+    pub fn spilled_retry_at(&self, did: &str, blob: &str) -> Option<i64> {
+        self.spilled_map()
+            .pending
+            .get(&by_author(did, blob))
+            .map(|p| p.at_ms)
+    }
+
+    /// The blob `blob` of `p.did` could not be fetched: it stays pending until `p.at_ms`.
+    pub fn spilled_unavailable(&self, blob: &str, p: PendingSpilled) {
+        let mut m = self.spilled_map();
+        m.pending.insert(by_author(&p.did, blob), p);
+        while m.pending.len() > SPILLED_PENDING_ENTRIES {
+            let Some(soonest) = m
+                .pending
+                .iter()
+                .min_by_key(|(_, p)| p.at_ms)
+                .map(|(k, _)| k.clone())
+            else {
+                break;
+            };
+            m.pending.remove(&soonest);
+        }
+    }
+
+    /// The spilled bodies left pending, as (blob CID, entry), by author then blob.
+    pub fn spilled_pending(&self) -> Vec<(String, PendingSpilled)> {
+        self.spilled_map()
+            .pending
+            .iter()
+            .map(|((_, b), p)| (b.clone(), p.clone()))
+            .collect()
+    }
+
+    /// Entries held.
+    pub fn len(&self) -> usize {
+        self.lock().map.len()
+    }
+
+    /// `true` if empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The cached body of record `cid`, rendering it with `render` on a miss (outside the
+    /// lock).
+    pub fn get_or_render(
+        &self,
+        cid: &str,
+        render: impl FnOnce() -> RenderedBody,
+    ) -> Arc<RenderedBody> {
+        Arc::new(
+            self.get_or_render_cached(cid, || CachedBody {
+                body: render(),
+                links: Vec::new(),
+            })
+            .body
+            .clone(),
+        )
+    }
+
+    fn get_or_render_cached(
+        &self,
+        cid: &str,
+        render: impl FnOnce() -> CachedBody,
+    ) -> Arc<CachedBody> {
+        let key = (cid.to_owned(), RENDERER_VERSION);
+        if let Some(v) = self.lock().get(&key) {
+            return v;
+        }
+        let v = Arc::new(render());
+        self.lock().put(key, Arc::clone(&v));
+        v
+    }
+
+    /// A body of `author` with no record CID of its own to cache it under (a forum's `about`),
+    /// rendered each time: a spilled one from its fetched source, while that is pending the
+    /// pending body.
+    pub fn uncached(&self, md: &Value, ns: &str, author: &str) -> RenderedBody {
+        let spilled = text_blob_cid(md).filter(|_| md.get("text").is_none());
+        match spilled.and_then(|b| self.spilled(author, b)) {
+            Some(v) => render_spilled(md, &v),
+            None => render_md(md, ns, None),
+        }
+    }
+
+    /// The body of the record `cid` (whose body is `md`), with media views attributed to
+    /// `author` at `pds` and their autoload verdict for `item` (`sync.md` §11.3). A spilled
+    /// body renders from its fetched source; while that is pending, the uncached pending body.
+    #[allow(clippy::too_many_arguments)]
+    pub fn body(
+        &self,
+        cid: &str,
+        md: &Value,
+        ns: &str,
+        excerpt: Option<&str>,
+        author: &str,
+        pds: &str,
+        item: &BodyItem<'_>,
+    ) -> RenderedBody {
+        let spilled = text_blob_cid(md).filter(|_| md.get("text").is_none());
+        let cached = match spilled.map(|b| self.spilled(author, b)) {
+            None => self.get_or_render_cached(cid, || render_md_cached(md, ns, excerpt)),
+            Some(Some(v)) => self.spilled_render(cid, md, &v),
+            // pending: what an earlier fetch rendered, or the notice (never cached)
+            Some(None) => {
+                let earlier = self.lock().get(&(cid.to_owned(), RENDERER_VERSION));
+                earlier.unwrap_or_else(|| {
+                    Arc::new(CachedBody {
+                        body: render_md(md, ns, excerpt),
+                        links: Vec::new(),
+                    })
+                })
+            }
+        };
+        let mut b = cached.body.clone();
+        let host = policy::host_of(pds);
+        let shared = item.prefs.hosts.get(&host).copied().unwrap_or(0);
+        for m in &mut b.media {
+            author.clone_into(&mut m.author);
+            pds.clone_into(&mut m.pds);
+            let candidate = MediaCandidate {
+                author,
+                visible: item.visible,
+                labels: item.labels,
+                root_labels: item.root_labels,
+                host: &host,
+                mime: &m.mime,
+                size_bytes: (m.size_bytes > 0).then_some(m.size_bytes),
+            };
+            let established = item.established && item.prefs.doc.contains(author);
+            m.autoload = item.prefs.enabled
+                && policy::autoload(&candidate, established, shared, &item.prefs.allowlist)
+                    == Autoload::Yes;
+        }
+        b
+    }
+
+    /// The render of a spilled body from what was fetched: a verified source is cached under the
+    /// record CID (any author's record with that CID names the same blob); anything else depends
+    /// on whose PDS was asked, so it is never cached and gives way to a verified render the LRU
+    /// still holds.
+    fn spilled_render(&self, cid: &str, md: &Value, v: &Spilled) -> Arc<CachedBody> {
+        match v {
+            Spilled::Text(_) => self.get_or_render_cached(cid, || render_spilled_cached(md, v)),
+            _ => self
+                .lock()
+                .get(&(cid.to_owned(), RENDERER_VERSION))
+                .unwrap_or_else(|| Arc::new(render_spilled_cached(md, v))),
+        }
+    }
+
+    /// Canonical record links from the cached rendered body of `author`'s record, rendering first
+    /// on a miss.
+    pub fn links(
+        &self,
+        cid: &str,
+        md: &Value,
+        ns: &str,
+        excerpt: Option<&str>,
+        author: &str,
+    ) -> Vec<AtUri> {
+        let spilled = text_blob_cid(md).filter(|_| md.get("text").is_none());
+        match spilled.map(|b| self.spilled(author, b)) {
+            None => self.get_or_render_cached(cid, || render_md_cached(md, ns, excerpt)),
+            Some(Some(v)) => self.spilled_render(cid, md, &v),
+            Some(None) => {
+                return self
+                    .lock()
+                    .get(&(cid.to_owned(), RENDERER_VERSION))
+                    .map(|v| v.links.clone())
+                    .unwrap_or_default();
+            }
+        }
+        .links
+        .clone()
+    }
+}
+
+/// The device's media autoload inputs (`sync.md` §11.3): the master switch, the reader's
+/// allowlist and how many of the forum's participants each PDS host serves. Per device, so it
+/// is part of the viewer.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct MediaPrefs {
+    /// The `mediaAutoload` setting is not `off`; off, nothing loads without a click.
+    pub enabled: bool,
+    /// `mediaHosts`: hosts the reader allowlisted.
+    pub allowlist: Vec<String>,
+    /// Participants of the forum by the host of the PDS in their identity rows.
+    pub hosts: BTreeMap<String, usize>,
+    /// The participants whose identity is at level `doc` (§11.1: a hint never autoloads).
+    pub doc: std::collections::BTreeSet<String>,
+}
+
+/// What the autoload policy needs to know of the item a body belongs to (`sync.md` §11.3).
+#[derive(Clone, Copy, Debug)]
+pub struct BodyItem<'a> {
+    /// The author is in S ∪ E of the forum.
+    pub established: bool,
+    /// The item is `Visible` after the lens (a `Collapsed` item's media stay click-to-load).
+    pub visible: bool,
+    /// The item's self-labels.
+    pub labels: &'a [String],
+    /// For a comment, its root post's self-labels.
+    pub root_labels: &'a [String],
+    /// The device's inputs.
+    pub prefs: &'a MediaPrefs,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pandoras_forum_lexicon::ns::NS;
+    use serde_json::json;
+
+    #[test]
+    fn renders_inline_spilled_and_unknown() {
+        let ns = pandoras_forum_lexicon::ns::NS;
+        let md = json!({"$type": format!("{ns}.markdown"), "text": "# Hi\n\nSome *text*."});
+        let b = render_md(&md, ns, None);
+        assert!(b.html.starts_with("<div class=\"lfm\""));
+        assert_eq!(b.text, "Hi Some text.");
+        assert_eq!(b.toc.len(), 1);
+        assert_eq!(b.renderer_version, renderer_version());
+        let spilled = json!({"$type": format!("{ns}.markdown"), "textBlob": {}});
+        let s = render_md(&spilled, ns, Some("An excerpt"));
+        assert_eq!(s.text, "An excerpt");
+        assert_eq!(s.notices, [NOTICE_SPILLED]);
+        let u = render_md(&json!({"$type": "x.y"}), ns, None);
+        assert_eq!(u.notices, [NOTICE_UNKNOWN_BODY]);
+    }
+
+    #[test]
+    fn links_come_from_rendering_not_record_hints() {
+        let cache = RenderCache::default();
+        let target = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/zone.pandoras-forum.post/nkglkm5wsp3d-3jzfcijpj2z2a";
+        let hint = "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/zone.pandoras-forum.post/nkglkm5wsp3d-3jzfcijpj2z2b";
+        let md = json!({
+            "$type": format!("{NS}.markdown"),
+            "text": format!("[target]({target})"),
+            "links": [hint],
+        });
+        let links = cache.links("cid", &md, NS, None, "did:plc:a");
+        assert_eq!(
+            links.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            [target]
+        );
+        assert!(!links.iter().any(|link| link.as_str() == hint));
+        assert_eq!(cache.links("cid", &md, NS, None, "did:plc:a"), links);
+    }
+
+    #[test]
+    fn only_a_verified_source_is_shared_between_authors() {
+        let c = RenderCache::default();
+        let (a, b, blob) = ("did:plc:a", "did:plc:b", "bafkblob");
+        let pending = |did: &str| PendingSpilled {
+            at_ms: 5,
+            forum: "f".into(),
+            uri: "u".into(),
+            did: did.into(),
+        };
+        c.spilled_unavailable(blob, pending(a));
+        assert_eq!(c.spilled_retry_at(a, blob), Some(5));
+        assert_eq!(c.spilled_retry_at(b, blob), None);
+        c.put_spilled(a, blob, Spilled::Missing);
+        assert_eq!(c.spilled(a, blob).as_deref(), Some(&Spilled::Missing));
+        assert_eq!(c.spilled(b, blob), None, "a's PDS answered for a only");
+        assert_eq!(c.spilled_retry_at(a, blob), None);
+        c.put_spilled(b, blob, Spilled::Text("verified".into()));
+        assert_eq!(
+            c.spilled(a, blob).as_deref(),
+            Some(&Spilled::Text("verified".into())),
+            "verified bytes are the blob's, whoever served them"
+        );
+        // a failure is never cached as the record's render; a verified render is
+        let md = json!({"$type": format!("{NS}.markdown"), "textBlob": {"ref": {"$link": "x"}}});
+        c.put_spilled(a, "x", Spilled::Unverified);
+        c.links("rec", &md, NS, None, a);
+        assert!(!c.contains("rec"));
+        c.put_spilled(b, "x", Spilled::Text("# Hi".into()));
+        c.links("rec", &md, NS, None, b);
+        assert!(c.contains("rec"));
+    }
+
+    #[test]
+    fn lru_keeps_the_recent_ones() {
+        let c = RenderCache::new(2);
+        let mut renders = 0;
+        let mut get = |cid: &str| {
+            c.get_or_render(cid, || {
+                renders += 1;
+                empty_body()
+            });
+        };
+        get("a");
+        get("b");
+        get("a");
+        get("c"); // evicts b
+        get("a");
+        get("b");
+        assert_eq!(renders, 4);
+    }
+}

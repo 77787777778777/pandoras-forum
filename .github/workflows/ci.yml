@@ -1,0 +1,142 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name: ci
+on:
+  push:
+    branches: [main, "claude/**"]
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  CARGO_TERM_COLOR: always
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.97.0"
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+      - run: cargo clippy --target wasm32-unknown-unknown -p pandoras-forum-atp -p pandoras-forum-lexicon -p pandoras-forum-markdown -p pandoras-forum-core -p pandoras-forum-wasm -- -D warnings
+      - run: cargo test --workspace
+      # M2 acceptance: the 50-member cold sync in under 5 s, asserted on an optimised build
+      # (the debug run above only warns between 5 and 15 s). This job never builds the SPA,
+      # so the release CLI embeds the placeholder page (build.rs WEB-5 escape hatch); the
+      # real bundle is verified by the `web` job's `pnpm run build` + check-release-bundle.
+      - run: cargo test --release -p pandoras-forum --features devnet --test cold_sync
+        env:
+          PANDORAS_FORUM_WEB_PLACEHOLDER: "1"
+      # the social-fold vectors again at the final namespace (as `cargo xtask ci`)
+      - run: cargo test -p pandoras-forum-core --features final-ns --test social_vectors --test social_fold --test social_query --test model_reorder
+      # testdata/dto/dto-1.d.ts is what the Rust DTOs generate (types.parity.test.ts compares types.ts with it)
+      - run: cargo test -p pandoras-forum-wasm --features dto-decl --test dto_decl
+      # M4 acceptance: `ammonia(html) == html` for every render vector and the linked-host
+      # property (lfm-1.md §8.5; the feature is native-only, so no default build enables it)
+      - run: cargo test -p pandoras-forum-markdown --features ammonia --test vectors --test props
+  # The interop, vector and property tests of atp, lexicon and markdown, and core's social fold
+  # vectors and P9 parity digest (both namespaces), on wasm32-unknown-unknown in node through
+  # wasm-bindgen-test-runner (same version as the workspace wasm-bindgen pin): native = wasm.
+  wasm-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.97.0"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+          # this job only needs node to run wasm-bindgen-test-runner; it does not
+          # install pnpm, so disable setup-node's package-manager cache probing
+          # (which would otherwise try to locate pnpm from package.json's
+          # packageManager field and fail).
+          package-manager-cache: false
+      - run: cargo install wasm-bindgen-cli --version =0.2.129 --locked
+      - run: cargo xtask test-wasm
+  lexicons:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          # goat v0.2.6 requires go >= 1.27 (its go.mod declares `go 1.27`)
+          go-version: "1.27"
+      # pinned (plan §4.3): the version spike S4 checked (ADR 0003)
+      - run: go install github.com/bluesky-social/goat@v0.2.6
+      - run: goat lex lint -I large-string lexicons
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.97.0"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: cargo install wasm-bindgen-cli --version =0.2.129 --locked
+      - run: pnpm install --frozen-lockfile
+      # the engine wasm (packages/engine/pkg) and its size report in the job summary; over the
+      # tripwire (ADR 0008, which replaces ADR 0002's budget: fails above 2.5 MB gzipped, warns
+      # above 1.5 MB) the job fails in the last step, after the web checks have run
+      - id: wasm-size
+        run: cargo xtask wasm --budget --report
+        continue-on-error: true
+      # the KV conformance module the engine package's tests run (packages/engine/pkg/kvtest)
+      - run: cargo xtask wasm --kv-test
+      # root biome, then every package's `check` (tsc, biome, web's check-no-raw-href.mjs)
+      - run: pnpm run check
+      - run: pnpm run test
+      - run: pnpm run build
+      - name: wasm size budget
+        if: steps.wasm-size.outcome != 'success'
+        run: |
+          echo "::error::the engine wasm failed to build or is over the size budget (see the wasm-size step)"
+          exit 1
+  # The SPA's end-to-end tests (web/e2e): the demo build in Chromium, including the production
+  # CSP and Trusted Types run, axe, the sanitiser vector equality and the keyboard checks. The
+  # Playwright version is pinned in web/package.json; its Chromium is installed here.
+  web-e2e:
+    # Playwright 1.56.1 refuses to run on ubuntu-26.04 ("Playwright does not support chromium on
+    # ubuntu26.04-x64") and `ubuntu-latest` now resolves there, so pin the last LTS it supports.
+    # Drop the pin when the Playwright package moves past 1.56.1.
+    runs-on: ubuntu-24.04
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "0"
+      PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.pw-browsers
+      # the KV conformance spec in real Chromium IndexedDB (e2e/kv-idb.spec.ts) fails instead of
+      # skipping when its module is missing; it is built below
+      PANDORAS_FORUM_KV_TEST: "1"
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: "1.97.0"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: cargo install wasm-bindgen-cli --version =0.2.129 --locked
+      - run: pnpm install --frozen-lockfile
+      # the size budget is enforced by the web job
+      - run: cargo xtask wasm
+      - run: cargo xtask wasm --kv-test
+      - run: pnpm --filter @pandoras-forum/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @pandoras-forum/web run e2e

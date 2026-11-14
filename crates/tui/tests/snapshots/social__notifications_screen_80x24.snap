@@ -1,0 +1,28 @@
+---
+source: crates/tui/tests/social.rs
+expression: t.render()
+---
+ Pandora's Forum › notifications                     [N 2] · @alice.example.com
+ Unread notifications · 2 unread
+▌ * reply  did:plc:i6diupmm… (claims @carol.example.com, unverified)  Thanks @al
+  * reply  did:plc:5aq7fggx… (claims @bob.example.com, unverified)  Thanks for t
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Enter open · M mark read · a all/unread · ? help · h back

@@ -1,0 +1,631 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// A post: title, byline, ToC sidebar (from body.toc), the rendered body with footnotes as
+// sidenotes on wide screens, votes and reacts, history, sequence navigation, and the thread.
+// Opened from a sequence (`?seq=`, its page or its next and previous links), the post is read
+// with `getPost(uri, sequence)`, so the navigation follows that sequence and the engine records
+// it as the sequence's "continue reading" position (engine-api.md §3.4 `get_post`).
+
+import type { CommentNode, CommentSort, PostView, SequenceNav } from "@pandoras-forum/engine/types";
+import { COMMENT_SORTS, isMissingRoot } from "@pandoras-forum/engine/types";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
+import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ActorName } from "../components/ActorName.tsx";
+import { Badges } from "../components/Badges.tsx";
+import { Banners } from "../components/Banners.tsx";
+import type { ThreadContext } from "../components/CommentItem.tsx";
+import { hiddenReasonText } from "../components/CommentItem.tsx";
+import { CommentTree } from "../components/CommentTree.tsx";
+import { Dialog } from "../components/Dialog.tsx";
+import { LazyComposer } from "../components/LazyComposer.tsx";
+import { ModMenu } from "../components/ModMenu.tsx";
+import {
+  collapseNote,
+  KindBadge,
+  postTitle,
+  TagChips,
+  TierBadge,
+} from "../components/PostMeta.tsx";
+import { ParticipantsProvider } from "../components/participants.tsx";
+import { ReactBar } from "../components/Reacts.tsx";
+import { RecordLink } from "../components/RecordLink.tsx";
+import { RenderedHtml, type RenderedHtmlHandle } from "../components/RenderedHtml.tsx";
+import { SafeLink } from "../components/SafeLink.tsx";
+import { ErrorView, errorMessage, Loading } from "../components/Status.tsx";
+import { TagVotes } from "../components/TagVotes.tsx";
+import { toasts } from "../components/Toast.tsx";
+import { Toc } from "../components/Toc.tsx";
+import { VoteControls } from "../components/VoteControls.tsx";
+import { useEngine } from "../engine/context.tsx";
+import { useCommentDraft } from "../engine/drafts.ts";
+import { qk, useActiveAccount, useForum, useParsedRef } from "../engine/queries.ts";
+import { useAnnounceQueued } from "../engine/queued.ts";
+import { useThreadSync } from "../engine/sync.ts";
+import { usePendingWrite, writeStore } from "../engine/writes.ts";
+import { allows, capReason } from "../lib/caps.ts";
+import { votingMode } from "../lib/policy.ts";
+import { quoteFromSelection } from "../lib/quote.ts";
+import { cleanName } from "../lib/text.ts";
+import { fullDate, shortAge } from "../lib/time.ts";
+import { parseAtUri } from "../lib/uri.ts";
+import ui from "../styles/ui.module.css";
+import { isAuthorityRole } from "./forum/forumContext.tsx";
+import styles from "./pages.module.css";
+
+const route = getRouteApi("/p/$author/$rkey");
+
+const SORT_LABEL: Record<CommentSort, string> = {
+  magic: "Magic",
+  top: "Top",
+  new: "New",
+  old: "Old",
+  latestReply: "Latest reply",
+};
+
+function HistoryButton({
+  uri,
+  revisions,
+  redacted,
+  own,
+}: {
+  uri: string;
+  revisions: number;
+  redacted: boolean;
+  /** The viewer wrote this item, so redacting its history is theirs to do. */
+  own: boolean;
+}) {
+  const engine = useEngine();
+  const [open, setOpen] = useState(false);
+  const [redacting, setRedacting] = useState(false);
+  const [redactError, setRedactError] = useState<string | null>(null);
+  const qc = useQueryClient();
+  const history = useQuery({
+    queryKey: qk.history(uri),
+    queryFn: () => engine.history(uri),
+    enabled: open,
+  });
+  if (revisions === 0) return null;
+  return (
+    <>
+      <button type="button" className={ui.link} onClick={() => setOpen(true)}>
+        History ({revisions} {revisions === 1 ? "revision" : "revisions"})
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Version history">
+        {redacted && <p className={ui.notice}>The author redacted part of this history.</p>}
+        {history.isPending && <Loading />}
+        {history.data && (
+          <ol>
+            {history.data.versions.map((v) => (
+              <li key={v.n}>
+                Version {v.n} · {fullDate(v.createdAtMs)}
+                {v.summary && ` · “${v.summary}”`}
+                {!v.available && <span className={ui.muted}> (history redacted)</span>}
+                <div className={ui.mono}>{v.cid}</div>
+              </li>
+            ))}
+          </ol>
+        )}
+        {own && revisions > 0 && (
+          <button
+            type="button"
+            className={ui.button}
+            disabled={redacting}
+            onClick={() => {
+              // Redacting deletes the revision records, which cannot be undone, so it asks
+              // first and names what goes (docs/plan.md M4: "history view and redaction").
+              if (
+                !window.confirm(
+                  `Delete all ${revisions} revision${revisions === 1 ? "" : "s"} of this post? ` +
+                    "The versions cannot be restored.",
+                )
+              ) {
+                return;
+              }
+              setRedacting(true);
+              setRedactError(null);
+              void engine
+                .redactRevision(uri)
+                .then(() => qc.invalidateQueries())
+                .catch((e: unknown) => setRedactError(errorMessage(e)))
+                .finally(() => setRedacting(false));
+            }}
+          >
+            {redacting ? "Redacting…" : "Redact history"}
+          </button>
+        )}
+        {redactError && <p className={ui.error}>{redactError}</p>}
+        <button type="button" className={ui.button} onClick={() => setOpen(false)}>
+          Close
+        </button>
+      </Dialog>
+    </>
+  );
+}
+
+function LocalToggles({ uri }: { uri: string }) {
+  const engine = useEngine();
+  const qc = useQueryClient();
+  const bookmarks = useQuery({ queryKey: qk.bookmarks(), queryFn: () => engine.bookmarks() });
+  const subs = useQuery({ queryKey: qk.subscriptions(), queryFn: () => engine.subscriptions() });
+  const bookmarked = bookmarks.data?.some((b) => b.uri === uri) ?? false;
+  const subscribed =
+    subs.data?.some((s) => s.subscription.kind === "post" && s.subscription.uri === uri) ?? false;
+  return (
+    <span className={ui.row}>
+      <button
+        type="button"
+        className={ui.ghost}
+        aria-pressed={bookmarked}
+        onClick={() =>
+          void engine
+            .bookmark(uri, !bookmarked)
+            .then(() => qc.invalidateQueries({ queryKey: qk.bookmarks() }))
+        }
+      >
+        {bookmarked ? "★ Bookmarked" : "☆ Bookmark"}
+      </button>
+      <button
+        type="button"
+        className={ui.ghost}
+        aria-pressed={subscribed}
+        onClick={() =>
+          void engine
+            .setSubscription({ kind: "post", uri }, !subscribed)
+            .then(() => qc.invalidateQueries({ queryKey: qk.subscriptions() }))
+        }
+      >
+        {subscribed ? "Subscribed to comments" : "Subscribe to comments"}
+      </button>
+    </span>
+  );
+}
+
+/** Edit and delete for the viewer's own post (data-model.md §8.3, §8.7). */
+function OwnPostActions({ uri, forum }: { uri: string; forum: string }) {
+  const engine = useEngine();
+  const navigate = useNavigate();
+  const [confirm, setConfirm] = useState(false);
+  const f = parseAtUri(forum);
+  const remove = async (): Promise<void> => {
+    setConfirm(false);
+    try {
+      const ticket = await engine.delete(uri);
+      writeStore.track(ticket, uri);
+      const final = await writeStore.wait(ticket.id);
+      if (final.kind === "failed") throw final.error;
+      if (final.kind !== "done") return;
+      toasts.show({ message: "Post deleted", tone: "success" });
+      if (f) void navigate({ to: "/f/$owner/$slug", params: { owner: f.did, slug: f.rkey } });
+    } catch (e) {
+      toasts.show({ message: errorMessage(e), tone: "error" });
+    }
+  };
+  return (
+    <span className={ui.row}>
+      {f && (
+        <Link
+          to="/f/$owner/$slug/new"
+          params={{ owner: f.did, slug: f.rkey }}
+          search={{ edit: uri }}
+          className={ui.ghost}
+        >
+          Edit
+        </Link>
+      )}
+      <button type="button" className={ui.ghost} onClick={() => setConfirm(true)}>
+        Delete
+      </button>
+      <Dialog open={confirm} onClose={() => setConfirm(false)} title="Delete this post?">
+        <p>
+          The post and its edit history are deleted from your repository. Its comments stay, under a
+          "the post is not available" placeholder. Copies others have archived may remain.
+        </p>
+        <div className={ui.row}>
+          <button type="button" className={ui.danger} onClick={() => void remove()}>
+            Delete
+          </button>
+          <button type="button" className={ui.ghost} onClick={() => setConfirm(false)}>
+            Cancel
+          </button>
+        </div>
+      </Dialog>
+    </span>
+  );
+}
+
+function PostBody({
+  view,
+  sequences,
+  ctx,
+  myDid,
+  children,
+}: {
+  view: PostView | null;
+  /** The sequence navigation to show (the view's, or the one of the sequence opened from). */
+  sequences: readonly SequenceNav[];
+  ctx: ThreadContext;
+  myDid: string | null;
+  /** The thread, rendered in the article column below the post. */
+  children: ReactNode;
+}) {
+  if (!view) {
+    return (
+      <div className={styles.postLayout}>
+        <div className={styles.tocColumn} />
+        <div className={styles.articleColumn}>
+          <p className={styles.hiddenPost}>[The post of this thread is not available.]</p>
+          {children}
+        </div>
+      </div>
+    );
+  }
+  return (
+    <PostBodyView view={view} sequences={sequences} ctx={ctx} myDid={myDid}>
+      {children}
+    </PostBodyView>
+  );
+}
+
+function PostBodyView({
+  view,
+  sequences,
+  ctx,
+  myDid,
+  children,
+}: {
+  view: PostView;
+  sequences: readonly SequenceNav[];
+  ctx: ThreadContext;
+  myDid: string | null;
+  children: ReactNode;
+}) {
+  const bodyRef = useRef<RenderedHtmlHandle>(null);
+  const titleId = useId();
+  const { post, body } = view;
+  const own = myDid !== null && post.author.did === myDid;
+  const pending = usePendingWrite(post.uri);
+  const hidden = post.state.kind === "hidden" || post.state.kind === "tombstone";
+  return (
+    <div className={styles.postLayout}>
+      <aside className={styles.tocColumn} aria-label="Contents">
+        {body.toc.length > 1 && (
+          <Toc entries={body.toc} onSelect={(id) => bodyRef.current?.scrollToAnchor(id)} />
+        )}
+      </aside>
+      <article className={styles.articleColumn} aria-labelledby={titleId}>
+        <header>
+          <div className={ui.row}>
+            <KindBadge kind={post.kind} />
+            <TagChips forum={post.forum} tags={post.tags} />
+          </div>
+          <h1 className={styles.postTitle} id={titleId}>
+            <bdi>{postTitle(post)}</bdi>
+          </h1>
+          <div className={styles.byline}>
+            <ActorName actor={post.author} showIdent />
+            <time
+              dateTime={new Date(post.tRankMs).toISOString()}
+              title={fullDate(post.createdAtMs)}
+            >
+              {shortAge(post.tRankMs)}
+            </time>
+            {body.readMinutes > 0 && <span>{body.readMinutes} min read</span>}
+            <TierBadge tier={post.tier} />
+            {post.pinned && <span>📌 Pinned</span>}
+            {post.locked && <span>🔒 Comments locked</span>}
+            {post.state.kind === "collapsed" && <span>{collapseNote(post.state.reason, own)}</span>}
+            <Badges badges={post.badges} pending={own && pending} />
+            <HistoryButton
+              uri={post.uri}
+              revisions={view.history.revisions}
+              redacted={view.history.redacted}
+              own={own}
+            />
+          </div>
+        </header>
+        {post.link && (
+          <div className={styles.linkCard}>
+            <p className={styles.linkCardTitle}>
+              <SafeLink raw={post.link.uri}>
+                {post.link.title ? cleanName(post.link.title, 300) : undefined}
+              </SafeLink>
+            </p>
+            {post.link.description && <p className={ui.muted}>{post.link.description}</p>}
+          </div>
+        )}
+        {hidden ? (
+          <p className={styles.hiddenPost}>
+            [
+            {post.state.kind === "hidden" || post.state.kind === "tombstone"
+              ? hiddenReasonText(post.state.reason)
+              : ""}
+            ]
+          </p>
+        ) : (
+          <RenderedHtml html={body.html} media={body.media} sidenotes ref={bodyRef} />
+        )}
+        {sequences.map((s) => (
+          <nav
+            key={s.sequence}
+            className={styles.seqNav}
+            aria-label={`Sequence: ${cleanName(s.title, 300)}`}
+          >
+            {/* next and previous keep following this sequence */}
+            {s.prev ? (
+              <RecordLink uri={s.prev} sequence={s.sequence}>
+                ← Previous
+              </RecordLink>
+            ) : (
+              <span />
+            )}
+            <RecordLink uri={s.sequence}>
+              <bdi>{cleanName(s.title, 300)}</bdi>
+            </RecordLink>
+            {s.next ? (
+              <RecordLink uri={s.next} sequence={s.sequence}>
+                Next →
+              </RecordLink>
+            ) : (
+              <span />
+            )}
+          </nav>
+        ))}
+        <div className={styles.postFooter}>
+          <VoteControls
+            subject={post.uri}
+            score={post.score}
+            mode={ctx.votingMode}
+            size="post"
+            ownItem={own}
+            signedIn={myDid !== null}
+            caps={ctx.caps}
+          />
+          {ctx.votingMode === "reacts" && (
+            <ReactBar
+              subject={post.uri}
+              reacts={view.reacts}
+              ownItem={own}
+              signedIn={myDid !== null}
+              caps={ctx.caps}
+              getQuote={() => quoteFromSelection(bodyRef.current?.root() ?? null, body.text)}
+            />
+          )}
+          <LocalToggles uri={post.uri} />
+          {!own && (
+            <TagVotes
+              post={post.uri}
+              forum={post.forum}
+              applied={post.tags}
+              relevance={view.tagRelevance}
+              signedIn={myDid !== null}
+              caps={ctx.caps}
+            />
+          )}
+          {own && <OwnPostActions uri={post.uri} forum={post.forum} />}
+          {(ctx.isAuthority || (own && ctx.authorGate === true)) && (
+            <ModMenu
+              forum={post.forum}
+              canCurate={ctx.canCurate}
+              scope={ctx.isAuthority ? "forum" : "author"}
+              subject={{
+                kind: "post",
+                uri: post.uri,
+                cid: post.cid,
+                author: post.author.did,
+                pinned: post.pinned,
+                locked: post.locked,
+                tier: post.tier,
+              }}
+            />
+          )}
+        </div>
+      </article>
+      <div className={styles.threadColumn}>{children}</div>
+    </div>
+  );
+}
+
+/** `sequence`: the sequence the post was opened from (`?seq=`). */
+export function PostThread({ uri, sequence }: { uri: string; sequence?: string | undefined }) {
+  const engine = useEngine();
+  const announceQueued = useAnnounceQueued();
+  const [sort, setSort] = useState<CommentSort>("magic");
+  const [unreadOnly, setUnreadOnly] = useState(false);
+  const headingId = useId();
+  const thread = useQuery({
+    queryKey: qk.thread(uri, sort, unreadOnly),
+    queryFn: () => engine.getThread(uri, { sort, unreadOnly }),
+  });
+  const active = useActiveAccount();
+  const root = thread.data?.post;
+  const postView = root && !isMissingRoot(root) ? root : null;
+  // read with the sequence it was opened from: its navigation, and the reading position. The
+  // read records the position, so every open runs it, however fresh a cached view still is.
+  const inSequence = useQuery({
+    queryKey: qk.postIn(uri, sequence ?? ""),
+    queryFn: () => engine.getPost(uri, sequence ?? ""),
+    enabled: sequence !== undefined,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
+  const sequences =
+    sequence === undefined || inSequence.isError
+      ? (postView?.sequences ?? [])
+      : (inSequence.data?.sequences ?? []);
+  const forumUri = postView?.post.forum;
+  const forum = useForum(forumUri);
+  const loaded = thread.data !== undefined;
+  useThreadSync(uri);
+  const myDidEarly = active.data?.did ?? null;
+  const topDraft = useCommentDraft(uri, undefined, myDidEarly !== null);
+
+  // Keep this visit's unread highlights after `markRead` re-queries the thread.
+  const unreadAtOpen = useRef<Set<string> | null>(null);
+  if (thread.data && unreadAtOpen.current === null) {
+    unreadAtOpen.current = new Set(thread.data.comments.filter((c) => c.unread).map((c) => c.uri));
+  }
+  useEffect(() => {
+    if (!loaded) return;
+    const t = setTimeout(() => void engine.markRead(uri).catch(() => {}), 1500);
+    return () => clearTimeout(t);
+  }, [loaded, engine, uri]);
+
+  const comments: CommentNode[] = useMemo(() => {
+    const seen = unreadAtOpen.current;
+    return (thread.data?.comments ?? []).map((c) =>
+      !c.unread && seen?.has(c.uri) ? { ...c, unread: true } : c,
+    );
+  }, [thread.data]);
+  // Items whose authors count as forum participants for mention resolution (lfm-1.md §5.4).
+  const participantItems = useMemo(
+    () => [...(postView ? [postView.post] : []), ...comments],
+    [postView, comments],
+  );
+
+  if (thread.isPending) return <Loading label="Loading the post…" />;
+  if (thread.isError)
+    return <ErrorView page error={thread.error} title="This post could not be loaded" />;
+
+  const myDid = active.data?.did ?? null;
+  const role = forum.data?.myRole ?? "none";
+  const viewer = forum.data?.viewer;
+  const ctx: ThreadContext = {
+    postUri: uri,
+    forum: forumUri ?? "",
+    votingMode: votingMode(forum.data?.policy),
+    locked: postView?.post.locked ?? false,
+    myDid,
+    isAuthority: viewer !== undefined ? viewer.moderate : isAuthorityRole(role),
+    canCurate: viewer !== undefined ? viewer.curate : role === "owner" || role === "admin",
+    caps: viewer,
+    postAuthor: postView?.post.author.did,
+    authorGate:
+      viewer !== undefined &&
+      (postView?.post.tier === "personal" ? viewer.authorModPersonal : viewer.authorModFrontpage),
+  };
+  const canComment =
+    myDid !== null && (!ctx.locked || ctx.isAuthority) && allows(ctx.caps, "comment");
+  const count = postView?.post.commentCount ?? comments.length;
+
+  const submitComment = async (markdown: string): Promise<boolean> => {
+    const ticket = await engine.comment({ root: uri, body: { markdown, media: [] } });
+    writeStore.track(ticket);
+    const final = await writeStore.settle(ticket.id);
+    if (final.kind === "failed") throw final.error;
+    if (final.kind === "queued") {
+      announceQueued("Your comment", final.state);
+      return true;
+    }
+    if (final.kind !== "done") return false;
+    toasts.show({ message: "Comment published", tone: "success" });
+    return true;
+  };
+
+  return (
+    <ParticipantsProvider forum={forum.data} items={participantItems}>
+      <PostBody view={postView} sequences={sequences} ctx={ctx} myDid={myDid}>
+        <section aria-labelledby={headingId}>
+          <div className={styles.commentsHeader}>
+            <h2 id={headingId} className={styles.commentsTitle} data-testid="comment-count">
+              {count} {count === 1 ? "comment" : "comments"}
+            </h2>
+            <Badges completeness={thread.data.completeness} />
+            <div className={ui.row}>
+              <label className={ui.row}>
+                <span className={ui.muted}>Sort</span>
+                <select
+                  className={styles.select}
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as CommentSort)}
+                >
+                  {COMMENT_SORTS.map((s) => (
+                    <option key={s} value={s}>
+                      {SORT_LABEL[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className={ui.row}>
+                <input
+                  type="checkbox"
+                  checked={unreadOnly}
+                  onChange={(e) => setUnreadOnly(e.target.checked)}
+                />
+                <span>Unread only</span>
+              </label>
+            </div>
+          </div>
+          {thread.data.completeness.partial && (
+            <p className={ui.notice}>
+              Only {thread.data.completeness.reposComplete} of {thread.data.completeness.reposTotal}{" "}
+              participants' repositories are synced: some comments may be missing.
+            </p>
+          )}
+          {thread.data.completeness.degraded && (
+            <p className={ui.notice}>
+              Moderation data is unavailable: comments whose moderation cannot be checked stay
+              hidden until it loads.
+            </p>
+          )}
+          {thread.data.banners !== undefined && thread.data.banners.length > 0 && (
+            <Banners banners={thread.data.banners} />
+          )}
+          {ctx.locked && !ctx.isAuthority && (
+            <p className={ui.notice}>Comments on this post are locked.</p>
+          )}
+          {ctx.caps?.newcomer === true && (
+            <p className={ui.notice} data-viewer-state="newcomer">
+              You are a new user here: your posts and comments are collapsed for other readers until
+              you are established.
+            </p>
+          )}
+          {ctx.caps?.applicant === true && (
+            <p className={ui.notice} data-viewer-state="applicant">
+              Your membership is awaiting approval; your content stays unlisted until an authority
+              grants it.
+            </p>
+          )}
+          {myDid !== null && !canComment && !ctx.locked && capReason(ctx.caps, "comment") && (
+            <p className={ui.muted}>{capReason(ctx.caps, "comment")}</p>
+          )}
+          {canComment &&
+            (topDraft.ready ? (
+              <LazyComposer
+                label="New comment"
+                submitLabel="Comment"
+                placeholder="Write a comment…"
+                compact
+                initial={topDraft.draft?.markdown ?? ""}
+                draftId={topDraft.draft?.id}
+                makeDraft={(markdown, id) => ({
+                  kind: "comment",
+                  ...(id !== undefined ? { id } : {}),
+                  comment: { root: uri, body: { markdown, media: [] } },
+                })}
+                onSubmit={submitComment}
+              />
+            ) : (
+              <Loading label="Loading the editor…" />
+            ))}
+          {myDid === null && (
+            <p className={ui.muted}>
+              <Link to="/login">Sign in</Link> to comment.
+            </p>
+          )}
+          <CommentTree comments={comments} ctx={ctx} />
+        </section>
+      </PostBody>
+    </ParticipantsProvider>
+  );
+}
+
+export function PostPage() {
+  const { author, rkey } = route.useParams();
+  const { seq } = route.useSearch();
+  const ref = useParsedRef(`#/p/${author}/${rkey}`);
+  if (ref.isPending) return <Loading />;
+  if (ref.isError) return <ErrorView page error={ref.error} title="Unknown post" />;
+  if (ref.data.kind !== "post")
+    return <ErrorView page error={new Error("This address is not a post.")} />;
+  return <PostThread key={ref.data.uri} uri={ref.data.uri} sequence={seq} />;
+}

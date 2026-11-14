@@ -1,0 +1,140 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/atp",
+  "crates/lexicon",
+  "crates/markdown",
+  "crates/core",
+  "crates/native",
+  "crates/tui",
+  "crates/cli",
+  "crates/wasm",
+  "crates/indexer",
+  "crates/testkit",
+  "xtask",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.88"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/77787777778777/pandoras-forum"
+homepage = "https://pandoras.forum"
+authors = ["Pandora's Forum contributors"]
+
+[workspace.dependencies]
+# internal
+pandoras-forum-atp = { path = "crates/atp", version = "0.0.1" }
+pandoras-forum-lexicon = { path = "crates/lexicon", version = "0.0.1" }
+pandoras-forum-markdown = { path = "crates/markdown", version = "0.0.1" }
+pandoras-forum-core = { path = "crates/core", version = "0.0.1" }
+pandoras-forum-native = { path = "crates/native", version = "0.0.1" }
+pandoras-forum-tui = { path = "crates/tui", version = "0.0.1" }
+pandoras-forum-testkit = { path = "crates/testkit", version = "0.0.1" }
+
+# protocol / data model (exact pins for parsing + crypto, see docs/spec/threat-model.md)
+cid = { version = "=0.11.3", default-features = false, features = ["alloc", "serde"] }
+multihash = { version = "0.19", default-features = false, features = ["alloc"] }
+serde_ipld_dagcbor = { version = "=0.7.0", default-features = false, features = ["std"] }
+ipld-core = { version = "=0.4.3", default-features = false, features = ["std", "serde"] }
+sha2 = { version = "0.10", default-features = false }
+k256 = { version = "0.13", default-features = false, features = ["ecdsa", "alloc"] }
+p256 = { version = "0.13", default-features = false, features = ["ecdsa", "alloc"] }
+multibase = "0.9"
+data-encoding = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_bytes = "0.11"
+thiserror = "2"
+unicode-segmentation = "=1.13.3" # Unicode 17.0; grapheme counts are normative (G2), see testdata/vectors/limits
+unicode-normalization = "0.1"
+unicode-width = "0.2"
+unicode-security = "0.1"
+
+# rendering
+pulldown-cmark = { version = "=0.13.4", default-features = false }
+math-core = "=0.9.0"
+# Exact: Unicode data is part of the frozen lfm/1 semantics (lfm-1.md §2 "Unicode data").
+unicase = "=2.10.0" # footnote label matching, as pulldown-cmark does
+unicode-general-category = "=1.1.0" # Unicode 16.0; slugs, anchors, the host test
+ammonia = "4.2"
+
+# core runtime-agnostic
+futures = { version = "0.3", default-features = false, features = ["std", "alloc", "async-await", "executor"] }
+http = "1"
+url = "2"
+tracing = "0.1"
+# Exact: hot() bit patterns are normative (social.md 12.1) and pinned by a test.
+libm = "=0.2.16"
+img-parts = "0.4"
+imagesize = "0.15"
+base64 = "0.22"
+
+# native
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "sync", "fs", "io-util", "net", "signal"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "http2", "gzip", "stream", "json"] }
+rusqlite = { version = "0.40", features = ["bundled"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "rustls-tls-webpki-roots"] }
+keyring = "4"
+fd-lock = "4"
+directories = "6"
+toml = "1"
+libc = "0.2"
+tempfile = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+jacquard-oauth = { version = "=0.12.2" }
+# jacquard-oauth's own building blocks used by the native OAuth facade (same exact pins).
+jacquard-common = { version = "=0.12.2" }
+jacquard-identity = { version = "=0.12.2" }
+webbrowser = "1"
+anyhow = "1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+
+# ui / cli / servers
+ratatui = "0.30"
+crossterm = "0.29"
+ratatui-image = { version = "11.1", default-features = false, features = ["image-defaults", "crossterm"] }
+clap = { version = "4.6", features = ["derive", "env"] }
+clap_complete = "4.6"
+axum = "0.8"
+tower-http = { version = "0.6", features = ["cors", "set-header", "fs"] }
+rust-embed = "8"
+
+# wasm
+wasm-bindgen = "=0.2.129"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = "0.3"
+tsify = { version = "0.5", default-features = false, features = ["js"] }
+serde-wasm-bindgen = "0.6"
+getrandom = "0.3"
+
+# tests
+proptest = "1"
+insta = { version = "1", features = ["json"] }
+assert_cmd = "2"
+flate2 = "1"
+# wasm32 test harness (`cargo xtask test-wasm`); its version moves in lockstep with `wasm-bindgen`
+# (0.3.79 <-> 0.2.129) and with the `wasm-bindgen-test-runner` from `wasm-bindgen-cli`.
+wasm-bindgen-test = "=0.3.79"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[profile.wasm]
+# Built for speed, not size (ADR 0010): opt-level 3 renders about 2.5 times faster than "z".
+inherits = "release"
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+# Line tables keep backtraces useful; full debuginfo made target/ outgrow the disk allowance.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 1
+debug = false

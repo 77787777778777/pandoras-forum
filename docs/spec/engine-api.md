@@ -1,0 +1,855 @@
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+# Pandora's Forum engine API and DTO schema (`dto/1`)
+
+Status: normative for implementations in this repository; informative for other implementations
+(they only need the data model, LFM/1, social and sync specs). Version: **engine API v0
+(`dto/1`), frozen at M3**: from M3 on, the operations, DTOs and events below change only
+compatibly (§1 "Freeze"). The operations a later milestone implements are listed with it
+(§3.9); until then they reject with `unsupported`.
+
+## 0. Purpose
+
+One engine (`pandoras-forum-core::engine::Engine<H: Host>`) serves the CLI, the TUI, the SPA (through
+`pandoras-forum-wasm` and `@pandoras-forum/engine`) and the optional indexer. This document fixes:
+
+- the engine's public operations, grouped as in synthesis §6.5;
+- the **DTO schema** returned by queries. The CLI's `--json` output *is* this schema, and the SPA
+  receives the same objects (TypeScript types checked against the declarations `tsify`
+  generates from the Rust DTOs, §5), so cross-client parity checks are byte comparisons of
+  serialised DTOs (`docs/plan.md`, M2 acceptance);
+- the event model used by every UI.
+
+Normative details of the underlying behaviour live in `data-model.md` (records, writes),
+`sync.md` (identity, discovery, sync, verification, store), `social.md` (the fold) and
+`lfm-1.md` (rendering). This document only describes how they are exposed.
+
+## 1. Conventions
+
+- **Serialisation.** DTOs are `serde` structs/enums with `#[serde(rename_all = "camelCase")]`.
+  Enums are internally tagged with `"kind"` (`#[serde(tag = "kind")]`) unless stated otherwise.
+  Optional fields are omitted when `None` (`skip_serializing_if`). Maps are `BTreeMap` (sorted
+  keys). Integers that may exceed 2^53 (none in `dto/1`) would be strings.
+- **Times** are integer milliseconds since the Unix epoch (`…Ms` fields) — derived from the fold's
+  µs values by floor division. `createdAt` strings are passed through as written only inside
+  `raw` views.
+- **Identifiers** are canonical strings: `did`, at-uri (`uri`), CID (`cid`).
+- **Deterministic output.** For the same `(FoldInput, Query)` and the same local state, every
+  query returns byte-identical JSON on every platform (`social.md` §1.3). Local-only fields
+  (read marks, mutes, "mine") are computed from the local `state` store and are part of the
+  parity scenario's injected state.
+- **Request fields.** Fields of operation inputs (§4.4) that the engine defaults
+  (`#[serde(default)]`: `SyncOpts.full`, `PostDraft.tags`, `ModActionValue.hide.spam`, …) may be
+  left out by callers; the TypeScript types mark them optional like the omitted output fields.
+- **Versioning.** Every top-level view DTO (§4: `PostList`, `ThreadView`, `ForumView`, …)
+  carries `"dto": 1`. Operation results that are not views, such as a `WriteTicket`, a
+  `Vec<…>` list (`accounts()`, `writes()`, `bookmarks()`, …) or a bare value, are serialised
+  without it, exactly as `dto.rs` serialises them; the engine and the wasm binding (§5) pass
+  them on unchanged, and the CLI's `--json` wraps every object it prints in its own
+  `{ "dto": 1, … }` envelope (`crates/cli/src/out.rs`).
+- **Freeze (engine API v0, M3).** After M3 only compatible changes are made within `dto/1`:
+  new operations; implementing an operation of §3.9 (it stops rejecting with `unsupported`); new
+  optional output fields; new enum variants and new event kinds or topics (clients ignore what
+  they do not know); new optional request fields whose default keeps the old behaviour; new
+  error `detail` keys. Anything else (removing or renaming an operation, a field or a variant,
+  changing a type, making an optional field required, changing what an operation means) is a
+  new major version: `dto/2`, engine API v1. The Rust DTOs (`crates/core/src/dto.rs`) are the
+  schema; their TypeScript form `testdata/dto/dto-1.d.ts` is generated from them
+  (`crates/wasm/tests/dto_decl.rs`, which fails when it is stale) and the hand-written
+  `packages/engine/src/types.ts` must match it field for field (`types.parity.test.ts`).
+- **After the freeze (M4).** Implemented: `drafts`, `save_draft`, `delete_draft`, `settings`,
+  `set_setting`, `export_local`, `import_local`, `prepare_media`, `redact_revision`,
+  `validate_record`, `derive_rkey`. New: `load_media` (§3.4) and the DTOs `LoadedMedia`,
+  `MediaInput`, `Settings`, `IndexerConsent`, `ImportReport`, `ValidationReport`, `RkeyInput`
+  (§4.4). Kept compatible with the v0 declarations: `prepare_media` takes `(bytes, MediaInput?)`
+  and still accepts v0's single `MediaFile` (the TypeScript name `MediaInput` now names the hints,
+  as in Rust; v0's shape is `MediaFile`); `redact_revision` resolves with a `WriteTicket`;
+  `import_local` resolves with an `ImportReport` where v0 declared nothing, and takes an
+  optional second argument, the scope (`importLocal(json, scope?)`, `"mine"` or
+  `"everything"`); `set_setting` takes every field of `Settings` with a value of its type. New
+  optional output fields: `WriteState.done.report` (the adopt report) and `MediaRef.notices`
+  (`prepare_media`'s notices, §4.4, with the new `NoticeCode` variant `missingAlt` when the file
+  has no alt text). `ModActionValue.restrict.capabilities` became optional: every v0 input still parses,
+  and one that names both dimensions means what it did; a dimension left out now keeps the
+  account's current value instead of resetting it, since the reset silently lifted the
+  account's own restriction or nullification of the user (it still means none when there is no
+  current record); likewise, while that dimension is in effect, a left-out `untilMs` or `reason`
+  keeps the record's, with the notice code `sharedExpiry` when a dimension's expiry changes
+  (§3.5 `mod_action`). This changes what a valid v0 input that names only `capabilities`
+  means (under v0 it also asserted `nullifyVotes: false`): a deliberate semantic exception to
+  the freeze rule above, **orchestrator decision O-12, flagged for the U7 review**. The freeze
+  freezes shapes, not defects: the v0 reading made every client's `restrict` silently
+  un-nullify the user, the defect m3r-2 fixed. A client that wants both dimensions reset names
+  both (`social.md` §20.2). A second such exception is the link card of `edit` (§3.5,
+  robustness-7): under v0 a post draft's `link` was the complete desired value, so a draft
+  naming only the cached uri wrote a link without a card; now it keeps the cached card (and a
+  draft naming a title or description keeps the cached thumb), since the v0 reading made the
+  CLI's and TUI's `edit`, which know only the uri, strip every card they touched. This is a
+  deliberate semantic exception to the freeze rule above, **orchestrator decision O-14, flagged
+  for the U7 review** (review m3m4-continuation-7, robustness-7), like O-12;
+  `EditOpts.dropLinkCard` (M5, below) is the explicit way to get the v0 result. New operation:
+  `edit_preflight` (§3.5), with the notice code `suspendsAssertions`; new banner codes:
+  `authorityInactive` (an authority's account is inactive while its cached assertions still
+  apply, `sync.md` §3.4) and `relayDependent` (§4.2). `render` takes media (each a
+  `MediaRef` or a stored `defs#media` value) where v0 refused any, and `RenderOpts` gains an
+  optional `profile`. `LoadedMedia` gains an optional `sniffed` (the type a download card names
+  its file from, §3.4). `load_media`'s `mediaMissing` is only the getBlob answer that the blob is
+  not found (`sync.md` §11.1); another HTTP 400, such as a repo that is not served now, had been
+  reported as missing for good and is now the retryable mapped error (§3.4, review
+  m3m4-continuation-1). New operation: `body_source(uri) -> BodySource` (§3.4), the markdown
+  source of a body as a composer edits it, so a client can edit a body the record stores as a
+  `textBlob` without reading the host's blob store itself (the CLI and TUI did; the SPA could
+  not). New optional output field: `BodySource.cid`, the current record CID (not a body's blob
+  CID), taken with the markdown and profile from one model/declaration view. A client combining
+  this source with `raw` for an edit MUST require equal CIDs and retry otherwise (§3.4).
+- **After the freeze (M5).** Implemented (they rejected with `unsupported` in v0):
+  `forum_discover`, `tags`, `tag`, `sequences`, `sequence`, `user`, `search`, `wiki_edit`,
+  `seq_create`, `seq_edit`, `seq_add`, `seq_remove`, `seq_move` (§§3.2–3.5). New operation:
+  `backlinks(uri)` (§3.4). Request DTOs first declared to the generated schema
+  (`testdata/dto/dto-1.d.ts`) in M5, with the shapes v0's TypeScript declared: `SearchQuery`,
+  `SequenceDraft`, `SequenceChapterDraft`, `SequencePosition`, `WikiDraft` (§4.4). New optional
+  output field: `PostView.tagRelevance` with the new DTO `PostTag` (§4.2), the viewer's own tag
+  votes and tag relevance that v0 listed as planned. `PostSummary.tags` now lists the slugs that
+  apply to the post (`applies(p, t)`, `social.md` §13.3), sorted, where v0 listed the post's
+  declared `tags` in the author's order (7f7ca1f): an author's declared slug without a page no
+  longer shows, and another user's tag vote can add one. The shape is unchanged; the meaning is
+  the one `social.md` §1.1 names among the per-item fold outputs ("applied tags"), and edit forms
+  read the declared tags from `raw`, not from the summary. This is a **deliberate semantic
+  exception to the freeze, flagged for the U7 review** like O-12 (review test-integrity-3). New
+  optional request field: `WikiDraft.base` (§3.5 `wiki_edit`, §4.4), the page head the author
+  edited, written as the only parent; `wiki_edit` refuses an edit whose `base` is no longer the
+  cached canonical revision with `conflict` (`detail.kind = "wikiHeadMoved"`). Without it the v0
+  behaviour is kept (the current canonical revision, or none for a new page). **Orchestrator
+  decision O-2, flagged for the U7 review** (`social.md` §20.2). New optional output field:
+  `ModQueue.banners`, with the banner codes `applicantsViaHints` and `applicantsNotDiscovered`
+  (§3.4 `mod_queue`): in approval mode the queue says that applicants are found only through
+  CORE+ hints, more strongly with direct sources (`sync.md` §4.4). **Orchestrator decision O-8,
+  flagged for the U7 review** (`social.md` §20.2). New optional request argument:
+  `get_post(uri, sequence?)` (§3.4; TypeScript `getPost(uri, sequence?)`, the Rust
+  `get_post_in`), the sequence the reader came from, which next and previous follow (`social.md`
+  §14) and which records the sequence's "continue reading" position; new optional output field
+  `SequenceView.continueReading` with the new DTO `ReadingPosition`; the local family `seqpos` is
+  exported and imported (§3.6). New optional request field: `EditOpts.dropLinkCard` (§3.5
+  `edit`), which writes a post draft's `link` as given, so a client can drop a card and keep the
+  link (the v0 result of a draft of the uri alone, see "After the freeze (M4)"). `body_source`
+  (§3.4) also takes a wiki revision or a sequence, whose `body` may spill into a `textBlob`
+  (`data-model.md` §5.2 rule 2), where it refused both with `invalid_ref`: the wiki and sequence
+  editors load a spilled body from it, as the post, comment and forum forms do, instead of
+  refusing to edit it. New operation: `wiki_page(forum, slug)` (§3.4) with the DTO
+  `WikiPageView` (§4.3): the head and state of any wiki page, since `tag` keeps its `not_found`
+  for a page that is not a tag or whose tag is removed, which left an editor of such a page only
+  an empty form that overwrote it.
+- **After the freeze (M6).** New operations: `forum_indexers(ref)` and `audit_indexer(forum)`
+  (§3.3), with the DTOs `ForumIndexer`, `AuditReport`, `AuditCheck`,
+  `AuditCounts`, `AuditFinding` and the enum `AuditKind` (§4.3). New Rust-only operations for
+  native hosts and the indexer (not dispatched by the wasm binding, §3.9): `list_posts_page`,
+  `hydrate_indexer_page`, `hydrate_indexer_records`, `poll_indexer_changes`,
+  `indexer_post_ordering`, `indexer_thread_ordering`, `indexer_participants`, `indexer_forums`,
+  `indexer_head_hints`. New `EngineConfig` fields: `indexer_mode` and `stored_indexer_consent`
+  (§2). New enum variant `AuditKind::unchecked` and new optional output field
+  `AuditCounts.unchecked` (omitted when 0, §4.3): an item the audit could not check (an
+  unreachable PDS or proof endpoint, a single proof over the cap, an observed change the
+  `getChanges` read-back could not reach, `sync.md` §15.4) is an `unchecked` finding with the
+  reason in `detail`, counted there and never as checked, as a contradiction or as an omission,
+  so it never sets exit code 6 (review m6-acceptance-13, m6-acceptance-5); before, it was only
+  logged and a reader of the report could not tell how many items went unchecked.
+- **Errors.** Operations return `Result<T, EngineError>`; `EngineError` serialises as
+  `{ "code": <string>, "message": <string>, "retryable": bool, "detail"?: object }` with codes:
+  `auth_required`, `not_found`, `invalid_ref`, `invalid_input`, `conflict`, `rate_limited`,
+  `network`, `blocked`, `too_large`, `partial` (results incomplete under the time/request budget;
+  `detail` carries the partial result), `unsupported`, `internal`. CLI exit codes map:
+  ok 0, other 1, usage 2, `auth_required` 3, `not_found` 4, `conflict` 5, `partial` 6.
+
+## 2. Construction and configuration
+
+```rust
+Engine::new(host: H, config: EngineConfig) -> Engine<H>
+
+EngineConfig {
+  network: Network,                 // Production | Devnet { plc: Url, pds: Url } (handles resolve via the PDS)
+  sources: Sources,                 // Direct | Assisted (default Assisted): the build default;
+                                    // the stored setting overrides it, read at each use (§3.6)
+  sources_flag: Option<Sources>,    // a flag of this invocation, or the `sources` the native
+                                    // config.toml states (O-9), else natively in devnet mode
+                                    // `direct` (sync.md §3.7): wins over the stored setting
+  verify: VerifyMode,               // Pds | Proof (default Pds)
+  doh: Vec<Url>,                    // default [cloudflare-dns.com/dns-query, dns.google/resolve]
+  plc: Url,                         // default https://plc.directory
+  relays: Vec<Url>,                 // default bsky.network relays
+  jetstream: Vec<Url>,              // default jetstream.us-east / us-west
+  constellation: Option<Url>,       // default constellation.microcosm.blue (Assisted only)
+  slingshot: Option<Url>,           // hint-only identity fallback
+  indexer_mode: IndexerMode,        // Forum (default): configured and consented indexers may be
+                                    // used; None: no indexer at all, whatever was consented (M6)
+  indexers: Vec<IndexerConsent>,    // user-configured or consented forum indexers
+  stored_indexer_consent: bool,     // also use the consents stored on this device, global or
+                                    // for one forum (`Settings.indexers`) (M6)
+  user_agent: String,
+  platform: Platform,               // Native | Browser (concurrency limits, CORS rules)
+  parity_now_ms: Option<i64>,       // test-only parity mode (§2.1); None in production
+}
+```
+
+The engine keeps no global state; two engines over two hosts are independent.
+
+### 2.1 Parity mode (test-only, devnet-only)
+
+The parity scenario (`docs/plan.md` §4.2) compares clients that synced the same records at
+different times. Two inputs of the fold would otherwise differ between them: `now` (ordering,
+time windows) and each version's first-seen time `obs` (`social.md` §1, §2: future-dating).
+`EngineConfig.parity_now_ms = Some(t)` injects both:
+
+- every view (`list_posts`, `get_post`, `get_thread`, `recent_discussion`, `history`,
+  `members`, `forum_open`, …) is computed at `now = t`, whatever the host clock says;
+- every admitted version's `obs`, and the declaration's, is taken to be `t` (the stored
+  first-seen times are not changed);
+- the viewer's device-local read marks (`lastVisited`, `social.md` §16), bookmarks and
+  subscriptions are ignored: every view is computed as for a device without them. Read marks
+  are omitted from `PostSummary.unreadComments` and `CommentNode.unread` is `false`; bookmark
+  and subscription lists are empty and they cannot add notification reasons, and
+  `SequenceView.continueReading` is omitted. Explicit local-state
+  queries retain access for a bookmarks/settings pane. `mark_read`, `bookmark` and `subscribe`
+  (and `get_post` with a sequence context, §3.4) still store the state, and nothing changes
+  outside parity mode. (Orchestrator decision O-13,
+  for the U7 review.)
+- the handles of the actors a view shows are verified by the query itself (`sync.md` §3.3),
+  instead of being queued for `live_tail`, so the handle state does not depend on whether a
+  client ran `live_tail`.
+
+**Indexer on and off (M6).** The parity scenario's indexer variant (`docs/plan.md` §4.2, M6
+acceptance "identical views with and without the indexer") compares a client that used an
+indexer with one that did not. That comparison ignores the provenance badges `Badges.verified`,
+`Badges.hint` and `Badges.stale` (`sync.md` §1.6), which say how a version reached this device
+and how fresh that path is (a current proof, a row that exists only because of a hint, a
+third-party proof shown provisionally or a repo shown from cache) and so legitimately differ
+between the two. Every other byte must still match: all content, scores, states, the other
+badges, and the order of every list. The comparison removes those three keys from both sides
+and compares the rest byte for byte. **User decision U-D2.**
+
+Sync, the outbox, record `createdAt` values, caches, TTLs and back-offs keep using the host
+clock. Choose `t` later than every record of the scenario (a record whose `createdAt` is more
+than `FUTURE_SKEW_MS` after `t` would be flagged `futureDated`), e.g. the scenario's start plus
+one day, and give every client the same `t`.
+
+Parity mode is **test-only** and is never enabled in production:
+
+- **Native (CLI, TUI):** `PANDORAS_FORUM_PARITY_NOW_MS=<ms since the epoch>`, read by
+  `pandoras_forum_native::config::parity_now_ms`, which refuses it unless the configuration is in
+  devnet mode (`--dev`, a devnet-enabled build). The CLI prints a warning when it is on.
+- **SPA:** only an e2e build (a build-time flag, like the demo flag that gates the mock engine)
+  passes `parityNowMs` to the wasm engine's configuration; release builds do not contain the
+  code path.
+
+## 3. Operations
+
+All operations are `async` methods on `Engine<H>`; futures are `MaybeSend`. "Long-lived"
+operations return a future the host must drive (`tokio::spawn` / `spawn_local`) and that ends
+when the engine is dropped or the corresponding stop method is called.
+
+### 3.1 Identity, accounts, refs
+
+| Operation | Result |
+|---|---|
+| `resolve_actor(input: &str)` | `ActorView` (handle verification state included) |
+| `accounts()` | `Vec<AccountView>` |
+| `add_account(AccountInfo { did, pds, auth: AuthKind, issuer?, intended?, confirmIssuerChange })` | called by host-specific login code after a successful login; verifies the login binding (`sync.md` §3.6) |
+| `remove_account(did, purge: bool)` | – |
+| `set_active_account(did)` / `active_account()` | – |
+| `acting_as(did) -> Engine` | Rust API only (not in the wasm bindings): a clone of the engine whose `active_account()` is the recorded account `did` (`not_found` otherwise) without changing the stored active account; its queries and writes act as that account (CLI `--account`, writes to a record by its owner) |
+| `parse_ref(input, RefContext { forum? }) -> Ref` | accepts at-uris, SPA URLs (`#/p/…`, `#/c/…`, `#/f/…`, `#/s/…`, `#/u/…`, `#/at/…`, also inside a full URL), `handle/rkey` (post in `ctx.forum`; without one `invalid_ref`), `did`, `@handle`/`handle`. Listing indices (`3`, `c12`) are resolved by the CLI before calling. `Ref = forum{uri} \| post{uri} \| comment{uri} \| sequence{uri} \| record{uri} \| actor{did}` (tagged by `kind`). |
+
+### 3.2 Forums and membership
+
+| Operation | Result / notes |
+|---|---|
+| `forum_open(ref)` | `ForumView` header (§4.3). Resolves the declaration (first open fetches a proof), schedules authority sync: authorities never synced are synced now (P0), stale ones are queued. It emits `Changed [Forum]` only if that sync changed the cache (a record, or a repo's status), so re-querying on `Changed` cannot loop on an authority that stays unavailable; an authority whose sync failed is not tried again by `forum_open` for `FORUM_REOPEN_MS`. |
+| `forum_discover(q)` | `Vec<ForumSummary>` (relay + owners' listings + indexers; grouped by owner). M5 (§3.9) |
+| `forum_follow(uri, alias?)`, `forum_unfollow(uri)`, `followed()` | local; `followed()` also seeds from the user's own `membership` records |
+| `forum_create(ForumDraft)` | `WriteTicket`; writes the declaration and the owner's membership in one `applyWrites` |
+| `forum_update(uri, ForumDraft)` | `WriteTicket`. By the owner, through the edit protocol (a revision of the old version; unknown fields and the policy are kept): name, description, about, membership mode, default tier, featured tags, report contact. The slug is fixed; an absent or empty `moderators` keeps them, a different list is refused (`invalid_input`: use `mods_set`, which adopts first). The draft is written as given, so a draft without `about` removes it: a client whose form has no source for a spilled `about` (a `textBlob`, no `text`, `data-model.md` §5.2) fetches it first (`body_source`; the CLI, the TUI and the SPA do) or, while it cannot be had, refuses to send the edit and says why, never reads it as empty |
+| `join(uri, note?)`, `leave(uri)` | `WriteTicket`: membership create / delete. Joining (applying, in approval mode) is a public action (`social.md` §17, `PublicActionKind::Join`) |
+| `members(uri, MembersQuery { status?, pending? })` | `Vec<MemberView>`: every DID with a valid membership record (`member(d)`, `social.md` §3.1), by DID, with its role, grant, karma and moderation flags; `pending: true` keeps the applicants (approval mode) not rejected on this device; `status` keeps one role |
+| `grant(uri, actors)`, `revoke(uri, actors)` | `Vec<WriteTicket>`, one per actor (a DID or handle): `#access{member}` by the active account / its removal |
+| `approve(uri, actors)` | `Vec<WriteTicket>`: approval mode, by an authority (`blocked` otherwise): `grant`, and the actors leave this device's rejected list |
+| `reject(uri, actors)` | `Vec<WriteTicket>`: dismisses applicants on this device (nothing public is written for them; they leave `members { pending }`) and removes the active account's own grant of an actor, if any (the removals' tickets) |
+| `rejected_applicants(uri)` | `BTreeSet<did>` (a JSON array): the applicants rejected on this device |
+| `mods_set(uri, ModsChange)` | `ActionTicket` (§3.5). By the owner, through the edit protocol of the declaration. `Add` adds the entry or replaces the DID's (a role change). `Remove` first enqueues `mod_adopt` of the moderator's assertions, then the declaration edit, sent only once the adoption is done (it fails unsent if the adoption failed); the ticket carries an `adoptedFirst` notice naming the adoption's write (whose `done` state carries its `report`, as for `mod_adopt`) and how many assertions are in effect, and a second one counting, by status, those that are not and so are not adopted. `skipAdopt` lets the assertions lapse at once (clients confirm first, listing them) (`social.md` §4.10) |
+
+### 3.3 Sync
+
+| Operation | Notes |
+|---|---|
+| `sync_forum(uri, SyncOpts { budget_ms, max_requests, full })` | `SyncReport`. User-initiated: stale collection lists are refreshed (`sync.md` §5.2) and up to `REJECTED_RECHECK_BATCH` rejected candidates are confirmed again, cheapest first (`sync.md` §4.2.1) |
+| `forum_indexers(ref)` | `Vec<ForumIndexer { url, did?, note?, consented }>` (M6): the forum's declared `discovery.indexers` entries that pass validation (`sync.md` §2.4), in declaration order, each with this device's consent state: `consented` when the URL is configured (`EngineConfig.indexers`) or has a stored consent, global or for this forum, and never with `indexer_mode = None`. It reads the cached declaration and local state only and never contacts an indexer, so it answers the same with `direct` sources (clients show the list, so the user can consent or not). Errors: those of resolving the forum (`invalid_ref`, `not_found`); `invalid_input` when the stored consent setting is unreadable |
+| `audit_indexer(forum)` | `AuditReport` (M6, `sync.md` §15.4): the manual A1–A5 audit of the forum's one consented indexer (heads, changes, records, digest and aggregates, proofs), each check with its `counts` and `findings` (`contradiction`, `omission`, `lag`, and `unchecked` for an item it could not check, with the reason: never a contradiction or an omission), and the totals. Findings are reported, never acted on: they do not demote or deselect the indexer. Errors: `invalid_input` when the `sources` in effect are `direct` (no indexer is contacted), when the forum has no consented indexer, or more than one ("exactly one"); `blocked` when the consented endpoint violates the endpoint policy; the errors of the audit's requests (`network`, …). The Rust method returns `Option<AuditReport>` and never `None` (the wasm binding would map it to `invalid_input`) |
+| `sync_thread(post_or_comment_uri, SyncOpts)` | P0 fetch of the thread's participants' ranges; opens an unknown forum from the record itself; `degraded` reflects the state after the sync |
+| `live_tail()` | long-lived: Jetstream / polling / indexer `getChanges`, feeds the dirty queue; runs `live_step` rounds until `live_stop()` |
+| `live_step() -> LiveRound` | one `live_tail` round (seeding, head polls, reconciles, up to `LIVE_TAIL_BATCH` queued syncs, handle verification, tombstone GC); for one-shot use (`tail --once`). `LiveRound { polled, reconciles, synced, changed: Vec<forum uri>, verified, gc, nextMs }` is a Rust value, not a DTO |
+| `live_stop()` | sync; stops every running `live_tail` after its current round; a `live_tail` started later runs |
+| `verify_handles(n) -> usize` | verifies the handles of up to `n` shown authors queued by views (`sync.md` §3.3); emits `Changed` when a handle state changed; `live_tail` calls it each round |
+| `outbox_pump()` | long-lived: drains the outbox of every logged-in account, one write in flight per account (`sync.md` §7.1, across processes and tabs through `Host::lock`); picks up account changes; never returns an error; ends on `outbox_stop()` |
+| `outbox_stop()` | sync; stops every running pump after its current round; a pump started later runs |
+| `outbox_flush() -> PumpReport` | one-shot (CLI, tests): prunes finished writes older than `DONE_KEEP_MS`, then runs every account's outbox until nothing is pending, sleeping through holds and back-offs; an account whose writes wait for a new login (below) is skipped. `PumpReport { processed, done, failed, conflicts, throttled, needsLogin }` is a Rust value, not a DTO |
+| `outbox_expedite() -> u32` | "send now" (`pandoras-forum outbox flush`): ends the back-off of every write that waits after an ambiguous or transient failure, so the next step tries it at once. The undo window, the write budget, a PDS rate limit and a refused session are not shortened. Returns how many writes it expedited |
+| `background_verify()` | long-lived; `verify = Proof` is Reserved (P2) (`sync.md` §2.3), so in v1 it returns at once |
+| `external_change(topics)` | sync; another engine over the same stores (another browser tab, `sync.md` §10.6) emitted `Changed { topics }`: drops the cached models those topics touch (a `Thread` or `User` topic drops every cached forum model). Emits nothing; the caller forwards the event to its own subscribers |
+
+Clients start `outbox_pump()` and `live_tail()` once at start-up (before or after login) and stop them with `outbox_stop()` / `live_stop()`; one-shot CLI commands use `outbox_flush()` and `live_step()` instead.
+
+```
+SyncReport { dto, forum, reposTotal, reposComplete, reposStale, reposUnavailable,
+             requests, bytes, changed: u32, partial: bool, degraded: bool,
+             errors: Vec<SyncIssue { did?, host?, code, message }> }
+```
+
+### 3.4 Queries (all return DTOs, §4)
+
+| Operation | Result |
+|---|---|
+| `list_posts(ListPostsQuery { forum, sort, filter, tag?, kind?, author?, cursor?, limit })` | `PostList`: the listed posts (`Visible` or `Collapsed`, `social.md` §10.1) passing `filter`, `tag` (`applies(p, t)`, §13.3: a tag applies only once its wiki page exists), `kind` and `author` (a DID or handle), in `sort` order (§12.2) |
+| `recent_discussion(forum, cursor?, limit)` | `DiscussionList`: the full fold's Recent Discussion (§12.5), each post with its `DISCUSSION_COMMENTS` newest `Visible` comments |
+| `get_post(uri, sequence?)` | `PostView`. `sequence` (M5) is the sequence the reader came from (`social.md` §14, step 1 of next and previous): when it is an eligible sequence that contains the post, `PostView.sequences` navigates it instead of the author's or the top listed one, and the post becomes that sequence's "continue reading" position on this device (`("loc", "seqpos", sequence)`, device-wide like the read marks, in `export_local` and `import_local`), with `Changed [Thread(sequence)]` when it moved. Recording it is a side effect of the read: a state store that fails to keep it is logged, and the view is still returned. A `sequence` that does not contain the post is ignored and records nothing; an unparsable one is `invalid_ref`. Rust: `get_post_in(uri, sequence)`; `get_post(uri)` is `get_post_in(uri, None)` |
+| `get_thread(uri, ThreadOpts { sort, unreadOnly })` | `ThreadView` (comments in pre-order with depth) |
+| `history(uri)` | `HistoryView` |
+| `backlinks(uri)` | `Vec<PostSummary>` (M5, "linked from", `social.md` §16 Pingbacks): the listed posts of the forum of `uri` whose rendered bodies link to `uri` (any at-uri: a post, a comment, a record), by uri. Links come from the shared renderer's output over the synced inline bodies, never from a record's `markdown.links` hint, and a spilled body (`textBlob`) is not read here, so it does not count. Errors: `invalid_ref` (not an at-uri), `not_found` (no forum is known for it) |
+| `tags(forum)` / `tag(forum, slug)` | `Vec<TagSummary>` / `TagView` (M5): the applicable pages (`applicable(slug)`, `social.md` §13.2) only; `tag` is `not_found` for any other slug, also a page that exists but is not a tag (`isTag: false`) or whose tag is removed |
+| `wiki_page(forum, slug)` | `WikiPageView { dto, forum, slug, head?, exists, applicable, unmergedEdits }` (M5): any page's canonical revision (`head`, whatever `exists` and `applicable` say) and state, so an editor can start from a page `tag` does not answer for. A wiki or tag editor calls it first: with a `head`, it loads the head's fields from `raw(head)` and its body from `body_source(head)` (both at one CID, "Body source revision" below) and sends `head` as `WikiDraft.base` (§3.5 `wiki_edit`); without one (an unknown slug, or a page with no eligible revision) the edit is a new page, without `base`. A `head` with `exists: false` is a page whose tag a moderator removed (an edit does not restore it); `exists` without `applicable` is a page that is not a tag. Reads the cached model only. Errors: those of resolving the forum (`invalid_ref`, `not_found`) |
+| `sequences(forum)` / `sequence(uri)` | `Vec<SequenceSummary>` / `SequenceView` (M5) |
+| `user(forum?, actor)` | `UserView` (M5) |
+| `search(SearchQuery { q, forum?, author?, limit })` | `SearchResults` (M5): local synced content only; AND terms over titles and rendered plain text; Unicode code-point highlight offsets |
+| `notifications(NotificationsQuery { all?, limit })` | `NotificationList` (`social.md` §16): the active account's notifications in its followed forums, newest first (then by id), unread only unless `all`, at most `limit`; `unread` counts every unread one (the badge). Empty without an active account. Computed lazily: it first brings the stored notifications up to date over the cached models (it does not sync); clients re-query on `Changed` with a `Notifications`, `Forum` or `Thread` topic. `atMs` is when the item was first seen (never its `createdAt`) or when the change was noticed. A notification about an item is listed and counted only while the item is listed (`social.md` §10.1, §16): one about an item hidden, removed or deleted since is left out, and is back if the item is listed again; so is one of a forum that is not followed or whose model cannot be loaded (it fails closed). Refreshes run one at a time, and a change's id names the baseline generation it was found against, so overlapping refreshes store it once |
+| `unread_counts()` | `UnreadCounts`: the notification badge and, per followed forum (by uri), the listed posts first seen since its post list was last visited, the listed comments first seen since each visited thread was last viewed (threads never viewed count as new posts) and its unread notifications; the active account's own items never count. A forum's first count records the visit mark. Brings the notifications up to date first |
+| `mod_queue(forum)` | `ModQueue` (`social.md` §4.12): applicants, top-rank unordered conflicts, stale positive assertions and, in open mode, the newest newcomer items. The forum's authorities only (`blocked` for anyone else). In approval mode `banners` holds one banner saying where the applicants come from (`sync.md` §4.4: they are found only through CORE+ hints; orchestrator decision O-8): `applicantsViaHints` with assisted sources (the list may be incomplete; applicants can also reach the moderators out of band), or the stronger `applicantsNotDiscovered` when the `sources` in effect is `direct` (this device looks for no applicants, so only those found before are listed; switch to assisted or hear from them out of band). Clients show it above the queue, also when the queue is empty |
+| `mod_log(forum, cursor?, limit)` | `ModLog` (`social.md` §4.12), `(time desc, uri asc)`, paged like `list_posts`. Public, except the `reason` of a `#hide` with `showReason: false`, shown to the forum's authorities only |
+| `raw(uri)` | `RawView`: the stored record JSON, its validity violations, every modAction naming it (valid or not, each with its mod-log status), its state and its score. Open to every viewer: the raw view shows everything, hidden content included (`social.md` §10.3) |
+| `body_source(uri)` | `BodySource { markdown, cid, profile?, spilled }` (M4): the markdown source of the `body` of a post, a comment, a wiki revision or a sequence (its introduction; chapter bodies are inline only, `data-model.md` §5.2 rule 2, and are read from `raw`; M5), or of a forum's `about`, as a composer edits it (`markdown` is `""` for an item without one): the inline `text`, or the spilled `textBlob` (`lfm-1.md` §1.3) decoded as the views decode it (UTF-8, one leading U+FEFF stripped), from the copy the host holds (stored CID-checked when the engine fetched it for a view) or fetched now from the AUTHOR's PDS, waiting at most `BODY_BLOB_WAIT_MS` as a view does. A user asked for it, so it is asked for whatever the item's state and the retry window (it is a request, not a prefetch, `sync.md` §11.4); one that does not come in time stays pending for `live_tail` (§3.8) and is an error here. Open to every viewer, like `raw`. Errors: `network` with `detail.kind = "bodyPending"` (retryable: not loaded yet), `not_found` with `"bodyMissing"` (the PDS has no such blob), `network` with `"bodyFailedVerification"` (CID mismatch), `too_large` (over `BLOB_TEXT_MAX_BYTES`) and `invalid_input` with `"bodyUnreadable"` (not UTF-8), `unsupported` with `"unknownBody"` (neither inline text nor a text blob), `invalid_ref` for any other collection (a wiki revision or a sequence was one before M5) |
+| `load_media(cid, media?)` | `LoadedMedia` (`sync.md` §11.1, M4): fetches a media blob for display from its AUTHOR's PDS, resolved from the author's DID document (`media`: the item's `MediaView`, or only the author's DID; without it, the active account's own repo). Needs no login. The cap is the declared `sizeBytes` (a longer body is aborted, and a copy already stored is held to it too), within `BLOB_HARD_MAX_BYTES`. The host streams and CID-checks the bytes, which never enter wasm memory; the core reads the first 4,096 bytes to sniff the type. `mime` is the §11.2 display type, set only when the sniffed type is on the display allowlist and agrees with the declared one (when the view gives one): absent, the client shows a download card. `sniffed` is the type the bytes sniff as (`data-model.md` §8.8's table, or `image/avif`), whatever was declared: a download card names the saved file `<cid>.<ext>` from it (`sync.md` §11.2); it is never a display type. In the browser `url` is a `blob:` object URL of type `mime` that the main-thread client makes from the verified stored `Blob`; the caller revokes it when the element unmounts. Natively it is the file's path. Errors: `not_found` with `detail.kind = "mediaMissing"` (the PDS has no such blob: an HTTP 400 naming `BlobNotFound`, or `InvalidRequest` as the reference PDS answers "Blob not found", `sync.md` §11.1; nothing is stored: a blob stored once is not asked for again, `sync.md` §12.2); any other HTTP 400 (the repo is not served now: `RepoNotFound`, `RepoDeactivated`, `RepoTakendown`, `RepoSuspended`; or an error name this client does not know) is not a missing blob: the error as any XRPC call maps it (`detail.error`, `detail.status`), with `retryable` set; `network` with `detail.kind = "mediaFailedVerification"` (CID mismatch), `too_large` (above the declared size or 300 MiB) |
+| `bookmarks()` | `Vec<BookmarkEntry>`: newest first, each with the post's summary when its forum's model is cached |
+| `bookmarked(uri)` | `bool` |
+| `subscriptions()` | `Vec<SubscriptionEntry>`, oldest first |
+| `mutes()` | `Vec<ActorView>`: the muted actors (the lens, `social.md` §10.3), by DID |
+| `drafts()` | `Vec<DraftEntry>`: the active account's saved drafts (§3.6), newest first; empty without an active account |
+| `load_media(cid, media?: MediaView) -> LoadedMedia` | a media blob for display (`sync.md` §11): fetched from the PDS of the author `media` names (the item's view from `RenderedBody.media`; without it, the active account's own repo), streamed and checked against `cid` by the host, never through wasm memory. No login is needed. In the browser `url` is an object URL the caller revokes; `mime`, when present, is the display type (the sniffed type matches the declared one and is on the display allowlist), absent: a download card, never inline; `sniffed`, when present, is the type the bytes sniff as, which names a download's file |
+
+`sort`/`filter` values are exactly those of `social.md` §12 (`magic | top | new | old | recentComments`;
+`frontpage | all | curated`; comment sorts `magic | top | new | old | latestReply`).
+
+**Defaults (M3).** `ListPostsQuery` defaults to `sort = magic`, `filter = frontpage`;
+`ThreadOpts` to `sort = magic`. Every client opens a forum's post list with these defaults (the
+CLI's `ls`, the TUI's forum screen, the SPA's `web/src/lib/listDefaults.ts`), so the three show
+the same posts for the same forum; the parity scenario lists with explicit values.
+
+**Body source revision.** `BodySource.cid` is the CID of the record whose markdown and profile
+are returned (the declaration for a forum, including one with no `about`), never a `textBlob`
+or media blob CID. For a post, comment, wiki revision or sequence, the value is accepted only
+while its stored CID is the current model skeleton's; for a forum, both fields and the CID come from the model's current
+declaration. A client combining this result with a separately fetched `raw(uri)` into an edit
+draft MUST require `raw.cid == body_source.cid`; on a mismatch it MUST refuse that draft and
+retry the source reads, never substitute fields from another revision.
+
+**One fold per forum.** The engine folds a forum once per change of its cache (`social.md` §1,
+the full fold with the empty query) and answers every query from that model: a sort, filter,
+tag, kind, author or thread is re-ranked from the cached layers (`full::reorder`), which gives
+the same orderings as a fold with that query. Refolds are single-flight per forum (a query that
+waited for a fold uses its model, even if an invalidation that came after the query raced that
+fold; only queries that arrived after the invalidation fold again), throttled by
+the last fold's cost (a forum whose fold took `c` ms is not refolded more often than every `c`
+ms, at most 5 s apart, and its model is reused for up to `30 c` ms or `MODEL_MAX_AGE_MS`), and a
+fold that rejects its input (a malformed `FoldInput`, §1.1) keeps the last good model and logs
+the error. The model's `now` is the view time (`parity_now_ms` in parity mode), so the same
+cache, local state and clock give byte-identical JSON on every engine.
+
+**Paging.** `list_posts`, `recent_discussion` and `mod_log` page with an opaque `cursor` (the
+next page's offset) and `limit` (0: `LIST_PAGE_DEFAULT`, at most `LIST_PAGE_MAX`).
+
+**Viewer.** Views are computed for the active account (the viewer): its own opinions (`mine`),
+react stances, read marks (`unread`, `unreadComments`; ignored in parity mode, §2.1), mutes (the
+lens: a muted author's listed items are `collapsed/muted`, `social.md` §10.3) and
+`ForumView.viewer` capabilities. Hidden and tombstoned items carry no author content (title,
+link, tags, labels, body, reacts) and a zero score for viewers who are not the forum's
+authorities; `raw` shows everything.
+
+### 3.5 Writes
+
+Writes go through the durable outbox (`data-model.md` §8). Each returns a `WriteTicket
+{ id, state }` immediately after the operation is persisted; `state` progresses through
+`Pending → Sending → Done { uri, cid } | Failed { error } | Undone` and is reported by
+`Write` events.
+
+`Pending { notBeforeMs?, held?, throttled?, needsLogin?, error? }` says why a write waits:
+`held` (the undo window), `throttled` (the write budget, a rate limit, or a back-off after an
+ambiguous or transient failure), or `needsLogin`; `error` is the failure that caused a
+`throttled` or `needsLogin` wait. **`needsLogin`:** the PDS or the host refused the account's
+session (`auth_required`: expired, revoked, logged out). The write is not retried and does not
+count as an attempt; nothing else of that account is sent (writes stay in order), the engine
+emits `Auth { did, state: Expired }`, and the next login of the account (`add_account`,
+`record_account`) queues the held writes again.
+
+| Operation | Notes |
+|---|---|
+| `publish(PostDraft)` | `PostDraft { forum, kind, title?, body: BodyDraft, link?, tags?, labels? }`; adds membership on first content (`data-model.md` §8) |
+| `comment(CommentDraft)` | `{ root, parent?, body, quote? }`; on a locked post (forum tier, or an author lock by someone else) refused unless the writer is in A (`blocked`, `detail.kind = "locked"`; `social.md` §4.8 "Composer"): it would be published and hidden from everyone at once |
+| `edit(uri, Draft, EditOpts { history: bool, summary? })` | edit protocol with revision snapshot. The draft replaces the body, so a client that cannot read a spilled body (`textBlob`) fetches its source first (`body_source`) or says so instead of offering an edit that starts from an empty one. A post draft's `link` to the uri the cached version links keeps the cached card: a draft that names neither `title` nor `description` keeps the cached `link` object whole (its `thumb` and unknown fields included, `data-model.md` W3), and one that names some keeps the cached `thumb`, which no draft carries; a link to another uri is written as the draft gives it. So a client that knows only the uri (the CLI's and TUI's `edit`) does not strip the card. With `EditOpts.dropLinkCard` (M5) the draft's `link` is written exactly as given, the cached card dropped, so a draft of the uri alone removes the card (title, description and thumb) and keeps the link. The cached-card rule changed what a v0 draft of the uri alone means (§1 "After the freeze (M4)", orchestrator decision O-14) |
+| `edit_preflight(uri) -> Vec<ActionNotice>` | what a client shows, and confirms, before `edit` (`social.md` §4.5, `threat-model.md` SOC-3): one `suspendsAssertions` notice naming the positive assertions in effect on the item (mod-log status `effective`: a keep, a `frontpage` or `curated` tier, a pin), which the edit's new CID suspends until an authority asserts them again; empty when there are none or while the forum's moderation layer is pending; `not_found` when the item is not cached. Read-only |
+| `delete(uri)` / `retract(uri)` | |
+| `opinion(subject_uri, OpinionIntent) -> ActionTicket` | the active account's opinion on a cached post, comment, wiki revision or sequence (`data-model.md` §8.5): `Karma { value? }`, `Agreement { value? }` (an absent value clears the axis), `React { id, stance, quote?, remove? }` (`quote.exact` only: the engine derives `prefix`, `suffix` and `start` from the item's current text), `Tag { slug, value? }`. Held for the 4 s undo window (`OPINION_UNDO_WINDOW_MS`, `Pending { held }`); an intent on a subject whose write is still held joins it (the ticket is that write's). When sent, the record is re-read and the intents re-applied per axis, so two devices' opinions merge; an opinion left empty is deleted; `subject.cid` is the cached version's. Refused before enqueueing when it could never count: `blocked` (banned, nullified, restricted, a gate of `ViewerCaps`), `invalid_input` (an own item, a forum without agreement or reacts, an unknown react, nothing to react against, an unknown value), `invalid_ref` (not an opinion subject), `not_found` (not cached). A vote that does not carry weight yet is recorded with a `notEstablished` notice ("recorded; will count once you're established"). A public action (§3.6) |
+| `mod_action(ModActionIntent) -> ActionTicket` | `Assert { forum, scope, subject, action: ModActionValue, reason?, untilMs? }` creates the active account's record for (scope, subject, action key), or updates it through the edit protocol; `Remove { forum, scope, subject, actionKey }` deletes it through the removal protocol (unhide, unban, unpin, unlock, unrestrict, …) (`data-model.md` §6.7, §8.4, §8.6). `subject` is a DID or handle, an at-uri or `tag:<slug>`; a positive assertion is bound to the subject's cached CID. Refused before enqueueing when it would have no effect: `blocked` (forum scope needs an authority with the rank and role, `social.md` §4.3; author scope the §4.9 conditions), `invalid_input` (a subject of the wrong kind, an action author scope does not allow, an author-scope ban of the acting account itself: `detail.kind = "selfSubject"`, since `authorBanned` would hide its own comments in its own threads, a lock that would keep more than 5,000 comments: `detail.hint = "useHide"`, offer hiding the thread), `not_found` (a positive assertion on an uncached subject, or removing an assertion the account does not have). Bans and restrictions carry a `retroactive` notice. `lock.allowed` is computed by the engine. One `#restrict` record holds both `capabilities` and `nullifyVotes` (`social.md` §4.2), so a `restrict` that leaves one out keeps the account's current value of it: from its latest unsent write of the record, else the cached record, else none (no capability, `false`; a record whose `until` has passed is none); restricting never lifts a nullification and nullifying never lifts a restriction. The record's one `until` and `reason` are shared the same way: while the dimension left out is in effect there (a capability, or `true`), an intent without `untilMs` keeps the record's `until` (so nullifying never makes a temporary restriction permanent, and the reverse) and one without `reason` its `reason`; an `untilMs` of the intent's own becomes the carried dimension's expiry too. A `sharedExpiry` notice says when either changes a dimension's expiry (the dimension named takes the record's `until`, or the carried one the intent's). Otherwise, and for an intent that names both dimensions, `reason` and `untilMs` are the intent's, for the whole record (no `untilMs`: no expiry). A `restrict` naming neither is `invalid_input`. A public action (§3.6) |
+| `mod_adopt(forum, former) -> WriteTicket` | by an authority: re-issues the departing moderator's (a DID or handle) forum-scope assertions that are in effect (mod-log status `effective` in the actor's fold, after a P0 sync of their range) with `adopts` pointing at each original (`social.md` §4.10); every other one, and what could not be adopted, is reported in the write's result: `WriteState.done.report`, one line per assertion (`cannot adopt <uri>: …`, `kept own assertion for <uri>`; `data-model.md` §8.6), absent when everything was adopted. Clients show the report when the write is done (the CLI prints it, the TUI and the SPA open an adoption report), since what is listed lapses with the former moderator unless the adopter's own assertion stands |
+| `wiki_edit(forum, slug, WikiDraft)` | Creates an immutable wiki revision (`data-model.md` §6.8). `WikiDraft { name, description?, body?, isTag, parentTags, summary?, base? }` (M5). `base` is the page head the author edited, the `WikiPageView.head` (or `TagView.head`) the client loaded (orchestrator decision O-2): it is written as the only parent, with its cached CID, and the edit is refused before enqueueing (`conflict`, `detail.kind = "wikiHeadMoved"`, `detail.base`, and `detail.head`, the cached canonical revision, absent when the page has none) when the cached canonical revision is not `base`, so an edit made against an older head never silently replaces the newer one; the client reloads the page and lets the author redo the edit. Without `base` (engine API v0) a new page has no parent and an edit of an existing page names the current canonical revision; clients that loaded a head pass it |
+| `seq_create(SequenceDraft)` / `seq_edit(uri, SequenceDraft)` | Create or replace the editable content of an own sequence and its chapters. `SequenceDraft { forum, title, body?, chapters: Vec<{ title?, body?, posts: Vec<uri> }> }` (M5) |
+| `seq_add(uri, post, at)` / `seq_remove(uri, post)` / `seq_move(uri, from, to)` | Edit chapter entries of an own sequence. `SequencePosition { chapter, index }` is zero-based (M5) |
+| `redact_revision(uri) -> WriteTicket` | a post, comment or sequence `uri` of an account on this device (`auth_required` otherwise: only the author redacts, W9): deletes every own revision record that names the item (`data-model.md` §8.7: any key suffix, any spelling of the repo), as listed on the author's PDS when the write is sent, so revisions this device never synced and invalid ones go too (`data-model.md` §8 "Redact history", `threat-model.md` PRIV-5). The item then reads "history redacted". A forum declaration's or a modAction's revisions are the mod log and are never redacted (`invalid_input`, `detail.kind = "modLog"`; `threat-model.md` SOC-7), as is `delete` of such a revision's uri. The write's `Done` names the item; an item without history is a write that deletes nothing |
+| `prepare_media(bytes, MediaInput?) -> MediaRef` | sniff, strip, orient, downscale to 5 MiB (`data-model.md` §8.8), CID; the same pipeline natively and in the SPA's wasm. Upload happens at publish. `MediaInput` carries the declared type and the display hints; engine API v0's single `MediaFile { bytes, mime?, name?, alt? }` argument is still accepted (`mime` is the declared type). A blank `alt` is no alt (it is never written as `""`), and the reference then carries a `missingAlt` notice, which writers show (`data-model.md` §4) |
+| `undo(write_id)` | removes a write not sent yet (the undo window), or writes the inverse of a sent opinion (`sync.md` §7.4) |
+| `retry_write(write_id)` | queues a `failed` (or conflicting) write again with its attempts reset; on a write that backs off after a failure, or waits for a login, it is "send now" (queued at once, attempts kept). A write held by the undo window, the write budget or a rate limit is refused (`invalid_input`). Returns its ticket |
+| `write_status(write_id) -> Option<WriteTicket>` | `None`: unknown or pruned |
+| `writes() -> Vec<WriteTicket>` | every write in the outbox, by account then `seq` (the CLI's `outbox` listing, the SPA's pending badges) |
+
+**SPA adoption-report acknowledgements.** Core currently retains done and undone writes for seven
+days (`DONE_KEEP_MS`). After dismissing a `mod_adopt` report, the SPA stores only
+`{ id, acknowledgedAtMs }`, never its report lines or record content. The entry expires when
+`nowMs - acknowledgedAtMs >= 30 days`; earlier entries are retained regardless of how many later
+reports are dismissed. This gives a 23-day margin beyond core retention. Acknowledgement expiry
+is coordinated with `DONE_KEEP_MS`: if that retention changes, the client rule must retain at
+least the same 23-day margin. Undismissed reports remain in their per-account queues, and storage
+read/write failures degrade to at-least-once display rather than losing a report.
+
+`BodyDraft { markdown, media?: Vec<MediaRef> }` — the engine performs spill-to-blob, mention
+rewriting (`at://handle` → DID), derived `mentions`/`links`, and validation before persisting.
+The rewriting covers every handle-authority `at://` link destination (inline links, autolinks,
+link reference definitions; not code) of every body a write carries (posts, comments, edits, a
+forum's `about`, a tier notice): a handle that does not verify in both directions refuses the
+write (`invalid_input`, `detail.kind = "unresolvedHandle"`, `detail.handle`), since its link
+would be published dead (`lfm-1.md` §5.2).
+
+**`ActionTicket { id, state, notices? }`** is a `WriteTicket` (same `id`, same `state`, the same
+`Write` events) plus the notices clients show with the result: `ActionNotice { code, message }`
+with `code` one of `notEstablished`, `retroactive`, `adoptedFirst` (stable) and `message`
+English text. `opinion`, `mod_action` and `mods_set` return it.
+
+### 3.6 Local state
+
+Kept in the `state` store of this device, never written to a PDS. Every operation emits the
+`Changed` topics named here.
+
+| Operation | Notes |
+|---|---|
+| `mark_read(uri)` | a post: `lastVisited` becomes the greatest first-seen time among the post and its listed comments (never lower than before), and the active account's notifications about the thread are read (`Changed [Thread, Forum]`, plus `Notifications`). A forum: its post list was visited (the new-post count of `unread_counts` restarts) (`Changed [Forum]`) (`social.md` §16) |
+| `mark_notifications_read(ids)` | the active account's notifications `ids` (unknown ids are ignored); `Changed [Notifications]` if one changed |
+| `mark_all_notifications_read()` | every notification of the active account |
+| `bookmark(uri, on)` | `Changed [Thread]` |
+| `subscribe(Subscription, on)` | new posts in a forum, by a user or with a tag, new comments on a post, new entries of a sequence (`social.md` §16); `Changed [Notifications]`. In TypeScript `setSubscription`, since `subscribe` is the event subscription (§3.8) |
+| `mute(actor, on)` | a DID or handle; the lens collapses the actor's listed items (`social.md` §10.3); `Changed` for the user and every cached forum |
+| `acknowledged_public_actions() -> Vec<PublicActionKind>` | the "this is public" interstitials the active account has seen (`social.md` §17, `threat-model.md` PRIV-9), in `PublicActionKind` order (`vote`, `react`, `tagVote`, `join`, `modAction`); empty without an active account |
+| `public_action_acknowledged(kind) -> bool` | |
+| `acknowledge_public_action(kind)` | per account, shared by every client on this device; `auth_required` without an active account; `Changed [Accounts]` |
+| `karma_notifications() -> KarmaCadence`, `set_karma_notifications(cadence)` | `realtime`, `daily` (the default) or `weekly` (`social.md` §16); `Changed [Notifications]` |
+| `save_draft(Draft) -> draft_id`, `delete_draft(id)` | the active account's drafts (`auth_required` without one): every account on a device has its own (`threat-model.md` AUTH-11, PRIV-8). A draft that carries an `id` overwrites that draft, otherwise a new id (a TID, unique on this device) is returned. A draft over `DRAFT_MAX_BYTES` (1,000,000 bytes serialised) is refused (`too_large`); an account keeps its newest `MAX_DRAFTS` (100) drafts. Deleting a missing draft is not an error. A draft saved before drafts were per account (`("loc", "draft", id)`, which every account listed) is adopted by the first account that lists, saves or deletes drafts, and deleted by `logout --purge` while none has. `Changed [Drafts]` |
+| `settings() -> Settings` | this device's settings in effect: `sources` (`EngineConfig.sources_flag`, else the stored setting, else the build default; natively the flag is a CLI flag, else the `sources` `config.toml` states, an explicit local pin (decision O-9): CLI flag > `config.toml` > stored setting > build default; in devnet mode the native flag is `direct` unless a CLI flag or `config.toml` states `sources`, so a stored setting never turns on CORE+ services there, `sync.md` §3.7; `sync.md` §2.3), `verify` (`pds`: `proof` is Reserved), the stored lists, and the active account's karma cadence and acknowledgements |
+| `set_setting(key, value)` | `key` is a field of `Settings` with a value of its type; `null` returns it to its default. `sources` takes effect at once in the running engine (in `direct` no CORE+ or EXT endpoint is contacted); `verify: "proof"` is refused (`unsupported`, `detail.milestone = "P2"`); `mediaAutoloadHosts` takes host names, `indexers` consents with `https` URLs (`§2.4`), `externalImagesForums` forum at-uris; `karmaNotifications` and `acknowledgedPublicActions` are kept as their own operations keep them (the latter needs an active account, `auth_required`). An unknown key or a value of the wrong shape is refused (`invalid_input`, `detail.kind = "unknownSetting"`). `Changed [Accounts]` |
+| `export_local() -> Json` | this device's local state (the `loc` rows) as one versioned JSON object; `--mine` (the default, PRIV-8) is the active account's state and the rows of no account (`threat-model.md` PRIV-10). The CLI's `export --local`; its plain `export` exports content (own posts and comments by default; a forum without hidden and deleted items, `threat-model.md` PRIV-8) |
+| `import_local(Json, scope?) -> ImportReport` | the CLI's `export --import`: merges an export back (`scope`: `"mine"`, the default, or `"everything"`). An import is a file that may come from someone else, so it writes only local lists and marks, drafts and the settings that name no third party, the switches only toward their stricter value (`sources` only as `direct`, `mediaAutoload` and `externalImages` only as `off`: a file never makes the device contact more endpoints, `sync.md` §2.3): never a key outside `loc` (the outbox, the write budget), the login state, the acknowledgements, the notifications and their baselines (`notif`, `nbase`: exported, but computed again on this device, since a planted row could list any text or silence a forum), prepared media, or a setting `set_setting` would refuse; nor a draft `save_draft` would refuse (over `DRAFT_MAX_BYTES`, not a stored draft, or of no account), nor a "continue reading" row (`seqpos`, §3.4 `get_post`) that is not one `get_post` would store, nor a key over 2,048 bytes or a value over 2 MiB (`sync.md` §12.4: such a member would fail a later batch after earlier ones were written); those members are counted as `refused`. At most `IMPORT_MAX_MEMBERS` (100,000) members and `IMPORT_MAX_BYTES` (64 MiB of decoded keys and values), else `too_large` before anything is written; a duplicate key: the last one wins. Written in batches of at most 1,000 rows, then each account's drafts are pruned to `MAX_DRAFTS` (`Changed [Drafts]`) |
+
+**Public actions.** Votes and agreement, reacts, tag votes, joining or applying, and mod actions
+are public (`social.md` §17). Before the first action of a kind, every client shows the "this is
+public" interstitial unless `public_action_acknowledged(kind)`, then calls
+`acknowledge_public_action(kind)`; `OpinionIntent::public_kind()` names the kind of an intent.
+The engine does not enforce it. The CLI asks on a terminal; without one, the first action of a
+kind (a vote, a react, `join`, `approve`, a `mod` or `mods` command) is refused (`usage`) unless
+`--yes` confirms it.
+
+### 3.7 Pure functions (also exported to wasm)
+
+`render(markdown, media, RenderOpts) -> RenderedBody` (each `media` item a `MediaRef` from
+`prepare_media`, rendered as the `defs#media` value `publish` writes, or a `defs#media` value as a
+record stores it, an object with a `blob`; `RenderOpts.profile?` is the body's, absent `lfm/1`;
+`invalid_input` for an item that is neither), `safe_href(raw, ctx)`,
+`parse_ref`, `verify(uri, deep) -> VerifyReport` (network, but no state);
+`validate_record(collection, json) -> ValidationReport` (the rules of `data-model.md` §7 for a
+record of `collection`, an NSID of this build or its last segment such as `post`, before it is
+written: the record key is the canonical one where the value determines it, a fresh TID key
+otherwise, `self` for a profile, the slug `draft` for a forum; the repo is the active account's;
+`errors` are the failing rule IDs, sorted) and `derive_rkey(RkeyInput) -> string` (the canonical
+key, `data-model.md` §3; `invalid_input` when the input names none: a comment's `root` must be a
+post keyed `FK-TID`, and a modAction's `actionKey` one an action has, so not the full `$type` of
+a known def); `run_vector(kind, json) ->
+json` (tests only).
+
+### 3.8 Events
+
+`subscribe(cb: Fn(Event))`; events are delivered in order, never re-entrantly.
+
+```
+Event =
+  | Changed { topics: Vec<Topic> }             // Topic = Forum(uri) | Thread(uri) | User(did)
+                                               //       | Notifications | Outbox | Drafts | Accounts
+  | SyncProgress { forum, done, total }         // repos synced so far / planned so far
+  | Write { id, state }                         // always followed by Changed [Outbox]
+  | Auth { did, state: Ok | Expiring { inMs } | Expired }
+  | Warning { kind, source?, message }         // e.g. equivocation, indexer contradiction, degraded
+```
+
+UIs re-query on `Changed` and never move the user's cursor on live updates (TUI banner
+"N new — R"; SPA query invalidation).
+
+- **`SyncProgress`.** `sync_forum` and `sync_thread` emit it as repos finish: `done` is the
+  number of repos synced so far and `total` the number planned so far. `total` grows as each
+  step of `sync.md` §4.5 plans its candidates, so the ratio can go down. The last event of a
+  command always has `done == total`, also when the command fails; it is followed by
+  `Changed [Forum (, Thread)]`. The counts are progress only; completeness is the report's
+  `reposComplete` of `reposTotal`.
+- **`Write`.** Every outbox state change emits `Write { id, state }`, then `Changed [Outbox]`.
+  For an applied own write, the forum, thread and user topics come after `Write { done }`, so a
+  re-query no longer shows the item as pending.
+- **Spilled bodies.** A spilled body (`textBlob`) a view returned pending (`limits.md`
+  `BODY_BLOB_WAIT_MS`) is fetched again by `live_tail`: from the host's stored copy as soon as
+  there is one, else once `BODY_BLOB_RETRY_MS` has passed. A view that stops waiting does not
+  stop the host's download: the host runs one download per copy (PDS, DID, CID) at a time
+  (`sync.md` §12.2), so a slow body arrives for the next view or round rather than being
+  restarted and aborted again. Only a verified source is shared between authors who name the
+  same blob; what a fetch from one author's PDS found otherwise (missing, failed verification,
+  too large, unreadable; a 400 other than "Blob not found", such as a repo not served now, is
+  pending) is that author's only, so
+  another author's failing copy never makes a body missing or `body_source` refuse it. When it arrives (rendered, or found
+  missing or unreadable), `live_tail` emits `Changed [Thread(post), Forum]` (a spilled `about`:
+  `Changed [Forum]`), so a client re-queries and shows it. A round fetches all its due bodies
+  together, so stalled PDSes hold it back by one `BODY_BLOB_WAIT_MS` at most, however many
+  forums they serve.
+- **Accounts.** `add_account`, `record_account`, `set_active_account` and `remove_account` emit
+  `Changed [Accounts]` (plus `Outbox` when a purge dropped writes).
+- **`Auth`.** `Auth { did, state: Expired }` is emitted when the outbox finds the account's
+  session refused (its writes then wait with `needsLogin`, §3.5). Clients show "session
+  expired, log in again" (the CLI exits 3 with that hint). `Ok` and `Expiring` are Reserved.
+- **Handles.** Handle verification (`verify_handles`, `live_tail`) emits `Changed` for the users
+  whose handle state changed and for the cached forums.
+- **Social writes and local state (M3).** `opinion`, `mod_action`, `mod_adopt`, `mods_set`,
+  `approve` and `reject` report through `Write` events like every write (an opinion stays
+  `pending { held }` for the undo window). The local-state operations emit the topics of §3.6.
+  Notifications and unread counts are computed lazily: clients re-query `notifications` and
+  `unread_counts` on `Changed` with a `Notifications`, `Forum` or `Thread` topic.
+
+### 3.9 Rust-only API
+
+The M5 organisation, search, user-page and discovery operations in §§3.2–3.5 are implemented in
+engine API v0. Only test vectors remain unavailable in release modules:
+
+| Operations | Availability |
+|---|---|
+| `run_vector` | never in a release module (the social vectors run natively and in the wasm32 test harness) |
+
+**Planned additions** (compatible, not in v0): none remain. The M5 rows are implemented: the viewer's own tag votes and tag relevance on `PostView` (`PostView.tagRelevance`, §4.2) and `backlinks(uri)` (§3.4).
+
+**Rust API only** (native hosts and tests; not dispatched by the wasm binding): `acting_as`
+(§3.1), the native login plumbing (`bind_login`, `record_account`, `refresh_account`,
+`account`), identity helpers (`resolve_identity`, `resolve_identity_fresh`,
+`invalidate_identity`), `read_mark(post)` (the read mark in µs behind `unread` and
+`unreadComments`) and `muted()` (the DIDs behind `mutes()`). `live_step` and `outbox_flush`
+are reachable from the worker as glue (§5). The M6 indexer entry points of native hosts and
+the indexer (`sync.md` §15): `list_posts_page(query, fallback_sync)` (a first page hydrated
+from an indexer, else one bounded PDS sync, then `list_posts`; a `sync_forum` started while
+such a first page is being hydrated and listed waits for it before it starts, at most
+`COLD_PAGE_HOLD_MS`, `sync.md` §14.3), `hydrate_indexer_page`,
+`hydrate_indexer_records`, `poll_indexer_changes`, and the hints `indexer_post_ordering`,
+`indexer_thread_ordering`, `indexer_participants`, `indexer_forums` and `indexer_head_hints`.
+They return ordering and discovery hints, or admit proven records; displayed values always come
+from the local fold, and with `direct` sources none of them contacts an indexer.
+
+## 4. DTO schema (`dto/1`)
+
+### 4.1 Common types
+
+```
+ActorView     { did, handle?, handleState: verified|unverified|invalid,
+                claimedHandle? /* only while unverified; untrusted, shown struck through (sync.md §3.1) */,
+                displayName?, avatar?: MediaView,
+                shortDid }                       // handle present only if verified both ways
+ItemState     = { kind: "visible" }
+              | { kind: "collapsed", reason: "newUser"|"lowScore"|"muted" }
+              | { kind: "hidden", reason: HiddenReason }
+              | { kind: "tombstone", reason: HiddenReason }
+HiddenReason  = { kind: "notParticipant" } | { kind: "moderationUnavailable" }
+              | { kind: "removed", rank: u8, actor?: did, spam: bool, reason?: string }
+              | { kind: "banned" } | { kind: "restricted" } | { kind: "authorModerated" }
+              | { kind: "locked" } | { kind: "newUser" }
+Badges        { verified?: true, edited?: true, futureDated?: true, identityUnverified?: true,
+                stale?: true, hint?: true, pending?: true, inconsistentTimestamps?: true }   // sync.md §1.6
+ScoreView     { score: i64 /* includes the implicit self-vote, social.md §7 */,
+                agreement?: i64 /* absent when policy.voting = karmaOnly, social.md §7 */,
+                unweighted: u32 /* "n votes not yet counted" */,
+                earlierVersionVotes: u32, weightedVotes?: u32 /* N and M of "N of M votes were
+                cast on an earlier version"; M omitted when 0 */,
+                mine?: MyOpinion }
+MyOpinion     { karma?: KarmaValue, agreement?: AgreementValue,
+                pending?: true /* a write of it waits in the outbox */,
+                notYetCounted?: true /* "recorded; will count once you're established" */ }
+ReactTally    { react, label, glyph, for: u32 /* |supporters|, creator included */,
+                against: u32 /* |opposers| */, quote?: TextQuote /* the creator's */,
+                anchor?: Anchor, creator?: did, mine?: "for"|"against",
+                uncounted?: true /* the viewer's own react, which forms no valid react */ }
+Anchor        { start: u32, end: u32 } | { orphan: true }    // code-point offsets into P
+RenderedBody  { html, text, toc: Vec<TocEntry>, wordCount, readMinutes, media: Vec<MediaView>,
+                excerpt, notices: Vec<string>, rendererVersion }
+MediaView     { index, cid, mime, alt?, aspectRatio?, durationMs?, name?, author: did, pds,
+                autoload: bool /* sync.md §11.3, for this device */, sizeBytes }
+Completeness  { partial: bool, reposComplete, reposTotal, degraded: bool }
+```
+
+The TUI renders from `RenderedBody` plus a natively computed `StyledDoc` (same renderer, same
+source); `StyledDoc` is not part of the JSON schema.
+
+### 4.2 Posts and threads
+
+```
+PostSummary   { uri, cid, forum, author: ActorView, kind, title?, excerpt,
+                tags: Vec<slug> /* the slugs t with applies(p, t), sorted (social.md §13.3);
+                                   not the declared post.tags (M5, §1) */,
+                tier: personal|frontpage|curated, pinned: bool, locked: bool,
+                createdAtMs, tRankMs, commentCount, lastCommentAtMs?, score: ScoreView,
+                state: ItemState, badges: Badges, unreadComments?: u32, link?: ExternalLinkView,
+                labels: Vec<string> }
+PostList      { dto, forum, sort, filter, items: Vec<PostSummary>, cursor?, completeness,
+                banners?: Vec<Banner> }
+PostView      { dto, post: PostSummary, body: RenderedBody, reacts: Vec<ReactTally>,
+                history: { revisions: u32, redacted: bool }, sequences: Vec<SequenceNav>,
+                tagRelevance?: Vec<PostTag> /* M5: by slug, every slug with rel(p, slug) ≠ 0
+                or a tag vote of the viewer's; empty for a post that is not listed, except to
+                the forum's authorities (like its score) */ }
+PostTag       { slug, relevance: i64 /* rel(p, slug), social.md §13.3 */, applies: bool,
+                mine?: KarmaValue /* the viewer's tag vote in its cached opinion record (OP3,
+                OP4: conflicting entries give none); a vote still in the outbox is not shown */ }
+CommentNode   { uri, cid, root: uri /* the thread the engine placed it in */, parent?: uri,
+                depth: u32, author: ActorView, body: RenderedBody,
+                quote?: TextQuote, quoteAnchor?: Anchor, createdAtMs, tRankMs, score: ScoreView,
+                reacts: Vec<ReactTally>, state: ItemState, badges: Badges, retracted: bool,
+                moderatorHat: bool, version?: { revision: u32 } | { unavailable: true },
+                orphaned: bool, missing: bool, unread: bool, pinned: bool }
+ThreadView    { dto, post: PostView | { missing: uri }, comments: Vec<CommentNode>, sort,
+                completeness, banners?: Vec<Banner> }
+DiscussionList{ dto, items: Vec<{ post: PostSummary, comments: Vec<CommentNode> }>, cursor?, completeness,
+                banners?: Vec<Banner> }
+Banner        { code: "moderationUnavailable" /* degraded, social.md §4.11 */ | "newerRules"
+                      | "authorityInactive" /* an authority's account is inactive; its cached assertions still apply, sync.md §3.4 */
+                      | "relayDependent" /* ForumView of an open forum: the L7 label, threat-model.md L7, social.md §3.2 */
+                      | "applicantsViaHints" | "applicantsNotDiscovered" /* ModQueue of an approval-mode forum, §3.4 (M5, O-8) */, message }
+HistoryView   { dto, uri, versions: Vec<{ n, cid, createdAtMs, summary?, available: bool }> }
+```
+
+### 4.3 Forums, users, organisation
+
+```
+ForumSummary  { uri, owner: ActorView, name, description?, membership: open|approval,
+                followed: bool, member: bool, alias?,
+                reportContact? /* as written; shown only through safe_href (Field) */ }
+ForumView     { dto, forum: ForumSummary, about?: RenderedBody, moderators: Vec<{ actor, role, title?, shown: bool }>,
+                policy: EffectivePolicy, myRole: ForumRole, myKarma?: i64, banners: Vec<Banner>,
+                completeness, viewer?: ViewerCaps /* absent without an active account */ }
+ForumRole     = owner|admin|moderator      // A, by rank
+              | member|established|newcomer // with a valid membership record: S, E ∖ S, P ∖ (S ∪ E)
+              | none                       // (a grant without a membership record is "none")
+ViewerCaps    { vote, strongVote, agree, weighted /* in E */, react, reactCreate, reactSecond,
+                reactAnti, post, comment, newcomer, applicant, moderate, rank?: 1|2|3, curate,
+                authorModPersonal, authorModFrontpage }   // all bool; gates as action enablement
+                // (social.md §4.9, §5, §8): clients disable what would not count
+UserView      { dto, actor: ActorView, forum?, karma?: { k1, kp, k }, status, bio?: RenderedBody,
+                links, pinned: Vec<PostSummary>, recentPosts: Vec<PostSummary>, recentComments: Vec<CommentNode> }
+MemberView    { actor, status: ForumRole, granted: bool, membershipNote?, joinedAtMs,
+                karma?: i64 /* omitted when 0 */, applicant?: true, banned?: true,
+                nullified?: true, restricted?: Vec<capability> }
+TagSummary    { slug, name, description?, postCount, unmergedEdits }
+TagView       { dto, tag: TagSummary, page?: RenderedBody, head?: uri, posts: Vec<PostSummary> }
+WikiPageView  { dto, forum, slug, head?: uri /* the canonical revision: WikiDraft.base */,
+                exists: bool /* a head, no tag.removed in effect */,
+                applicable: bool /* exists and the head is a tag: tag() answers */,
+                unmergedEdits: u32 }                                       // M5, §3.4 wiki_page
+SequenceSummary { uri, author, title, chapters: u32, posts: u32, score: ScoreView, pinned: bool }
+SequenceView  { dto, sequence: SequenceSummary, body?: RenderedBody, chapters: Vec<{ title?, body?, posts: Vec<PostSummary> }>,
+                continueReading?: ReadingPosition /* local: the post last opened from this sequence
+                (get_post with it as context), while displayable; absent in parity mode (M5) */ }
+ReadingPosition { post: uri, atMs }
+SequenceNav   { sequence: uri, title, prev?: uri, next?: uri }
+SearchResults { dto, hits: Vec<{ item: PostSummary | CommentNode, snippet: string, highlights: Vec<[u32,u32]> }> }
+NotificationList { dto, items: Vec<NotificationView>, unread: u32 /* every unread one: the badge */ }
+NotificationView { id, reason: NotificationReason, atMs /* first seen, or when the change was
+                 noticed; never createdAt */, subject: uri, forum?: uri, actor?: ActorView,
+                 read: bool, preview?: string }
+NotificationReason = reply|mention|quote|pingback|newComment|newPost|reacted|modAction|karmaChange
+                                                                  // social.md §16
+UnreadCounts  { dto, notifications: u32, forums: Vec<ForumUnread> /* by forum uri */ }
+ForumUnread   { forum: uri, posts: u32, comments: u32, notifications: u32 }
+BookmarkEntry { uri, savedAtMs, post?: PostSummary }
+SubscriptionEntry { subscription: Subscription, sinceMs }
+ModQueue      { dto, items: Vec<{ kind: applicant|conflict|stale|newcomer, subject, reason,
+                detail?, uri? /* the stale modAction */, actor?: ActorView, atMs? }>,
+                banners?: Vec<Banner> /* approval mode: applicantsViaHints | applicantsNotDiscovered (§3.4) */ }
+ModLog        { dto, entries: Vec<ModLogEntry>, cursor? }
+ModLogEntry   { uri /* modAction or revision */, actor: ActorView, action, subject, value,
+                reason?, atMs, status: ModLogStatus, lapsed: bool, rank? /* the winner's, when
+                overridden */, authorScope?: true, adoptedFrom?: uri }
+ModLogStatus  = effective|overridden|lapsed|expired|stale|unauthorised|reservedUnknown
+              | edited|removed                                   // social.md §4.12
+RawView       { dto, uri, cid?, root?: uri /* a comment's thread, as placed by the engine */,
+                level: pds|proven|hint, record?: json, validity: Vec<string>,
+                assertions: Vec<{ uri, cid, valid, record, rule?, status?: ModLogStatus }>,
+                state?: ItemState, score?: ScoreView }
+VerifyReport  { dto, uri, result: proven|absent|failed, rev?, commitCid?, keySource, checks: Vec<{ name, ok, detail? }> }
+ForumIndexer  { url /* https */, did?, note?, consented: bool }             // M6, §3.3 forum_indexers
+AuditReport   { forum, indexer /* its DID */, endpoint, checks: Vec<AuditCheck>,
+                counts: AuditCounts /* the totals */ }                      // M6, §3.3 audit_indexer
+AuditCheck    { name /* A1 heads … A5 proofs, sync.md §15.4 */, counts: AuditCounts,
+                findings: Vec<AuditFinding> }
+AuditCounts   { checked, contradictions, omissions, lag,
+                unchecked? /* M6: the unchecked findings, never counted as checked; omitted when 0 */ }
+AuditFinding  { check, kind: AuditKind, subject /* uri or DID */, detail /* for unchecked: why */ }
+AuditKind     = contradiction|omission|lag
+              | unchecked /* M6: an item the audit could not check; never a contradiction or an omission */
+```
+
+### 4.4 Operation inputs and results
+
+Optional request fields (`?`) may be left out; the default is named where it is not "none".
+
+```
+AccountInfo   { did, pds, auth: oauth|appPassword, issuer?, intended?, confirmIssuerChange? /* false */ }
+AccountView   { did, handle?, pds, authKind: oauth|appPassword, active: bool }
+Ref           = { kind: forum|post|comment|sequence|record, uri } | { kind: "actor", did }
+RefContext    { forum? }
+ForumDraft    { slug, name, description?, about?: BodyDraft, membership: open|approval,
+                defaultTier: personal|frontpage, featuredTags?: Vec<slug>,
+                moderators?: Vec<{ did, role: admin|moderator, title? }>, reportContact? }
+MembersQuery  { status?: ForumRole, pending?: bool }
+ModsChange    = { kind: "add", did, role: admin|moderator, title? }
+              | { kind: "remove", did, skipAdopt? /* false */ }
+SyncOpts      { budgetMs?, maxRequests?, full? /* false */ }
+ListPostsQuery { forum, sort: PostSort, filter: PostFilter, tag?: slug, kind?: PostKind,
+                 author? /* DID or handle */, cursor?, limit /* 0: LIST_PAGE_DEFAULT */ }
+ThreadOpts    { sort: CommentSort, unreadOnly? /* false */ }
+NotificationsQuery { all? /* false: unread only */, limit }
+BodyDraft     { markdown, media?: Vec<MediaRef> }
+MediaRef      { id, cid, mime, sizeBytes, alt?, aspectRatio?, durationMs?, name?,
+                notices?: Vec<ActionNotice> /* prepare_media: missingAlt when alt is absent */ }
+LoadedMedia   { cid, size, url, mime? /* the §11.2 display type; absent: a download card */,
+                sniffed? /* the sniffed type, for a download card's file name */ }
+BodySource    { markdown, cid /* record CID, not a blob CID */, profile? /* absent: lfm/1 */,
+                spilled /* stored as a textBlob */ }
+PostDraft     { forum, kind: PostKind, title?, body: BodyDraft, link?: { uri, title?, description? },
+                tags?: Vec<slug>, labels?: Vec<string> }
+CommentDraft  { root, parent?, body: BodyDraft, quote?: TextQuote }
+Draft         = { kind: "post", id?, post: PostDraft } | { kind: "comment", id?, comment: CommentDraft }
+DraftEntry    { id, savedAtMs, draft: Draft }
+MediaInput    { declaredMime?, alt?, name?, aspectRatio?: AspectRatio }   // prepare_media's hints
+MediaFile     { bytes, mime?, name?, alt? }        // engine API v0's prepare_media argument, still accepted
+LoadedMedia   { cid, size, url, mime? /* the display type; absent: download only */,
+                sniffed? /* for the download's file name only */ }
+EditOpts      { history: bool, summary?, dropLinkCard? /* false: the cached card of the same uri is kept (§3.5) */ }
+WikiDraft     { name, description?, body?: BodyDraft, isTag, parentTags?: Vec<slug>, summary?,
+                base?: uri /* the head the author edited (O-2); absent: the current head */ }
+OpinionIntent = { kind: "karma", value?: up|down|strongUp|strongDown }      // absent: clear
+              | { kind: "agreement", value?: agree|disagree|strongAgree|strongDisagree }
+              | { kind: "react", id /* palette id */, stance: for|against, quote?: TextQuote,
+                  remove? /* false */ }
+              | { kind: "tag", slug, value?: KarmaValue }
+ModActionIntent = { kind: "assert", forum, scope: forum|author, subject /* DID or handle,
+                    at-uri or tag:<slug> */, action: ModActionValue, reason?, untilMs? }
+                | { kind: "remove", forum, scope: forum|author, subject, actionKey }
+ModActionValue = { kind: "hide", hidden, spam? /* false */, showReason? /* true */ }
+               | { kind: "access", level: banned|member }
+               | { kind: "restrict", capabilities?: Vec<post|comment|vote|react|tag|wiki|sequence>,
+                   nullifyVotes? /* absent: the account's current value of the dimension (§3.5) */ }
+               | { kind: "tier", tier: Tier, notice?: BodyDraft }
+               | { kind: "pin", scope: forum|thread, pinned }
+               | { kind: "lock", locked }
+               | { kind: "tag", removed, head?: uri /* a wikiRevision */ }
+               // actionKey: the kind, or "pin:forum" / "pin:thread" (data-model.md §3.1)
+WriteTicket   { id, state: WriteState }
+WriteState    = { kind: "pending", notBeforeMs?, held?: true, throttled?: true, needsLogin?: true,
+                  error?: EngineError } | { kind: "sending" }
+              | { kind: "done", uri, cid?, report?: Vec<string> /* mod_adopt: what it did not adopt */ }
+              | { kind: "failed", error: EngineError } | { kind: "undone" }
+ActionTicket  { id, state: WriteState, notices?: Vec<ActionNotice> }
+ActionNotice  { code: notEstablished|retroactive|adoptedFirst|missingAlt|suspendsAssertions
+                      |sharedExpiry, message }
+Subscription  = { kind: "forum", uri } | { kind: "post", uri } | { kind: "user", did }
+              | { kind: "tag", forum, slug } | { kind: "sequence", uri }
+PublicActionKind = vote|react|tagVote|join|modAction
+KarmaCadence  = realtime|daily|weekly
+Settings      { sources: direct|assisted, verify: pds|proof, indexers: Vec<IndexerConsent>,
+                externalImagesForums: Vec<uri>, mediaAutoloadHosts: Vec<host>,
+                karmaNotifications: KarmaCadence, acknowledgedPublicActions: Vec<PublicActionKind> }
+IndexerConsent{ url /* https */, did?, forum?, grantedAtMs }
+ImportReport  { imported, outOfScope, undecodable, refused? /* 0 */,
+                kinds?: Vec<[family, count]> /* the members written per loc family */ }
+ValidationReport { valid: bool, errors: Vec<ruleId> }
+RkeyInput     = { kind: "membership", forum } | { kind: "post", forum, tid } | { kind: "comment", root, tid }
+              | { kind: "opinion", forum, subject } | { kind: "modAction", forum, scope: forum|author,
+                  subject, actionKey } | { kind: "revision", subject, tid }
+EngineError   { code, message, retryable: bool, detail?: object }      // §1
+Event         = { kind: "changed", topics: Vec<Topic> }
+              | { kind: "syncProgress", forum, done, total }
+              | { kind: "write", id, state: WriteState }
+              | { kind: "auth", did, state: { kind: ok } | { kind: expiring, inMs } | { kind: expired } }
+              | { kind: "warning", warning: equivocation|indexerContradiction|degraded|renderFailure|other,
+                  source?, message }
+Topic         = { kind: forum|thread, uri } | { kind: "user", did }
+              | { kind: notifications|outbox|drafts|accounts }
+```
+
+## 5. Wasm binding (`@pandoras-forum/engine`)
+
+- **Boundary.** `pandoras-forum-wasm` exposes one class, `WasmEngine`, built with wasm-bindgen
+  (`--target web`, no tsify, no serde-wasm-bindgen): `new WasmEngine(configJson, host)`,
+  `call(op, argsJson) → Promise<string>`, `subscribe(cb) → id`, `unsubscribe(id)`. `op` is an
+  `EngineApi` method name (`packages/engine/src/api.ts`), `argsJson` its arguments as a JSON
+  array, and the result is the DTO's dto/1 JSON text exactly as `dto.rs` serialises it (the
+  bytes the CLI's `--json` prints); a failure rejects with an `EngineError` JSON string. Events
+  reach `cb` as dto/1 JSON strings, in order, never re-entrantly. The TS types are the
+  hand-written `types.ts`, checked by `types.parity.test.ts` against `testdata/dto/dto-1.d.ts`,
+  which the Rust types generate through their tsify derives (§1 "Freeze"; the derives are a
+  test-only feature, `pandoras-forum-wasm/dto-decl`, never in the module).
+- **Coverage.** Every `EngineApi` method is either dispatched (`crates/wasm/src/ops.rs` `OPS`)
+  or rejects with `unsupported` and `detail.milestone` (`UNSUPPORTED`, §3.9); a native test
+  parses `api.ts` and fails when a method is in neither list, and `crates/wasm/tests/ops_social.rs`
+  runs the M3 operations through the dispatcher with the JSON the client sends. Method names
+  are the Rust names camelCased, except `setSubscription` (§3.6 `subscribe`). Worker glue
+  operations outside `EngineApi`: `externalChange`, `outboxWake`, `outboxFlush`, `liveStep`.
+  `grant`/`revoke` resolve with one ticket per actor in wasm; the client returns the first.
+  `approve`/`reject` resolve with every ticket. The wasm side reads the arguments as a
+  fixed-size tuple, so the client sends an omitted trailing optional argument as `null`
+  (`client.ts` `OP_ARITY`, checked against `api.ts` by `client.test.ts`).
+- **Configuration.** `configJson` is `EngineConfigInput` (`packages/engine/src/protocol.ts`,
+  camelCase, unknown keys refused): `network` (`production` or `devnet { plc, pds }`), the
+  sources, `verify`, the resolver lists and `parityNowMs` (§2.1). The worker accepts `devnet`
+  only in development and e2e builds and `parityNowMs` only in e2e builds (`VITE_E2E=1`).
+- **Host.** The worker implements the core `Host` in JS (`host.ts`) and passes it to the
+  constructor: `Target::Anon` requests through `fetch` with the browser URL policy, streaming
+  byte caps and `cache: "no-store"` (`fetch.ts`); `Target::UserPds` requests (writes and
+  `getSession` only; the core reads public records, the account's own included, as
+  `Target::Anon`) to the main thread's AuthBridge; `fetch_blob` streamed and hashed in JS with
+  the CID check, stored in IndexedDB, never copied into wasm (`blobs.ts`); `lock` as the Web
+  Lock `pandoras-forum-<name>` (`locks.ts`), where the leader's own `sync-leader` request is answered
+  at once (it holds that Web Lock, which is not re-entrant), and in `pandoras-forum web` mode an
+  `outbox:<did>` lock is the Web Lock and then the native lock through `POST /bridge/lock`
+  (`bridge-lock.ts`, threat-model §7.4); `sleep`, `now_ms`, `fill_random` from the platform;
+  WebSockets are `unsupported` until M5. The two `KvStore`s are IndexedDB databases
+  (`<prefix>-cache` relaxed, `<prefix>-state` strict; `idb.ts`), or in `pandoras-forum web` mode
+  the state store is the native one behind `POST /bridge/kv` (`bridge-kv.ts`). The IndexedDB
+  store passes the core KV conformance suites in CI (`kv-conformance.test.ts`, with the test
+  module of `cargo xtask wasm --kv-test`).
+- **Threads.** The engine runs in a Web Worker (`worker.ts`; the main thread calls it through
+  Comlink); the main thread holds the session and serves `Target::UserPds` requests over a
+  dedicated `MessagePort` with a fixed message schema (`bridge-port.ts`: requests are rebuilt
+  field by field, no main-thread object is exposed to the worker) through the AuthBridge
+  allowlist
+  (`auth-bridge.ts`, threat-model AUTH-4, AUTH-8), with a pluggable session: hosted OAuth
+  (`oauthSession(did, fetchHandler)`) or the `pandoras-forum web` bridge
+  (`bridgeSession({ did, token })`). `@pandoras-forum/engine/client` (`startEngine`) wraps the
+  worker as an `EngineApi` and re-exports the DTO types.
+- **Tabs.** One worker per tab; the Web Lock `pandoras-forum-sync-leader` elects the leader, the
+  only worker that runs `outbox_pump()` and `live_tail()` (the client's `outboxPump()` and
+  `liveTail()` resolve at once). Workers relay their `Changed` and `Write` events on the
+  BroadcastChannel `pandoras-forum-changes`; a receiving worker calls `external_change(topics)`
+  (§3.3) and forwards the event to its subscribers, and the leader wakes its pump on another
+  tab's `Write { pending }` (`leader.ts`, `sync.md` §10.6). The React app maps `Changed`
+  topics to TanStack Query invalidations.
+- **Size.** `cargo xtask wasm [--release|--dev] [--budget] [--report]` builds
+  `packages/engine/pkg` with wasm-opt and reports its size; `--budget` fails only above the
+  static host's 25 MiB per-file limit, and the size is never a target (ADR 0010). Native-only dependencies (ammonia/html5ever) are refused
+  in the wasm build, and `idna` uses the ASCII-only adapter.

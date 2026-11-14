@@ -1,0 +1,422 @@
+<!-- SPDX-License-Identifier: CC0-1.0 -->
+
+# Shared test vectors
+
+Language-neutral vectors for Pandora's Forum behaviours. The Rust runners (`cargo test`) and the
+TypeScript runner (vitest over the `vectors` wasm build) read the same files, and must produce
+identical results (synthesis §7, `docs/spec/lfm-1.md` §13). Vector files are CC0-1.0.
+
+## File format
+
+Each `*.json` file is one object:
+
+```json
+{
+  "behaviour": "lfm/1",
+  "kind": "render",
+  "description": "what the file covers and how to run it",
+  "vectors": [
+    { "name": "unique-within-file", "input": { … }, "expected": { … } }
+  ]
+}
+```
+
+- `behaviour` is the versioned behaviour ID the vectors pin (`lfm/1`, `fk/1`, `sk/1`, …).
+- `kind` selects the function under test; the `description` documents its `input` and
+  `expected` shapes.
+- `expected` holds **only** the fields a vector asserts. Runners compare each listed field
+  exactly (JSON equality) and ignore fields that are not listed.
+- Names are unique within a file.
+- Strings may contain any Unicode. Invisible or confusable code points (controls, format
+  characters such as bidi overrides, combining marks, non-ASCII spaces) are written as `\uXXXX`
+  escapes so that reviewers see them.
+
+## Directories
+
+| Directory | Behaviour | Runner |
+|---|---|---|
+| `keys/` | `fk/1`, `sk/1` record keys (`docs/spec/data-model.md` §3) | see `keys/gen_keys.py` |
+| `limits/` | `limits.md` §21 vectors; `graphemes.json`: grapheme counting for `maxGraphemes` (`data-model.md` §2.2) | `graphemes.json`: `crates/lexicon/tests/graphemes.rs` |
+| `lfm1/` | `lfm/1` markdown (`docs/spec/lfm-1.md` §13) | `crates/markdown/tests/vectors.rs` |
+| `xss/` | HTML and MathML XSS / mXSS corpora (`lfm/1`, kind `render`) | same |
+| `terminal/` | terminal escape corpus and printer snapshots (kind `terminal`) | same |
+| `mathml/` | engine-specific MathML (kind `mathml`, math-core 0.9): normaliser snapshots (`math-core-0.9.json`), the ADR 0002 S10 corpus (`s10-corpus.json`) and probes (`s10-probes.json`), each with its output or math error; the runner also asserts no unknown engine style and `ammonia(html) == html` | same |
+
+## `lfm/1` kinds
+
+| `kind` | `input` | `expected` fields |
+|---|---|---|
+| `render` | `text` (or `gen`), `media?` (`defs#media` JSON), `profile?`, `encoding_error?` | any `Rendered` field (`html`, `styled`, `text`, `excerpt`, `toc`, `word_count`, `read_minutes`, `links`, `mentions`, `media_used`, `anchors`, `flags`, `error`) and the derived fields below |
+| `terminal` | as `render`, plus `print: {color, hyperlinks, reveal_spoilers, width}` | as `render`, plus the derived `terminal` fields below (`printed`, `printed_bytes`, `printed_rle`) |
+| `safe_href` | `raw` (or `raw_gen`), `ctx`: `markdown` \| `field` | `href`: the `Href` as `{type, …}`, or `null` |
+| `quote` | `quote: {exact, prefix?, suffix?, start?}`, `target` (or `target_gen`; absent = pending body) | `result`, `qkey`, `first` |
+| `term_sanitize` | `text`, `ctx`: `prose` \| `code` \| `name`, `max?` | `out`: a string if every run is plain, else `[{"plain"\|"escaped": text}, …]` |
+| `short_did` | `did` | `out` |
+| `mathml` | `tex`, `display` | `html` (document HTML of `$tex$` / `$$tex$$`), `math_errors` |
+
+**Generated inputs.** Large inputs are given as `gen: {prefix, repeat, times, suffix}`, meaning
+`prefix + repeat × times + suffix` (also `raw_gen`, `target_gen`).
+
+**Derived `render` fields** (computed by the runner from the `Rendered` of the input; a vector
+lists only the ones it asserts):
+
+- `html_temml`: the HTML in Temml mode (`lfm-1.md` §7.5), checked in the same run;
+- `text_x`: P_x (§10.3);
+- `html_head` / `html_tail`: the first / last 400 characters (Unicode scalar values) of `html`
+  (for huge outputs);
+- `html_rle`: `html` split on `"\n"`, each run of N > 1 identical consecutive lines written once
+  as `"<line> ×N"` (U+00D7), for deep-nesting vectors;
+- `html_bytes`: the length of `html` in UTF-8 bytes (for amplification vectors, where only the
+  bound matters).
+
+**Derived `terminal` fields** (the `print` options select the printer: `color`, `hyperlinks`,
+`reveal_spoilers` default to `false`, `width` to no wrapping):
+
+- `printed`: the plain-stdout printer output (`printer::print_doc`, §9.4) for the vector's
+  `StyledDoc`;
+- `printed_bytes`: the length of `printed` in UTF-8 bytes;
+- `printed_rle`: `printed` split on `"\n"`, runs of identical lines written as in `html_rle`.
+
+**Invariants** checked over every `render` and `terminal` vector, whatever `expected` lists:
+the §8.2/§7.3 allowlist checker accepts `html` and `html_temml`; rendering twice is
+byte-identical; `derive_metadata` (§1.6) equals the `render` fields of the same name; P and the
+excerpt contain no whitespace other than U+0020 and no control or bidi character; no `StyledDoc`
+text contains C0, DEL, C1, U+2028/U+2029 or a bidi control; printer output contains no escape
+sequence other than the §9.4 SGR and OSC 8 forms (and none at all without color); with the
+`ammonia` feature, `ammonia(html) == html`.
+
+## Workflow
+
+```sh
+cargo test -p pandoras-forum-markdown --test vectors                       # check
+cargo test -p pandoras-forum-markdown --features ammonia --test vectors    # also ammonia(html) == html
+cargo xtask test-wasm                                                 # the same runner on wasm32
+PANDORAS_FORUM_BLESS=1 cargo test -p pandoras-forum-markdown --test vectors     # rewrite expected values
+PANDORAS_FORUM_BLESS=1 PANDORAS_FORUM_BLESS_ONLY=lfm1/footnotes.json,xss/html.json \
+  cargo test -p pandoras-forum-markdown --test vectors                     # rewrite only these files
+python3 -I testdata/vectors/lfm1/gen_inputs.py                        # (re)generate lfm/1 inputs
+python3 -I testdata/vectors/mathml/gen_mathml.py                      # (re)generate mathml inputs
+```
+
+Bless mode rewrites every expected field with the current output (and normalises the file
+formatting); review the diff before committing. `gen_inputs.py` and `gen_mathml.py` keep the
+expected values of vectors whose input did not change, so adding vectors is: edit the
+generator, run it, bless, review.
+
+## Social fold vectors (`mod/1`, `karma/1`, `magic/1`, `default/1`)
+
+The fold vectors of `docs/spec/social.md` §19 are generated by an independent reference model
+(`social-ref/pandoras_forum_ref/`, Python standard library only). The model was written from the spec
+alone, never from the Rust fold. Where the spec is ambiguous, `social-ref/NOTES.md` records the
+reading the model takes, as numbered decisions.
+
+```sh
+python3 -I -B testdata/vectors/social-ref/gen_social.py           # regenerate every file
+python3 -I -B testdata/vectors/social-ref/gen_social.py --check   # exit 1 if any file differs
+```
+
+Do not edit these files by hand. Change a case module (`social-ref/cases/*_cases.py`) or the
+model, then regenerate. Run Python with `-B` so that no `__pycache__` lands in the repository.
+
+| File | Behaviour | `kind` | Covers |
+|---|---|---|---|
+| `time/time.json` | `magic/1` | `time` | §2.2–§2.3 `t_rank`, future clamp, lower bounds, flags; §11 the edited badge |
+| `time/conversions.json` | `magic/1` | `conversion` | §2.1 µs(datetime), tidTime |
+| `modfold/forum.json` | `mod/1` | `modfold` | §4.1–§4.8, §4.10–§4.12, forum tier |
+| `modfold/participation.json` | `mod/1` | `modfold` | §3 participation and seeds, FO2 |
+| `thread/thread.json`, `thread/depth.json` | `mod/1` | `thread` | §11 placement, steps 1–4, and step 6 versions (the depth cap in a file of its own, because its input is large) |
+| `fold/digest.json` | `mod/1,karma/1,magic/1,default/1` | `digest` | §1.2 `inputDigest` |
+| `modfold/author.json` | `mod/1` | `modfold` | §4.9 author tier (L5) |
+| `visibility/visibility.json` | `mod/1` | `visibility` | §10.1 V1–V10, §10.2 thread pass |
+| `rank/rank.json` | `magic/1` | `rank` | §12 hot, sorts, filters, Recent Discussion |
+| `karma/power.json` | `karma/1` | `power` | §6.1 power(k, x) at every ladder boundary |
+| `karma/staged.json` | `karma/1` | `karma` | §5 opinion validity; §6.2 K1, seedUp, E, KP, K (the §19 karma cases) |
+| `karma/scores.json` | `karma/1` | `karma` | §7 score, agreement, unweighted, earlier versions |
+| `karma/gates.json` | `karma/1` | `karma` | §8 gate values and passes(u, g) |
+| `reacts/reacts.json` | `karma/1` (palette `default/1`) | `reacts` | §9.2 aggregation, qkey (`lfm-1.md` §11) (the §19 reacts cases) |
+| `karma/tags.json` | `karma/1` | `tags` | §13 wiki heads, candidates, flags, relevance and application (the §19 tags cases; they live under `karma/` because §13 belongs to `karma/1`, `social.md` §20.1 item 44) |
+| `karma/tags-large.json` | `karma/1` | `tags` | §13 cases with about 1,000 records each: the 1,000-revision page cap at 1,000 and 1,001 revisions, own-tag weight at KP 1,000 |
+
+**`thread/`** was shared with the Rust engine agent until M3: the generator only cross-checked
+it. Its files were always identical to the model's own cases, and the generator now owns the
+directory like the others. The cross-check (`SHARED_DIRS` in `gen_social.py`) remains for a
+directory another producer may share; there is none at present.
+
+### File and vector shape
+
+Each file is `{behaviour, kind, ns, description, vectors}`, plus `hotBitsSource` in `rank/`.
+- `ns` is the NSID prefix the fold is evaluated under (`forum.pandoras` in every
+  file). Every key, CID and `inputDigest` depends on it, so a runner evaluates the fold, record
+  validity and key derivation with NS = `ns`; rewriting strings does not work. A build whose
+  NS is the `.temp` constant cannot run these vectors as they are: run them in a build with
+  NS = `ns` (the `final-ns` feature), or give the fold the namespace as a runtime parameter, as
+  the key functions already take it (`keys/rkeys.json` `input.ns`).
+- Each vector is `{name, input, expected, note?}`.
+- `note` explains the case. When the case contains a deliberately invalid record, `note` names
+  the rule it breaks; rule IDs themselves are never asserted.
+
+A fold vector's `input` is `{fold: FoldInput, query?: Query}`. `FoldInput` mirrors `social.md`
+§1.1 exactly:
+
+```json
+{
+  "decl":         {"uri": "at://…/forum.pandoras.forum/slug", "cid": "bafyrei…", "value": {…}},
+  "records":      [{"uri": "…", "cid": "…", "value": {…}}],
+  "absent":       ["at://…"],
+  "obs":          [{"uri": "…", "cid": "…", "us": 1767225600000000}],
+  "repoStatus":   {"did:plc:…": "fresh" | "stale" | "unavailable"},
+  "now":          1769817600000000,
+  "algorithmIds": {"moderation": "mod/1", "karma": "karma/1", "ranking": "magic/1", "reactPalette": "default/1"}
+}
+```
+
+`FoldInput` rules:
+- `records` is sorted strictly by uri bytes; `absent` by bytes; `obs` by (uri, cid).
+- A DID missing from `repoStatus` is Unavailable.
+- `algorithmIds` is optional. When present, it equals the effective IDs derived from `decl`.
+- Every record is valid per `data-model.md` §7 unless the vector's `note` says otherwise.
+- Every record's `cid` (and `decl.cid`) is its genuine CIDv1 (dag-cbor, sha256) in canonical
+  form (multibase `b`, base32 lowercase). A few vectors write a CID inside a record
+  (`subjectCid`, `subject.cid`, `root.cid`, `parent.cid`, `head.cid`, `parents[].cid`) in
+  another spelling (multibase `B` or `z`) or as a string that is no CIDv1; the fold compares
+  such CIDs by canonical form (`social.md` §0.4, §20.1 item 45), and the note says so.
+
+`Query` members, each used only by the fields that need it:
+- `thread`: a post uri.
+- `posts`: `{sort, filter, tag?, kind?, author?}`, used by `rank`.
+- `comments`: `{thread, sort}`, used by `rank`.
+
+### Comparing results
+
+- `expected` lists only the fields the vector asserts. Runners compare each listed field with
+  JSON equality.
+- Every field has one name and one shape across all kinds, so a runner implements a single
+  "vector projection" of its `ForumView`.
+- DID and uri sets are arrays sorted by UTF-8 bytes.
+- Integer maps keyed by DID list exactly the non-zero entries.
+- Every integer in these files is within ±(2^53 − 1).
+- A field that a kind's table below does not list is never asserted in a file of that kind,
+  except `degraded` and `newerRulesBanner`, which any kind may list.
+- A runner dispatches on the file's `kind`: the fold kinds (`time`, `modfold`, `thread`,
+  `digest`, `visibility`, `rank`, `karma`, `reacts`, `tags`) parse `input.fold` into a
+  `FoldInput`, run the fold once with `input.query` (or an empty query) under NS = `ns`, and
+  compute only the fields `expected` lists; `conversion` and `power` call the function named
+  by `input` directly. Rejecting an input is a failure: every vector input is well-formed.
+
+**Shared types**
+
+- **State:** `{"state": S, "reason"?: R, "removed"?: {"rank", "actor", "spam", "reason"}}`.
+  - `S` is one of `Visible`, `Collapsed`, `Hidden`, `Excluded`, `Tombstone`.
+  - `R` is one of `NotParticipant`, `ModerationUnavailable`, `Removed`, `Banned`, `Restricted`,
+    `AuthorModerated`, `Locked`, `NewUser`, `LowScore`.
+  - `removed` is present only for `Removed`. It comes from the winner of `hidden`: `rank`, the
+    `actor` DID, `spam` = effective(x, spam), and `reason`, which is `null` unless the winner
+    has a reason and `showReason` holds.
+- **Dimension names:** `hidden`, `spam`, `access`, `restrict`, `nullify`, `tier`, `pin.forum`,
+  `pin.thread`, `locked`, `tag.removed`, `tag.head`.
+
+**Fields any kind may list**
+
+| Field | Shape and meaning |
+|---|---|
+| `degraded` | bool (§4.11) |
+| `newerRulesBanner` | bool: an unknown value in one of the declaration's ten knownValue fields fell back (§1.6): `membership`, `defaultTier`, `moderators[].role` (any entry, also one FO2 ignores), `policy.moderation`, `policy.voting`, `policy.reactPalette`, `policy.tagCreation`, `policy.karma.algorithm`, `policy.ranking.algorithm`, `policy.display.newUsers`. Unknown values in other records never raise it |
+
+**`time` fields**
+
+| Field | Shape and meaning |
+|---|---|
+| `tDecl` | µs |
+| `times` | `{uri: {tRank, futureDated, inconsistentTimestamps}}` for every candidate item (post, comment, wikiRevision, sequence) not Excluded by V1 |
+| `edited` | sorted uris of the candidate items not Excluded by V1 that get the `[edited]` badge (§11 "Edited", §20.1 item 46): a valid `op: update` revision names the item, or µs(updatedAt) is later than µs(createdAt). A `createdAt` without µs (before 1970) counts as earlier than any `updatedAt` that has one; an `updatedAt` without µs never makes an item edited |
+
+**`conversion`.** The input is `{fn: "us", datetime}` or `{fn: "tidTime", tid}`. Expected is
+`{us}`, which is µs or `null`. A datetime has at most 64 characters and 1 to 20 fraction
+digits (the atproto reference implementations); more fraction digits do not parse, which also
+makes a record holding such a datetime invalid (G2).
+
+**`modfold` fields**
+
+| Field | Shape and meaning |
+|---|---|
+| `authorities` | `{did: 3 \| 2 \| 1}` |
+| `mode` | `approval` \| `open` |
+| `members`, `P`, `G`, `B`, `N`, `S`, `applicants`, `newcomers` | DID sets (§3.1). `applicants` = members ∖ A with access none, approval mode only (empty in open mode). `newcomers` = P ∖ (S ∪ E) literally, in both modes, so banned and nullified participants are newcomers (in approval mode the only ones) |
+| `resolved` | `{subject: {dimension: {value, rank, winner, allowed?}}}` for every Resolved (subject, dimension); absent means Default, including an unordered `tag.head` conflict |
+| `tiers` | `{post uri: effective tier}` for every post not Excluded |
+| `modStates` | `{uri: State \| null}` for every candidate item: the state of the first matching rule among V1–V7, or `null` when none matches (V8–V10 decide) |
+| `modLog` | `[{uri, status, rank?}]` in order (time desc, uri asc) |
+| `modQueue` | `[{type: "stale", uri} \| {type: "conflict", subject} \| {type: "applicant", did}]` sorted by (type, then key bytes); see below |
+
+`resolved` values:
+- `value` is a bool or string; for `restrict`, a sorted array of capabilities; for `tag.head`,
+  `{uri, cid}`.
+- `winner` is a modAction uri.
+- `allowed` (sorted comment uris, after the MA9 filter and the equal-rank intersection) is
+  present only for `locked` = true.
+
+`modLog` entries:
+- `status` is one of `effective`, `overridden`, `lapsed`, `expired`, `stale`, `unauthorised`,
+  `reserved/unknown`, `edited`, `removed`.
+- `rank` is present only for `overridden`.
+- Every valid modAction with `forum = F` is listed, of either scope and by any actor; so is
+  every valid revision whose subject is a modAction (`edited` for `op = update`, `removed` for
+  `op = delete`), whether or not the subject is still in `records`. Invalid records are not
+  listed. Time is µs(updatedAt) ?? µs(createdAt) for a modAction and µs(createdAt) for a
+  revision; an entry without a time (a datetime before 1970) sorts after every timed entry.
+- A **forum-scope** record takes the first status that applies:
+  1. `reserved/unknown`: a reserved `^FK-TID$` key (MA2), an unknown scope, action or value
+     (MA7), or a `#lock` of the forum uri (MA9);
+  2. `lapsed`: the actor ∉ A (a former moderator and a user who never was one alike);
+  3. `unauthorised`: the rank rule or the role table of §4.3 (conditions 3–4) fails;
+  4. `expired`: `until` is present and µs(until) ≤ now (a valid `until` before 1970 has no µs
+     and counts as expired);
+  5. `stale`: a positive record whose subject is not in `records` or has another CID
+     (condition 6), or a `#tag` whose `head` fails the §4.5 check (the record still asserts
+     `tag.removed`);
+  6. `effective`: some dimension the record asserts, other than the derived `spam`, resolves
+     at the record's own rank to the record's value (for `restrict`, to any value, because
+     equal-rank sets unite). So a record that agrees with the winner at the winning rank is
+     `effective` even when another record with a smaller uri is the `winner`, and both sides
+     of an unordered `tag.head` conflict are `effective` through `tag.removed`;
+  7. otherwise `overridden`, with `rank` = the highest rank among the resolutions of the
+     dimensions it asserts (other than `spam`).
+- An **author-scope** record (§4.9) is `unauthorised` (authorModeration off, actor ∉ E, or the
+  table condition: subject, thread, gate, immunity; the root post must be in `records` and
+  not Excluded), else `expired`, else `stale`, else `overridden` when the forum tier has a
+  Resolved value for its subject and dimension (`hidden` for `#hide`, `locked` for `#lock`,
+  `pin.thread` for `#pin`), with that value's rank, else `effective`. An author ban is never
+  `overridden`: a forum-tier `access` value on the banned DID does not lift it, only a
+  forum-tier keep or hide of the comment does. A no-effect record (MA2, MA7, MA9) is
+  `reserved/unknown` in either scope.
+
+`modQueue` items (forum scope only):
+- `stale` (key `uri`, the modAction): a forum-scope record whose status is `stale` and whose
+  subject, or whose `head.uri` for a stale `#tag` head, **is** in `records` with another CID.
+  A stale record whose subject or head is not in `records` is not a queue item;
+- `conflict` (key `subject`): an unordered `tag.head` conflict at the top rank;
+- `applicant` (key `did`): every applicant, approval mode only.
+
+Items are sorted by type (`applicant`, `conflict`, `stale`, in byte order), then by key bytes.
+Open-mode newcomer items are not projected; they follow from the visibility states.
+
+**`thread` fields** (query `{thread: p}`)
+
+| Field | Shape and meaning |
+|---|---|
+| `rootMissing` | bool: p is not a non-Excluded post in `records` |
+| `parent` | `{comment uri: p \| comment uri \| placeholder uri}` after the cycle cut and depth cap |
+| `missing` | sorted Missing-placeholder uris (children of the root) |
+| `depth` | `{comment or placeholder uri: depth}`; root children have depth 1 |
+| `orphaned` | sorted comment uris re-attached by the cycle cut or the depth cap |
+| `maxDepth` | int (0 without comments) |
+| `versions` | `{comment uri: {root?: n \| "unavailable", parent?: n \| "unavailable"}}` (§11 step 6, §20.1 items 45–46) for every comment in `records` not Excluded by V1 (whatever its thread; it does not depend on the query) with a reference whose CID names another version than the target's current one. The target is the root post (`root`) or the parent comment (`parent`), and must be in `records` and not Excluded by V1; otherwise the reference is not listed. Versions 1 … k are the snapshots `Ri.subject.cid` of the target's valid `op: update` revisions in (TID of the rkey, uri) order; n is the greatest i whose CID equals the referenced one, compared by canonical form; none → `"unavailable"`. A reference naming the current version (in any spelling) is not listed. No vector names a parent comment under another root (`social-ref/NOTES.md` 63) |
+
+**`digest` fields**
+
+| Field | Shape and meaning |
+|---|---|
+| `inputDigest` | 64 lowercase hex digits |
+| `digestPreimage` | the byte string D as a JSON string |
+| `algs`, `params` | the bodies of the `algs` and `params` lines |
+
+**`visibility` fields**
+
+| Field | Shape and meaning |
+|---|---|
+| `states` | `{uri: State}` for every candidate item (post, comment, sequence, wikiRevision): the first matching rule of V1–V10 (§10.1), before the thread pass |
+| `displayed` | `{uri: State}` for the same items after the thread pass (§10.2): a `Hidden` post or comment with a listed descendant in its placed thread becomes `Tombstone`, keeping `reason` and `removed`; every other state is unchanged |
+
+"Listed" means `Visible` or `Collapsed`, in the state before the pass. Missing placeholders are
+not items, so they appear in neither field; `commentOrder` shows which are displayed. The lens
+(§10.3) is local presentation and appears in no vector.
+
+**`rank` fields.** Query members: `posts: {sort, filter, tag?, kind?, author?}`, where `sort` is
+`magic`, `top`, `new`, `old` or `recentComments`, `filter` is `frontpage`, `all` or `curated`
+(both always present in the vectors), `tag` keeps the posts with applies(p, tag) (§13.3; see
+the `tags` kind), `kind` is compared with the effective kind (PO2) and `author` is a DID;
+`comments: {thread, sort}`, where `sort` is `magic`, `top`, `new`, `old` or `latestReply`.
+
+| Field | Shape and meaning |
+|---|---|
+| `postOrder` | the listed posts (displayed state `Visible` or `Collapsed`) that pass the filters, in the order of `query.posts.sort` (§12.2); under `magic`, forum pins first and the cutoff, from which pinned posts are exempt |
+| `hotBits` | `{post uri: 16 lowercase hex digits}`: hot(b(p), t_rank(p)) for each post of `postOrder` with b(p) > 0; `magic` queries only |
+| `commentOrder` | the displayed nodes of the placed thread of `query.comments.thread` in pre-order, with the siblings of every level sorted: thread pins first (the forum tier, else the author tier), then the sort key, then uri; Missing placeholders after all comment siblings, by uri. Displayed nodes are the comments whose displayed state is listed or `Tombstone` and the Missing placeholders (written as their uri) with a listed descendant |
+| `recentDiscussion` | `[{post, comments}]` (§12.5): the listed posts with at least one `Visible` comment in their placed thread, ordered by (the newest such comment's t_rank desc, post uri asc); `comments` holds its up to 3 newest `Visible` comments, ordered by (t_rank desc, uri asc). It needs no query member |
+
+**`power`** (`karma/power.json`, no fold). The input is `{k, x}`: an integer k and one of
+`up`, `down`, `strongUp`, `strongDown`, `agree`, `disagree`, `strongAgree`, `strongDisagree`.
+Expected is `{power}`, the integer power(k, x) of §6.1 (k < 0 counts as 0).
+
+**`karma` fields** (`karma/staged.json`, `karma/scores.json`, `karma/gates.json`)
+
+| Field | Shape and meaning |
+|---|---|
+| `counting` | sorted uris of the opinions that satisfy O1–O5 (§5), whatever axes they carry. An opinion whose subject is in `absent` is listed when O1–O5 hold, even if the deleted-subject rule then gives it no effect (a wikiRevision or sequence subject, or fewer than 2 eligible voters) |
+| `K1`, `seedUp`, `KP`, `K` | `{did: int}` (§6.2), non-zero entries only |
+| `E`, `established` | DID sets; `established` = E ∖ S |
+| `scores` | `{uri: {score, agreement, unweighted, earlier, weighted}}` (§7) for every candidate item not Excluded by V1, Hidden ones included. `agreement` is `null` under `voting = karmaOnly`. `unweighted` is "n votes not yet counted"; `earlier` and `weighted` are N and M of "N of M votes were cast on an earlier version" |
+| `gateValues` | `{gate: int}` for the 8 gates of §8 (`reactCreate`, `reactSecond`, `reactAnti`, `authorModPersonal`, `authorModFrontpage`, `createTag`, `wikiEdit`, `sequence`): the declared value, or the `karma/1` default when the field is absent |
+| `passes` | `{did: {gate: bool}}`, passes(u, g) ⇔ u ∈ A ∨ K[u] ≥ gateValue(g), for every DID of A and every DID that owns a record in `records` |
+
+An opinion's karma (agreement) axis is "present and enabled" when its value is known and the
+voter is not restricted from `vote` (and, for agreement, `voting` ≠ `karmaOnly`). A
+`#restrict{vote}` therefore removes an opinion from `weighted` and `unweighted` but not from
+`counting`.
+
+**`reacts` fields** (`reacts/reacts.json`)
+
+| Field | Shape and meaning |
+|---|---|
+| `reacts` | `{subject uri: [{react, qkey, creator, supporters, opposers}]}` (§9.2): valid reacts only (C ≠ ∅), each subject's list sorted by (react, qkey) bytes; `creator` is a DID; `supporters` (which include the creator) and `opposers` are DID sets. A subject without a valid react is not listed |
+
+`qkey` is `lfm-1.md` §11 applied in its own order, norm(trim_ws(exact)), or `""` without a
+quote: trim White_Space, remove the §10.2 controls, NFC, then replace White_Space runs with
+U+0020. A control next to the trimmed edge can therefore leave an edge space
+(`social-ref/NOTES.md` 35).
+
+**`tags` fields** (`karma/tags.json`; input `{fold: FoldInput}`)
+
+| Field | Shape and meaning |
+|---|---|
+| `wiki` | `{slug: {canonical, exists, applicable, partial, history, unmerged, candidates}}` (§13.2) for every slug of a wikiRevision that V1 does not exclude and every slug whose `tag:` subject has a forum-tier `tag.removed` or `tag.head` assertion (resolved or in conflict) |
+| `tagRel` | `{post uri: {slug: rel}}` (§13.3): the non-zero rel(p, slug) of every post that V1 does not exclude (hidden posts included); posts without one are not listed |
+| `applies` | `{post uri: [slug]}`: the slugs with applicable(slug) ∧ rel(p, slug) > 0, sorted; posts without one are not listed |
+
+`wiki` members:
+- `canonical`: a wikiRevision uri or `null` (no candidate). The moderator `#tag.head` when it
+  names a candidate with its current CID, else the candidate with the greatest depth, then the
+  greatest K of its author, then the smallest uri;
+- `exists` = canonical ≠ null ∧ effective(`tag:`slug, tag.removed) = false;
+  `applicable` = exists ∧ the canonical revision's `isTag` (default true);
+- `partial`: the page held more than 1,000 revisions (§13.2 cap);
+- `history`: from `canonical`, each step to the parent (along the edges after the cycle cut)
+  with the greatest depth, ties by the smallest uri; `[]` without a canonical revision;
+- `unmerged`: the number of candidates other than `canonical` with no incoming edge;
+- `candidates`: `{uri: {depth, parents, altered, parentUnavailable}}` for every candidate
+  (Cand); `parents` are the edge targets after the cycle cut (sorted uris), `depth` the §13.2
+  depth over them, `altered` the subset whose stored `parents` CID differs from the parent's
+  current CID ("ancestor altered"), and `parentUnavailable` the flag Root(ParentUnavailable): a
+  non-empty `parents` field with no candidate among the parents on the page.
+
+A page holds the slug's wikiRevisions that V1 does not exclude and V2–V5 do not hide, so a
+revision by a non-participant is on no page.
+
+### Floats
+
+`hot()` (§12.1) is the only float in the fold. Rust computes it with the `libm` crate's `pow`
+(pinned to `=0.2.16`), the model with Python's `math.pow`. Rank files carry
+`"hotBitsSource": "rust-libm-0.2.16"`:
+- `hotBits` values are binary64 bit patterns written as 16 lowercase hex digits.
+- Every `hotBits` value equals hot() computed with libm 0.2.16's `pow` (checked at M3 for all 19
+  values of `rank/rank.json` by a scratch program that calls the crate directly, outside the
+  repository), so runners compare the bits exactly. A change of the `libm` version needs the
+  same check before `hotBitsSource` names it.
+- Orderings (`postOrder`) are always compared exactly.
+- Ordering vectors use inputs whose hot values are exactly representable or far from rounding
+  boundaries.
+- The generator checks both with exact arithmetic. For every `hotBits` value, the exact
+  pow(base, e) lies within 0.1 ulp of the double `math.pow` returned, so that double is the
+  correctly rounded result, and b / pow is a correctly rounded IEEE division. In every `magic`
+  order, hot values from different (b, t_rank) differ by more than 64 ulps, unless
+  `exponentMilli` is 0 or 1000 (then pow is exact).

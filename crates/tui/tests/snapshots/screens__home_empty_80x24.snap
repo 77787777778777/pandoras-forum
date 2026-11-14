@@ -1,0 +1,28 @@
+---
+source: crates/tui/tests/screens.rs
+expression: screen
+---
+ Pandora's Forum                                             @carol.example.com
+ Forums you follow
+
+  You follow no forum yet.
+  Open one with `:open <owner>/<slug>`,
+  then `:join` it to post there.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Enter open · R sync · P post · ? help · q quit

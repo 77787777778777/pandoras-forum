@@ -1,0 +1,28 @@
+---
+source: crates/tui/tests/screens.rs
+expression: help
+---
+ Pandora┌ Keys ────────────────────────────────────────────────────────┐ple.com
+ Meta · │Navigation                                                    │
+▌ Welcom│  j k  Down Up    next / previous                             │
+▌ @alice│  g G             first / last                                │
+▌       │  Ctrl-d Ctrl-u   half a page down / up                       │
+▌ Hello │  Enter l         open                                        │
+▌       │  h Esc q         back (q on the home screen quits)           │
+▌ ## Rul│Threads                                                       │
+▌       │  Space           collapse / expand replies                   │
+▌ • Be k│  p               parent comment                              │
+▌ • Stay│  r               reply in $EDITOR                            │
+▌       │  c               comment on the post in $EDITOR              │
+▌ pandor│  s               comment sort (magic, top, new, old, latest) │
+        │  [ ]             previous / next post of its sequence        │
+  1 comm│  i               load the item's images (their host sees you)│
+        │Forums                                                        │
+  @bob.e│  s               sort: magic, top, new, old, recent comments │
+    Than│  f               filter: frontpage, all, curated             │
+        │  Tab             posts / activity                            │
+    It l│  P               new post in $EDITOR                         │
+        │  R               sync and show new items                     │
+        │Opinions                                                      │
+        │  u U             upvote / strong upvote                      │
+ r reply└ 1-22 of 40 ──────────────────────────────────────────────────┘

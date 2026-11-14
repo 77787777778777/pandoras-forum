@@ -1,0 +1,31 @@
+{
+  "lexicon": 1,
+  "id": "forum.pandoras.authFull",
+  "description": "Permission set: full Pandora's Forum access (data-model.md §10.1).",
+  "defs": {
+    "main": {
+      "type": "permission-set",
+      "description": "Every Pandora's Forum record collection. Requested by the Pandora's Forum clients.",
+      "title": "Pandora's Forum (full access)",
+      "detail": "Create, edit and delete your Pandora's Forum forums, memberships, posts, comments, revisions, votes and reactions, wiki edits, sequences, profile and moderation actions.",
+      "permissions": [
+        {
+          "type": "permission",
+          "resource": "repo",
+          "collection": [
+            "forum.pandoras.forum",
+            "forum.pandoras.membership",
+            "forum.pandoras.post",
+            "forum.pandoras.comment",
+            "forum.pandoras.revision",
+            "forum.pandoras.opinion",
+            "forum.pandoras.modAction",
+            "forum.pandoras.wikiRevision",
+            "forum.pandoras.sequence",
+            "forum.pandoras.profile"
+          ]
+        }
+      ]
+    }
+  }
+}

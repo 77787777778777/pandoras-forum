@@ -1,0 +1,190 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// @vitest-environment jsdom
+// (CodeMirror in a shadow root, and the live preview through DOMPurify.)
+
+import { EditorView } from "@codemirror/view";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { Draft, MediaRef, MemberView } from "@pandoras-forum/engine/types";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { renderWithApp } from "../test/render.tsx";
+import { Composer } from "./Composer.tsx";
+
+const ROOT = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.post/3kabc";
+
+function makeDraft(markdown: string, id: string | undefined): Draft {
+  return {
+    kind: "comment",
+    ...(id !== undefined ? { id } : {}),
+    comment: { root: ROOT, body: { markdown, media: [] } },
+  };
+}
+
+/** The CodeMirror view inside the composer's shadow root. */
+async function editor(container: HTMLElement): Promise<EditorView> {
+  return waitFor(() => {
+    const host = container.querySelector('[data-testid="composer-editor"]');
+    const content = host?.shadowRoot?.querySelector(".cm-content");
+    const view = content instanceof HTMLElement ? EditorView.findFromDOM(content) : null;
+    if (!view) throw new Error("editor not mounted");
+    return view;
+  });
+}
+
+function type(view: EditorView, text: string): void {
+  view.dispatch({ changes: { from: view.state.doc.length, insert: text } });
+}
+
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
+  let resolve: (v: T) => void = () => {};
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
+describe("Composer", () => {
+  it("names the editor for assistive technology (the label cannot cross the shadow root)", async () => {
+    const { container } = renderWithApp(
+      <Composer label="Reply to Carol" onSubmit={async () => true} />,
+    );
+    const view = await editor(container);
+    expect(view.contentDOM.getAttribute("aria-label")).toBe("Reply to Carol");
+    expect(view.contentDOM.getAttribute("role")).toBe("textbox");
+  });
+
+  it("does not resurrect the draft when an autosave lands after publishing", async () => {
+    const engine = new MockEngine();
+    const before = await engine.drafts();
+    const gate = deferred<void>();
+    const realSave = engine.saveDraft.bind(engine);
+    const save = vi.spyOn(engine, "saveDraft").mockImplementation(async (d) => {
+      await gate.promise;
+      return realSave(d);
+    });
+    const remove = vi.spyOn(engine, "deleteDraft");
+    const onSubmit = vi.fn(async () => true);
+    const { container } = renderWithApp(
+      <Composer label="Comment" submitLabel="Publish" makeDraft={makeDraft} onSubmit={onSubmit} />,
+      { engine },
+    );
+    type(await editor(container), "A comment that is published quickly.");
+    // The autosave starts after its debounce and stays in flight.
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1), { timeout: 3000 });
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    // the second argument is the composer's attachment rows (empty here, M4)
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith("A comment that is published quickly.", []),
+    );
+    gate.resolve();
+    await waitFor(() => expect(remove).toHaveBeenCalledTimes(1));
+    const id = await save.mock.results[0]?.value;
+    expect(remove).toHaveBeenCalledWith(id);
+    expect(await engine.drafts()).toEqual(before);
+  });
+
+  it("keeps the draft when the composer goes away without publishing", async () => {
+    const engine = new MockEngine();
+    const before = (await engine.drafts()).length;
+    const remove = vi.spyOn(engine, "deleteDraft");
+    const { container, unmount } = renderWithApp(
+      <Composer label="Comment" makeDraft={makeDraft} onSubmit={async () => true} />,
+      { engine },
+    );
+    type(await editor(container), "Unfinished thought");
+    await waitFor(async () => expect(await engine.drafts()).toHaveLength(before + 1), {
+      timeout: 3000,
+    });
+    unmount();
+    expect(remove).not.toHaveBeenCalled();
+    const kept = (await engine.drafts()).filter(
+      (d) => d.draft.kind === "comment" && d.draft.comment.body.markdown === "Unfinished thought",
+    );
+    expect(kept).toHaveLength(1);
+  });
+
+  it("turns a file pasted or dropped into the editor into an attachment (m4-20)", async () => {
+    const engine = new MockEngine();
+    const prepare = vi.spyOn(engine, "prepareMedia");
+    const { container } = renderWithApp(
+      <Composer label="Post body" attachments onSubmit={async () => true} />,
+      { engine },
+    );
+    const view = await editor(container);
+    const shot = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "shot.png", {
+      type: "image/png",
+    });
+    fireEvent.paste(view.contentDOM, { clipboardData: { files: [shot], types: ["Files"] } });
+    await waitFor(() =>
+      expect(screen.getByTestId("attachment-list").textContent).toContain("ready"),
+    );
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(view.state.doc.toString()).toBe("");
+    const drop = new File([new Uint8Array([0xff, 0xd8, 0xff])], "drop.jpg", { type: "image/jpeg" });
+    fireEvent.drop(view.contentDOM, { dataTransfer: { files: [drop], types: ["Files"] } });
+    await waitFor(() => expect(prepare).toHaveBeenCalledTimes(2));
+  });
+
+  it("previews the body with its media: the kept ones and the prepared attachments (m4-20)", async () => {
+    const engine = new MockEngine();
+    const render = vi.spyOn(engine, "render");
+    const cid = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
+    const kept: MediaRef = { id: cid, cid, mime: "image/png", sizeBytes: 10, alt: "kept" };
+    const { container } = renderWithApp(
+      <Composer label="Post body" attachments media={[kept]} onSubmit={async () => true} />,
+      { engine },
+    );
+    const view = await editor(container);
+    const shot = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "shot.png", {
+      type: "image/png",
+    });
+    fireEvent.paste(view.contentDOM, { clipboardData: { files: [shot], types: ["Files"] } });
+    await waitFor(() =>
+      expect(screen.getByTestId("attachment-list").textContent).toContain("ready"),
+    );
+    view.dispatch({ changes: { from: 0, insert: `![kept](cid:${cid})` } });
+    await waitFor(() => {
+      const last = render.mock.calls.at(-1);
+      expect(last?.[1].map((m) => (m as MediaRef).cid)).toEqual([cid, expect.any(String)]);
+    });
+    expect(render.mock.calls.at(-1)?.[1][1]).toMatchObject({ mime: "image/png" });
+  });
+
+  it("shows a mention candidate's display name cleaned and isolated, like every name (security-4)", async () => {
+    const engine = new MockEngine();
+    const forum = (await engine.followed())[0]?.uri ?? "";
+    const member = (did: string, handle: string, displayName: string): MemberView => ({
+      actor: { did, shortDid: did.slice(0, 12), handle, handleState: "verified", displayName },
+      status: "member",
+      granted: false,
+      joinedAtMs: 0,
+    });
+    vi.spyOn(engine, "members").mockResolvedValue([
+      // a bidi override, a zero-width space and a verified-badge glyph next to a lookalike handle
+      member("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa", "alice.test", "‮@carol.test​ ✓"),
+      // nothing but glyphs and controls: no label at all
+      member("did:plc:bbbbbbbbbbbbbbbbbbbbbbbb", "bob.test", "✓​‮"),
+    ]);
+    const { container } = renderWithApp(
+      <Composer label="Comment" forumUri={forum} onSubmit={async () => true} />,
+      { engine },
+    );
+    const view = await editor(container);
+    view.dispatch({ changes: { from: 0, insert: "@" }, selection: { anchor: 1 } });
+    // the members arrive after the keystroke: the completion follows the caret, so a selection
+    // update recomputes it
+    const menu = await waitFor(() => {
+      view.dispatch({ selection: { anchor: 1 } });
+      return screen.getByTestId("mention-menu");
+    });
+    const rows = within(menu).getAllByRole("listitem");
+    const alice = rows.find((r) => r.textContent?.startsWith("@alice.test"));
+    const bob = rows.find((r) => r.textContent?.startsWith("@bob.test"));
+    if (!alice || !bob) throw new Error(`candidates missing: ${menu.textContent}`);
+    const label = alice.querySelector("bdi");
+    expect(label?.textContent).toBe("@carol.test");
+    expect(alice.textContent).toBe("@alice.test@carol.test");
+    expect(bob.querySelector("bdi")).toBeNull();
+    expect(bob.textContent).toBe("@bob.test");
+  });
+});

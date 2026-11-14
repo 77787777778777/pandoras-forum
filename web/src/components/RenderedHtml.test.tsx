@@ -1,0 +1,313 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// @vitest-environment jsdom
+// (DOMPurify needs a spec-compliant parser; see lib/sanitize.test.ts.)
+
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { MediaView } from "@pandoras-forum/engine/types";
+import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { qk } from "../engine/queries.ts";
+import { renderWithApp } from "../test/render.tsx";
+import { ParticipantsProvider } from "./participants.tsx";
+import { RenderedHtml } from "./RenderedHtml.tsx";
+
+const SAFE = `<div class="lfm" dir="auto">
+<h2 id="md-h-intro" dir="auto">Intro</h2>
+<p dir="auto">Hello <strong>world</strong>.<sup id="md-fnref-1-1"><a data-anchor="md-fn-1">1</a></sup> See <a data-anchor="intro">the intro</a>.</p>
+<p dir="auto"><a href="https://example.com/" rel="nofollow ugc noopener noreferrer">example</a></p>
+<section class="footnotes">
+<ol>
+<li id="md-fn-1" dir="auto"><p dir="auto">A footnote.</p>
+<a data-anchor="md-fnref-1-1" class="fn-back">↩</a></li>
+</ol>
+</section>
+</div>
+`;
+
+const EVIL = `<div class="lfm" dir="auto">
+<p dir="auto" onclick="alert(1)">x<script>alert(1)</script><img src="x" onerror="alert(2)"><a href="javascript:alert(3)">j</a><iframe src="https://evil.example"></iframe></p>
+</div>
+`;
+
+function rootOf(container: HTMLElement): HTMLElement {
+  const root = container.querySelector("[data-rendered-root]");
+  if (!(root instanceof HTMLElement)) throw new Error("no rendered root");
+  return root;
+}
+
+/** The router renders asynchronously; wait for the rendered root to mount. */
+function mountedRoot(container: HTMLElement): Promise<HTMLElement> {
+  return waitFor(() => rootOf(container));
+}
+
+describe("RenderedHtml", () => {
+  it("inserts allowlisted renderer output unchanged", async () => {
+    const { container } = renderWithApp(<RenderedHtml html={SAFE} />);
+    // The only runtime additions: anchor links become focusable links (lfm-1.md §8.2 allows
+    // runtime DOM changes after sanitisation).
+    await waitFor(() =>
+      expect(rootOf(container).innerHTML.replaceAll(' tabindex="0" role="link"', "")).toBe(SAFE),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("makes in-content anchor links keyboard-reachable", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const { container } = renderWithApp(<RenderedHtml html={SAFE} />);
+    const root = await mountedRoot(container);
+    await waitFor(() => expect(root.querySelector("a[data-anchor]")).not.toBeNull());
+    const anchors = [...root.querySelectorAll("a[data-anchor]")];
+    for (const a of anchors) {
+      expect(a.getAttribute("tabindex")).toBe("0");
+      expect(a.getAttribute("role")).toBe("link");
+    }
+    const ref = anchors.find((a) => a.getAttribute("data-anchor") === "md-fn-1");
+    if (!(ref instanceof HTMLElement)) throw new Error("no footnote reference");
+    ref.focus();
+    fireEvent.keyDown(ref, { key: "Enter" });
+    const note = root.querySelector("#md-fn-1");
+    expect(scroll.mock.contexts.at(-1)).toBe(note);
+    expect(document.activeElement).toBe(note);
+  });
+
+  it("strips malicious HTML and flags the mismatch in development", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { container } = renderWithApp(<RenderedHtml html={EVIL} />);
+    const root = await mountedRoot(container);
+    await waitFor(() => expect(root.querySelector("p")).not.toBeNull());
+    const html = root.innerHTML;
+    for (const bad of ["<script", "onclick", "onerror", "javascript:", "<iframe", "src="]) {
+      expect(html).not.toContain(bad);
+    }
+    expect(root.textContent).toContain("x");
+    expect((await screen.findByRole("alert")).textContent).toContain("Development check failed");
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it("scrolls data-anchor links inside its own root", async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const { container } = renderWithApp(<RenderedHtml html={SAFE} />);
+    const root = await mountedRoot(container);
+    await waitFor(() => expect(root.querySelector("h2")).not.toBeNull());
+    const link = [...root.querySelectorAll("a[data-anchor]")].find(
+      (a) => a.textContent === "the intro",
+    );
+    if (!(link instanceof HTMLElement)) throw new Error("no anchor link");
+    fireEvent.click(link);
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toBe(root.querySelector("#md-h-intro"));
+  });
+
+  it("adds sidenotes and media placeholders after sanitising", async () => {
+    const media = SAFE.replace(
+      "</section>\n",
+      '</section>\n<div class="gallery">\n<span class="media" data-cid="bafkreiabc">clip.mp4</span>\n</div>\n',
+    );
+    const { container } = renderWithApp(<RenderedHtml html={media} sidenotes />);
+    const root = await mountedRoot(container);
+    await waitFor(() => expect(root.querySelector(".lfm-sidenote")).not.toBeNull());
+    expect(root.querySelector(".lfm-sidenote")?.textContent).toContain("A footnote.");
+    expect(root.querySelector(".lfm-sidenote [id]")).toBeNull();
+    expect(screen.getByRole("button", { name: /clip\.mp4 \(click to load;/ })).toBeTruthy();
+  });
+
+  it("hides only the footnotes it copied as sidenotes (lfm-1.md §8.1)", async () => {
+    // footnote 2's first reference is gone (a flattened spoiler): it must stay in the section
+    const two = SAFE.replace(
+      "</ol>",
+      '<li id="md-fn-2" dir="auto"><p dir="auto">Orphan.</p>\n</li>\n</ol>',
+    );
+    const { container } = renderWithApp(<RenderedHtml html={two} sidenotes />);
+    const root = await mountedRoot(container);
+    await waitFor(() => expect(root.querySelector(".lfm-sidenote")).not.toBeNull());
+    expect(root.querySelector("#md-fn-1")?.classList.contains("lfm-sidenoted")).toBe(true);
+    expect(root.querySelector("#md-fn-2")?.classList.contains("lfm-sidenoted")).toBe(false);
+    expect(root.querySelector("#md-fn-2")?.getAttribute("value")).toBe("2");
+    expect(root.querySelector("section.footnotes")?.classList.contains("lfm-all-sidenoted")).toBe(
+      false,
+    );
+    // every definition copied: the section goes
+    const one = renderWithApp(<RenderedHtml html={SAFE} sidenotes />);
+    const root1 = await mountedRoot(one.container);
+    await waitFor(() =>
+      expect(
+        root1.querySelector("section.footnotes")?.classList.contains("lfm-all-sidenoted"),
+      ).toBe(true),
+    );
+  });
+
+  describe("media (sync.md §11.2, threat-model SPA-7)", () => {
+    const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
+    const view = (mime: string): MediaView => ({
+      index: 0,
+      cid: CID,
+      mime,
+      author: "did:plc:abcdefghijklmnopqrstuvwx",
+      pds: "https://pds.test",
+      autoload: false,
+      sizeBytes: 12,
+    });
+    const body = (el: string): string =>
+      `<div class="lfm" dir="auto">\n<p dir="auto">${el}</p>\n</div>\n`;
+    const IMG = body(`<img data-cid="${CID}" alt="a chart">`);
+
+    /** Renders `html`, clicks its placeholder; `loadMedia` answers `url` typed `mime`. */
+    async function load(html: string, declared: string, url: string, mime?: string) {
+      const revoked: string[] = [];
+      URL.revokeObjectURL = vi.fn((u: string) => void revoked.push(u));
+      const engine = new MockEngine();
+      const loaded = { cid: CID, size: 12, url, ...(mime === undefined ? {} : { mime }) };
+      const spy = vi.spyOn(engine, "loadMedia").mockResolvedValue(loaded);
+      const { container, unmount } = renderWithApp(
+        <RenderedHtml html={html} media={[view(declared)]} />,
+        { engine },
+      );
+      const root = await mountedRoot(container);
+      fireEvent.click(await screen.findByRole("button", { name: /click to load/ }));
+      await waitFor(() => expect(screen.queryByText("loading…")).toBeNull());
+      return { root, unmount, revoked, spy };
+    }
+
+    it("shows an image from the engine's blob: URL, revoked on unmount", async () => {
+      const { root, unmount, revoked, spy } = await load(IMG, "image/png", "blob:t/1", "image/png");
+      // the item's view names the author's PDS and the declared type and size
+      expect(spy).toHaveBeenCalledWith(CID, view("image/png"));
+      expect(root.querySelector("img")?.getAttribute("src")).toBe("blob:t/1");
+      expect(screen.queryByRole("button", { name: /click to load/ })).toBeNull();
+      unmount();
+      expect(revoked).toEqual(["blob:t/1"]);
+    });
+
+    it("never points an element at anything but an object URL", async () => {
+      const { root } = await load(IMG, "image/png", `idb:${CID}`, "image/png");
+      expect(root.querySelector("img")?.hasAttribute("src")).toBe(false);
+      expect(screen.getByRole("button", { name: /could not load/ })).toBeTruthy();
+    });
+
+    it("plays a video or audio display type in a player with controls", async () => {
+      const span = body(`<span class="media" data-cid="${CID}">song.mp3</span>`);
+      const { root } = await load(span, "audio/mpeg", "blob:t/2", "audio/mpeg");
+      const audio = root.querySelector("audio");
+      expect(audio?.getAttribute("src")).toBe("blob:t/2");
+      expect(audio?.hasAttribute("controls")).toBe(true);
+      expect(root.querySelector("video")).toBeNull();
+    });
+
+    it("without a display type (sniffed and declared disagree): a download card", async () => {
+      const save = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      const { root } = await load(IMG, "image/png", "blob:t/3");
+      expect(root.querySelector("img")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: `⤓ Download a chart (${CID}.bin)` }));
+      const a = save.mock.contexts[0] as HTMLAnchorElement;
+      expect(a.getAttribute("href")).toBe("blob:t/3");
+      expect(a.download).toBe(`${CID}.bin`);
+      save.mockRestore();
+    });
+
+    it("names the host that will see the reader's address (sync.md §11.3)", async () => {
+      const engine = new MockEngine();
+      const spy = vi.spyOn(engine, "loadMedia");
+      renderWithApp(<RenderedHtml html={IMG} media={[view("image/png")]} />, { engine });
+      const button = await screen.findByRole("button", { name: /click to load/ });
+      expect(button.textContent).toContain("loads from pds.test, which will see your IP");
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("loads without a click what the engine lets autoload", async () => {
+      URL.revokeObjectURL = vi.fn();
+      const engine = new MockEngine();
+      const spy = vi
+        .spyOn(engine, "loadMedia")
+        .mockResolvedValue({ cid: CID, size: 12, url: "blob:t/5", mime: "image/png" });
+      const auto = { ...view("image/png"), autoload: true };
+      const { container } = renderWithApp(<RenderedHtml html={IMG} media={[auto]} />, {
+        engine,
+      });
+      const root = await mountedRoot(container);
+      await waitFor(() => expect(root.querySelector("img")?.getAttribute("src")).toBe("blob:t/5"));
+      expect(spy).toHaveBeenCalledWith(CID, auto);
+      expect(screen.queryByRole("button", { name: /click to load/ })).toBeNull();
+    });
+
+    it("follows the autoload verdict inside a hover preview (lfm-1.md §5.3)", async () => {
+      URL.revokeObjectURL = vi.fn();
+      const engine = new MockEngine();
+      const spy = vi
+        .spyOn(engine, "loadMedia")
+        .mockResolvedValue({ cid: CID, size: 12, url: "blob:t/6", mime: "image/png" });
+      const auto = { ...view("image/png"), autoload: true };
+      const { container } = renderWithApp(<RenderedHtml html={IMG} media={[auto]} preview />, {
+        engine,
+      });
+      const root = await mountedRoot(container);
+      await waitFor(() => expect(root.querySelector("img")?.getAttribute("src")).toBe("blob:t/6"));
+      expect(spy).toHaveBeenCalledWith(CID, auto);
+    });
+
+    it("loads nothing by itself when autoload is off (the composer's preview)", async () => {
+      const engine = new MockEngine();
+      const spy = vi.spyOn(engine, "loadMedia");
+      const auto = { ...view("image/png"), autoload: true };
+      renderWithApp(<RenderedHtml html={IMG} media={[auto]} preview autoload={false} />, {
+        engine,
+      });
+      expect(await screen.findByRole("button", { name: /click to load/ })).toBeTruthy();
+      expect(spy).not.toHaveBeenCalled();
+    });
+
+    it("gives a PDF a download card, not a player", async () => {
+      const span = body(`<span class="media" data-cid="${CID}">paper.pdf</span>`);
+      const { root } = await load(span, "application/pdf", "blob:t/4");
+      expect(root.querySelector("video, audio")).toBeNull();
+      expect(
+        screen.getByRole("button", { name: `⤓ Download paper.pdf (${CID}.bin)` }),
+      ).toBeTruthy();
+    });
+  });
+
+  describe("mention resolution (lfm-1.md §5.4, F16)", () => {
+    const html = (did: string): string =>
+      `<div class="lfm" dir="auto">\n<p dir="auto">Hi <a href="#/u/${did}" data-did="${did}" class="mention">@${did.slice(0, 16)}…</a></p>\n</div>\n`;
+
+    it("resolves participants eagerly and shows their verified handle", async () => {
+      const engine = new MockEngine();
+      const bob = await engine.resolveActor("bob.test");
+      const resolve = vi.spyOn(engine, "resolveActor");
+      const { container } = renderWithApp(
+        <ParticipantsProvider
+          forum={undefined}
+          items={[{ author: bob, state: { kind: "visible" } }]}
+        >
+          <RenderedHtml html={html(bob.did)} />
+        </ParticipantsProvider>,
+        { engine },
+      );
+      const root = await mountedRoot(container);
+      await waitFor(() => expect(root.querySelector("a.mention")?.textContent).toBe("@bob.test"));
+      expect(resolve).toHaveBeenCalledWith(bob.did);
+    });
+
+    it("never resolves a non-participant before the reader asks", async () => {
+      const engine = new MockEngine();
+      const bob = await engine.resolveActor("bob.test");
+      const resolve = vi.spyOn(engine, "resolveActor");
+      const user = vi.spyOn(engine, "user");
+      const { container, queryClient } = renderWithApp(<RenderedHtml html={html(bob.did)} />, {
+        engine,
+      });
+      const root = await mountedRoot(container);
+      await waitFor(() => expect(root.querySelector("a.mention")).not.toBeNull());
+      await new Promise((r) => setTimeout(r, 50));
+      expect(resolve).not.toHaveBeenCalled();
+      expect(user).not.toHaveBeenCalled();
+      expect(root.querySelector("a.mention")?.textContent).toMatch(/^@did:plc:/);
+      // Once the identity is resolved on demand (hover card, profile visit), the mention shows it.
+      act(() => queryClient.setQueryData(qk.actor(bob.did), bob));
+      await waitFor(() => expect(root.querySelector("a.mention")?.textContent).toBe("@bob.test"));
+      expect(resolve).not.toHaveBeenCalled();
+    });
+  });
+});

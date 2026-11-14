@@ -1,0 +1,182 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Sign-in: the engine resolves the handle (DoH, both directions), then the host-specific login
+// runs (OAuth in the hosted app, the CLI's OAuth in `pandoras-forum web`, a placeholder with the mock
+// engine) and the account is recorded with `addAccount`. After a redirect back from the
+// authorization server, the outcome that needs the user (an error, or a changed authorization
+// server to confirm, sync.md §3.6) is shown here.
+
+import type { ActorView } from "@pandoras-forum/engine/types";
+import { useQueryClient } from "@tanstack/react-query";
+import { getRouteApi, useNavigate } from "@tanstack/react-router";
+import { useId, useState } from "react";
+import { ActorName } from "../components/ActorName.tsx";
+import { errorMessage } from "../components/Status.tsx";
+import { toasts } from "../components/Toast.tsx";
+import { useEngineHandle } from "../engine/context.tsx";
+import { bridgeLoginErrorMessage, type LoginNotice, useLoginNotice } from "../host/loginNotice.ts";
+import ui from "../styles/ui.module.css";
+
+const route = getRouteApi("/login");
+
+function ConfirmIssuer({ notice }: { notice: Extract<LoginNotice, { kind: "confirmIssuer" }> }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const act = async (confirm: boolean): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    try {
+      if (confirm) {
+        await notice.confirm();
+        await qc.invalidateQueries();
+        toasts.show({ message: "Signed in", tone: "success" });
+        void navigate({ to: "/" });
+      } else {
+        await notice.cancel();
+      }
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className={ui.card} role="alert">
+      <p>
+        Your account <span className={ui.mono}>{notice.did}</span> signed in through a different
+        authorization server than last time.
+      </p>
+      <p>
+        Before: <span className={ui.mono}>{notice.pinned}</span>
+        <br />
+        Now: <span className={ui.mono}>{notice.issuer}</span>
+      </p>
+      <p>Continue only if you moved your account to a new server.</p>
+      <div className={ui.row}>
+        <button type="button" className={ui.primary} disabled={busy} onClick={() => void act(true)}>
+          I moved my account, continue
+        </button>
+        <button type="button" className={ui.ghost} disabled={busy} onClick={() => void act(false)}>
+          Cancel
+        </button>
+      </div>
+      {error && <p className={ui.error}>{error}</p>}
+    </div>
+  );
+}
+
+export function LoginPage() {
+  const handle = useEngineHandle();
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const inputId = useId();
+  const [input, setInput] = useState("");
+  const [actor, setActor] = useState<ActorView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const notice = useLoginNotice();
+  const { error: bridgeError } = route.useSearch();
+
+  const resolve = async (): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    setActor(null);
+    try {
+      setActor(await handle.api.resolveActor(input.trim()));
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signIn = async (a: ActorView): Promise<void> => {
+    setBusy(true);
+    setError(null);
+    try {
+      await handle.login.login(a, { returnTo: "#/" });
+      await qc.invalidateQueries();
+      toasts.show({ message: "Signed in", tone: "success" });
+      void navigate({ to: "/" });
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className={ui.page}>
+      <h1 className={ui.pageTitle}>Sign in</h1>
+      <p>{handle.login.description}</p>
+      {notice?.kind === "error" && (
+        <p className={ui.error} role="alert">
+          {notice.message}
+        </p>
+      )}
+      {notice?.kind === "confirmIssuer" && <ConfirmIssuer notice={notice} />}
+      {bridgeError && !notice && (
+        <p className={ui.error} role="alert">
+          {bridgeLoginErrorMessage(bridgeError)}
+        </p>
+      )}
+      <form
+        className={ui.stack}
+        onSubmit={(e) => {
+          e.preventDefault();
+          void resolve();
+        }}
+      >
+        <div className={ui.field}>
+          <label className={ui.label} htmlFor={inputId}>
+            Your handle or DID
+          </label>
+          <input
+            id={inputId}
+            className={ui.input}
+            autoComplete="username"
+            spellCheck={false}
+            placeholder="alice.example.com"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+          <span className={ui.hint}>
+            You will never be asked for your main password. App passwords are accepted only by the
+            command-line client.
+          </span>
+        </div>
+        <div className={ui.row}>
+          <button type="submit" className={ui.primary} disabled={busy || input.trim() === ""}>
+            Continue
+          </button>
+        </div>
+      </form>
+      {error && (
+        <p className={ui.error} role="alert">
+          {error}
+        </p>
+      )}
+      {actor && (
+        <div className={ui.card}>
+          <p>
+            Sign in as <ActorName actor={actor} showIdent link={false} />?
+          </p>
+          <p className={ui.mono}>{actor.did}</p>
+          <button
+            type="button"
+            className={ui.primary}
+            disabled={busy}
+            onClick={() => void signIn(actor)}
+          >
+            Sign in
+          </button>
+        </div>
+      )}
+      <p className={ui.small}>
+        The hosted app is trusted while you use it. For a zero-trust setup run{" "}
+        <code>pandoras-forum web</code>, which keeps your login in the command-line client.
+      </p>
+    </div>
+  );
+}

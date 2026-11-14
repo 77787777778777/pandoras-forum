@@ -1,0 +1,3247 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//
+// MockEngine: an in-memory implementation of `EngineApi` over a realistic, deterministic
+// fixture (./mock/fixture.ts). The SPA is built and tested against it until the wasm engine
+// implements the same operations. Writes mutate the in-memory state, report `WriteTicket`
+// states through `write` events (opinions are held for the 4 s undo window), and announce
+// `changed` topics so the UI re-queries. No Math.random and no wall clock: the mock has a
+// logical clock that starts at the fixture's "now" and advances one second per write.
+
+import type { EngineApi } from "./api.ts";
+import { ACTOR_DID, buildFixture, FIXTURE_NOW, FK, FORUM_URI } from "./mock/fixture.ts";
+import type {
+  ActorRec,
+  BaseReact,
+  BaseScore,
+  CommentRec,
+  ForumRec,
+  MockState,
+  ModLogEntryRec,
+  MyOpinionRec,
+  PolicyRec,
+  PostRec,
+  SequenceRec,
+  TagRec,
+  WikiRevRec,
+} from "./mock/model.ts";
+import { renderMarkdown } from "./mock/render.ts";
+import { isDid, isHandle, safeHref } from "./mock/safe-href.ts";
+import {
+  atUri,
+  b32hash,
+  COLL,
+  clone,
+  didFor,
+  fakeBlobCid,
+  fakeCid,
+  MOCK_RENDERER_VERSION,
+  normalizeP,
+  shortDid,
+  splitAtUri,
+  tid,
+} from "./mock/util.ts";
+import { paletteReact } from "./palette.ts";
+import {
+  type AccountInfo,
+  type AccountView,
+  type ActionNotice,
+  type ActionTicket,
+  type ActorView,
+  type Anchor,
+  type AtUri,
+  type AuditReport,
+  type BodySource,
+  type BookmarkEntry,
+  type Cid,
+  type CommentDraft,
+  type CommentNode,
+  type Completeness,
+  type Did,
+  type DiscussionList,
+  type Draft,
+  type DraftEntry,
+  DTO_VERSION,
+  type EditOpts,
+  type EffectivePolicy,
+  type EngineError,
+  type EngineErrorCode,
+  type EngineEvent,
+  type EventListener,
+  type ForumDraft,
+  type ForumIndexer,
+  type ForumRole,
+  type ForumSummary,
+  type ForumView,
+  type HistoryView,
+  type Href,
+  type HrefContext,
+  type ImportReport,
+  type ItemState,
+  type Json,
+  type KarmaCadence,
+  type ListPostsQuery,
+  type LoadedMedia,
+  type MediaFile,
+  type MediaInput,
+  type MediaRef,
+  type MembersQuery,
+  type MemberView,
+  type ModActionIntent,
+  type ModLog,
+  type ModQueue,
+  type ModsChange,
+  type MyOpinion,
+  type NotificationList,
+  type NotificationsQuery,
+  OPINION_UNDO_WINDOW_MS,
+  type OpinionIntent,
+  type PostDraft,
+  type PostList,
+  type PostSummary,
+  type PostTag,
+  type PostView,
+  type PublicActionKind,
+  type RawView,
+  type ReactTally,
+  type ReadingPosition,
+  type Ref,
+  type RefContext,
+  type RenderedBody,
+  type RenderOpts,
+  type RkeyInput,
+  type ScoreView,
+  type SearchHit,
+  type SearchQuery,
+  type SearchResults,
+  type SequenceDraft,
+  type SequencePosition,
+  type SequenceSummary,
+  type SequenceView,
+  type SettingKey,
+  type Settings,
+  type Slug,
+  type Subscription,
+  type SubscriptionEntry,
+  type SyncOpts,
+  type SyncReport,
+  type TagSummary,
+  type TagView,
+  type TextQuote,
+  type ThreadOpts,
+  type ThreadView,
+  type Topic,
+  type UnreadCounts,
+  type Unsubscribe,
+  type UserView,
+  type ValidationReport,
+  type VerifyReport,
+  type ViewerCaps,
+  type WikiDraft,
+  type WikiPageView,
+  type WriteState,
+  type WriteTicket,
+} from "./types.ts";
+
+export { FIXTURE_NOW } from "./mock/fixture.ts";
+export { safeHref as mockSafeHref } from "./mock/safe-href.ts";
+
+export interface MockEngineOptions {
+  /** How long opinion intents are held before sending (default `OPINION_UNDO_WINDOW_MS`). */
+  holdMs?: number;
+  /** Simulated latency of every write once it is sent (default 250 ms). */
+  sendMs?: number;
+  /** Start without a signed-in account. */
+  signedOut?: boolean;
+  /** Serve every present body/about as a textBlob in `raw`; `bodySource` still reads its text. */
+  spilledBodies?: boolean;
+  /** The first wiki edit that names a `base` meets another participant's revision of the page,
+   * made since the editor loaded it, so it is refused as `wikiHeadMoved` (decision O-2). */
+  wikiRace?: boolean;
+}
+
+type Timer = ReturnType<typeof setTimeout>;
+
+interface WriteRec {
+  id: string;
+  state: WriteState;
+  undoable: boolean;
+  timer?: Timer;
+  /** The subject an opinion write is about (`MyOpinion.pending`). */
+  subject?: AtUri;
+  apply: () => Applied;
+}
+
+/** What a write did. `report`: a `modAdopt`'s lines on what it did not adopt or kept
+ * (`WriteState.done.report`). */
+interface Applied {
+  uri: AtUri;
+  cid: string;
+  topics: Topic[];
+  report?: string[];
+}
+
+const RENDER_NOTICE = "Rendered by the mock engine's minimal markdown renderer.";
+const AUTHORITY: ReadonlySet<string> = new Set(["owner", "admin", "moderator"]);
+
+/** `PublicActionKind` in its Rust order (the order of `acknowledgedPublicActions`). */
+const PUBLIC_ACTION_KINDS: readonly PublicActionKind[] = [
+  "vote",
+  "react",
+  "tagVote",
+  "join",
+  "modAction",
+];
+const RANK: Record<string, number> = { owner: 3, admin: 2, moderator: 1 };
+
+/** The engine's retroactivity notices (crates/core/src/engine/moderation.rs). */
+const RETROACTIVE_RESTRICT =
+  "this restriction is retroactive: it also hides the user's earlier items of the restricted kinds";
+const RETROACTIVE_BAN =
+  "a ban is retroactive: it hides all of the user's items in this forum, unless they are kept";
+/** The engine's `missingAlt` notice (crates/core/src/media/mod.rs). */
+const MISSING_ALT =
+  "this file has no alt text: readers who cannot see it will not know what it shows";
+
+function err(code: EngineErrorCode, message: string, retryable = false): EngineError {
+  return { code, message, retryable };
+}
+
+function karmaPower(v: string | undefined): number {
+  switch (v) {
+    case "up":
+    case "agree":
+      return 1;
+    case "strongUp":
+    case "strongAgree":
+      return 3;
+    case "down":
+    case "disagree":
+      return -1;
+    case "strongDown":
+    case "strongDisagree":
+      return -3;
+    default:
+      return 0;
+  }
+}
+
+function qkey(q: TextQuote | undefined): string {
+  return q ? normalizeP(q.exact) : "";
+}
+
+function listed(s: ItemState): boolean {
+  return s.kind === "visible" || s.kind === "collapsed";
+}
+
+function cpIndexOf(text: string, exact: string): Anchor {
+  const i = text.indexOf(exact);
+  if (i < 0) return { orphan: true };
+  const start = Array.from(text.slice(0, i)).length;
+  return { start, end: start + Array.from(exact).length };
+}
+
+function emptyBody(notice: string): RenderedBody {
+  return {
+    html: `<div class="lfm" dir="auto">\n<p class="notice" dir="auto">${notice}</p>\n</div>\n`,
+    text: "",
+    toc: [],
+    wordCount: 0,
+    readMinutes: 0,
+    media: [],
+    excerpt: "",
+    notices: [],
+    rendererVersion: MOCK_RENDERER_VERSION,
+  };
+}
+
+/** The effective policy as the core reports it: algorithm ids plus name/value pairs. */
+function effectivePolicy(p: PolicyRec): EffectivePolicy {
+  const params: [string, string][] = [
+    ["voting", p.voting],
+    ["authorModeration", String(p.authorModeration)],
+    ["tagCreation", p.tagCreation],
+    ["karma.pairCap", String(p.karma.pairCap)],
+    ["karma.establish", String(p.karma.establish)],
+    ["karma.establishSeeds", String(p.karma.establishSeeds)],
+    ["ranking.offsetHours", String(p.ranking.offsetHours)],
+    ["ranking.exponentMilli", String(p.ranking.exponentMilli)],
+    ["ranking.curatedBonus", String(p.ranking.curatedBonus)],
+    ["ranking.frontpageBonus", String(p.ranking.frontpageBonus)],
+    ["ranking.cutoffDays", String(p.ranking.cutoffDays)],
+    ...Object.entries(p.gates).map(([k, v]): [string, string] => [`gates.${k}`, String(v)]),
+    ["display.collapseBelow", String(p.display.collapseBelow)],
+    ["display.newUsers", p.display.newUsers],
+  ];
+  return {
+    moderation: p.moderation,
+    karma: p.karma.algorithm,
+    ranking: p.ranking.algorithm,
+    reactPalette: p.reactPalette,
+    params,
+  };
+}
+
+/** social.md §12.1 `hot`, in milliseconds. */
+function hot(
+  b: number,
+  tMs: number,
+  now: number,
+  offsetHours: number,
+  exponentMilli: number,
+): number {
+  const age = Math.max(now - tMs, 0);
+  const h = age / 3_600_000;
+  return b / (h + offsetHours) ** (exponentMilli / 1000);
+}
+
+/** The approval-mode mod queue's banners (views.rs `APPLICANTS_ASSISTED`, `APPLICANTS_DIRECT`). */
+const APPLICANTS_ASSISTED =
+  "Applicants are found only through Constellation, Jetstream, a relay or an indexer, so some " +
+  "may be missing. Applicants can also reach you out of band.";
+const APPLICANTS_DIRECT =
+  "This device uses direct sources only, so it does not look for applicants: the list shows " +
+  "only those found before. Switch sources to assisted, or hear from applicants out of band.";
+
+export class MockEngine implements EngineApi {
+  private readonly s: MockState;
+  private readonly holdMs: number;
+  private readonly sendMs: number;
+  private readonly spilledBodies: boolean;
+  private wikiRace: boolean;
+  private ticks = 0;
+  private readonly listeners = new Set<EventListener>();
+  private readonly queue: EngineEvent[] = [];
+  private flushing = false;
+  private readonly writeRecs = new Map<string, WriteRec>();
+  /** Applicants rejected on this device, by forum. */
+  private readonly rejected = new Map<AtUri, Set<Did>>();
+
+  constructor(opts: MockEngineOptions = {}) {
+    this.s = buildFixture().state;
+    this.holdMs = opts.holdMs ?? OPINION_UNDO_WINDOW_MS;
+    this.sendMs = opts.sendMs ?? 250;
+    this.spilledBodies = opts.spilledBodies ?? false;
+    this.wikiRace = opts.wikiRace ?? false;
+    if (opts.signedOut) this.s.active = null;
+  }
+
+  // ------------------------------------------------------------------------------- plumbing
+
+  /** The logical clock: the fixture's "now" plus one second per write. */
+  private now(): number {
+    return FIXTURE_NOW + this.ticks * 1000;
+  }
+
+  private tick(): number {
+    this.ticks++;
+    return this.now();
+  }
+
+  private nextId(prefix: string): string {
+    return `${prefix}-${this.s.nextId++}`;
+  }
+
+  private emit(event: EngineEvent): void {
+    this.queue.push(event);
+    if (this.flushing) return;
+    this.flushing = true;
+    queueMicrotask(() => {
+      while (this.queue.length > 0) {
+        const e = this.queue.shift();
+        if (!e) break;
+        for (const l of [...this.listeners]) {
+          try {
+            l(e);
+          } catch (error) {
+            console.error("engine event listener failed", error);
+          }
+        }
+      }
+      this.flushing = false;
+    });
+  }
+
+  private changed(...topics: Topic[]): void {
+    this.emit({ kind: "changed", topics });
+  }
+
+  private me(): Did {
+    if (!this.s.active) throw err("auth_required", "Sign in to do this.");
+    return this.s.active;
+  }
+
+  private actorRec(did: Did): ActorRec {
+    let a = this.s.actors.get(did);
+    if (!a) {
+      a = {
+        view: { did, handleState: "unverified", shortDid: shortDid(did) },
+        pds: "https://pds.example.test",
+        links: [],
+        karma: { k1: 0, kp: 0, k: 0 },
+        status: "none",
+        joinedAtMs: this.now(),
+        granted: false,
+        pinned: [],
+      };
+      this.s.actors.set(did, a);
+    }
+    return a;
+  }
+
+  private actor(did: Did): ActorView {
+    return clone(this.actorRec(did).view);
+  }
+
+  private forumRec(uri: AtUri): ForumRec {
+    const f = this.s.forums.get(uri);
+    if (!f) throw err("not_found", `No forum ${uri}`);
+    return f;
+  }
+
+  private myRole(forum: ForumRec): ForumRole {
+    const me = this.s.active;
+    if (!me) return "none";
+    if (forum.summary.owner === me) return "owner";
+    const mod = forum.moderators.find((m) => m.did === me);
+    if (mod) return mod.role;
+    const status = this.s.actors.get(me)?.status ?? "none";
+    if (status === "member" || status === "established" || status === "newcomer") return status;
+    return "none";
+  }
+
+  private isAuthorityDid(forumUri: AtUri, did: Did): boolean {
+    const f = this.s.forums.get(forumUri);
+    return f !== undefined && (f.summary.owner === did || f.moderators.some((m) => m.did === did));
+  }
+
+  private isAuthority(forumUri: AtUri): boolean {
+    return AUTHORITY.has(this.myRole(this.forumRec(forumUri)));
+  }
+
+  private completeness(): Completeness {
+    return { partial: true, reposComplete: 8, reposTotal: 9, degraded: false };
+  }
+
+  private myOpinion(subject: AtUri): MyOpinionRec | undefined {
+    const me = this.s.active;
+    if (!me) return undefined;
+    return this.s.opinions.get(me)?.get(subject);
+  }
+
+  /** Whether an own opinion write about `subject` is not yet done (`MyOpinion.pending`). */
+  private pendingOpinion(subject: AtUri): boolean {
+    for (const rec of this.writeRecs.values()) {
+      if (rec.subject !== subject) continue;
+      const s = rec.state;
+      if (s.kind === "pending" || s.kind === "sending") return true;
+    }
+    return false;
+  }
+
+  /** Whether a gate value passes for the active account (authorities bypass every gate). */
+  private gatePasses(forum: ForumRec, gate: string): boolean {
+    const me = this.s.active;
+    if (!me) return false;
+    if (this.isAuthorityDid(forum.summary.uri, me)) return true;
+    const limit = forum.policy.gates[gate];
+    const k = this.s.actors.get(me)?.karma.k ?? 0;
+    return limit === undefined || k >= limit;
+  }
+
+  /** What the active account may do in `forum` (social.md §4.9, §5, §8), as the fold computes
+   * it. Absent without an active account (`ForumView.viewer`). */
+  private viewerCaps(forum: ForumRec): ViewerCaps | undefined {
+    const me = this.s.active;
+    if (!me) return undefined;
+    const actor = this.s.actors.get(me);
+    const role = this.myRole(forum);
+    const authority = AUTHORITY.has(role);
+    const rank = RANK[role] ?? 0;
+    const excluded = actor?.banned === true || actor?.nullified === true;
+    const restricted = (cap: string): boolean => actor?.restricted?.includes(cap) === true;
+    const vote = !excluded && !restricted("vote");
+    const react = !excluded && forum.policy.voting === "reacts" && !restricted("react");
+    // E: authorities and granted, non-newcomer participants (karma/1 on the fixture's statuses).
+    const weighted =
+      !excluded && (authority || (actor?.granted === true && actor?.status !== "newcomer"));
+    const open = forum.membership === "open";
+    // Listed content (V2–V5, V8): a participant, not banned or nullified. In open mode the
+    // first content carries the membership (data-model.md §8), so anyone not excluded may
+    // post; newcomer content is collapsed (display.newUsers), so it stays listed.
+    const participant = open || (actor !== undefined && actor.status !== "none");
+    const newcomer = open && !authority && actor?.status === "newcomer" && !weighted;
+    const listed = participant && !excluded;
+    return {
+      vote,
+      strongVote: vote,
+      agree: vote && forum.policy.voting !== "karmaOnly",
+      weighted,
+      react,
+      reactCreate: react && this.gatePasses(forum, "reactCreate"),
+      reactSecond: react && this.gatePasses(forum, "reactSecond"),
+      reactAnti: react && this.gatePasses(forum, "reactAnti"),
+      post: listed && !restricted("post"),
+      comment: listed && !restricted("comment"),
+      newcomer,
+      applicant: forum.membership === "approval" && !authority && actor?.granted === false,
+      moderate: authority,
+      ...(authority ? { rank } : {}),
+      curate: rank >= 2,
+      authorModPersonal:
+        forum.policy.authorModeration && weighted && this.gatePasses(forum, "authorModPersonal"),
+      authorModFrontpage:
+        forum.policy.authorModeration && weighted && this.gatePasses(forum, "authorModFrontpage"),
+    };
+  }
+
+  private scoreView(subject: AtUri, base: BaseScore): ScoreView {
+    const mine = this.myOpinion(subject);
+    const view: ScoreView = {
+      score: base.score + karmaPower(mine?.karma),
+      agreement: base.agreement + karmaPower(mine?.agreement),
+      unweighted: base.unweighted,
+      earlierVersionVotes: base.earlier,
+    };
+    if (base.weighted > 0) view.weightedVotes = base.weighted;
+    if (mine && (mine.karma !== undefined || mine.agreement !== undefined)) {
+      const op: MyOpinion = {};
+      if (mine.karma !== undefined) op.karma = mine.karma;
+      if (mine.agreement !== undefined) op.agreement = mine.agreement;
+      if (this.pendingOpinion(subject)) op.pending = true;
+      // "recorded; will count once you're established": a karma vote by a viewer outside E.
+      if (mine.karma !== undefined && !this.viewerWeighted()) op.notYetCounted = true;
+      view.mine = op;
+    }
+    return view;
+  }
+
+  /** Whether the active account's votes carry weight (E, social.md §6.2). */
+  private viewerWeighted(): boolean {
+    const me = this.s.active;
+    if (!me) return false;
+    if (this.isAuthorityDid(FORUM_URI, me)) return true;
+    const a = this.s.actors.get(me);
+    return (
+      a !== undefined &&
+      a.banned !== true &&
+      a.nullified !== true &&
+      a.granted &&
+      a.status !== "newcomer"
+    );
+  }
+
+  /** Whether an own react forms a valid tally (the creator passes `reactCreate` and is in E). */
+  private reactCounts(forum: ForumRec): boolean {
+    const caps = this.viewerCaps(forum);
+    return caps?.reactCreate === true && caps.weighted;
+  }
+
+  private reacts(subject: AtUri, base: BaseReact[], text: string, forum: ForumRec): ReactTally[] {
+    const out: ReactTally[] = base.map((b) => {
+      const p = paletteReact(b.react);
+      return { ...clone(b), label: p?.label ?? b.react, glyph: p?.glyph ?? "?" };
+    });
+    const mine = this.myOpinion(subject)?.reacts ?? [];
+    // Whether the viewer's own reacts count (in E, and passing `reactCreate`).
+    const counts = this.reactCounts(forum);
+    for (const r of mine) {
+      const k = qkey(r.quote);
+      const t = out.find((x) => x.react === r.react && qkey(x.quote) === k);
+      if (t) {
+        if (counts) {
+          if (r.stance === "for") t.for++;
+          else t.against++;
+        }
+        t.mine = r.stance;
+      } else {
+        const p = paletteReact(r.react);
+        const tally: ReactTally = {
+          react: r.react,
+          label: p?.label ?? r.react,
+          glyph: p?.glyph ?? "?",
+          for: counts && r.stance === "for" ? 1 : 0,
+          against: counts && r.stance === "against" ? 1 : 0,
+          mine: r.stance,
+        };
+        // An own react that forms no valid react is listed with `uncounted` and no creator
+        // (engine-api.md §4.1 `ReactTally`).
+        if (counts && r.stance === "for" && this.s.active) tally.creator = this.s.active;
+        if (!counts) tally.uncounted = true;
+        if (r.quote) {
+          tally.quote = clone(r.quote);
+          tally.anchor = cpIndexOf(text, normalizeP(r.quote.exact));
+        }
+        out.push(tally);
+      }
+    }
+    return out;
+  }
+
+  /** The lens (social.md §10.3): mutes collapse listed items. */
+  private lens(author: Did, state: ItemState): ItemState {
+    if (listed(state) && this.s.mutes.has(author)) return { kind: "collapsed", reason: "muted" };
+    return clone(state);
+  }
+
+  /** The post's tags (social.md §13.3) by slug, as `PostView.tagRelevance` has them: every slug
+   * the author declared or the viewer voted on. `rel` is the author's own (1 for a declared
+   * slug, unless the author is restricted from `tag`) plus the viewer's tag vote while the
+   * viewer is in E (the mock records no other voter's tag votes); a slug applies when its wiki
+   * page exists, is a tag and `rel > 0`. */
+  private tagRelevance(p: PostRec): PostTag[] {
+    const pages = this.s.tags.get(p.forum);
+    const own = this.s.actors.get(p.author)?.restricted?.includes("tag") !== true;
+    const declared = new Set(own ? p.tags : []);
+    const votes = this.s.active === p.author ? {} : (this.myOpinion(p.uri)?.tags ?? {});
+    const counted = this.viewerWeighted();
+    return [...new Set([...declared, ...Object.keys(votes)])].sort().map((slug) => {
+      const mine = votes[slug];
+      const relevance = (declared.has(slug) ? 1 : 0) + (counted ? karmaPower(mine) : 0);
+      const page = pages?.get(slug);
+      const tag: PostTag = {
+        slug,
+        relevance,
+        applies: page !== undefined && page.isTag !== false && relevance > 0,
+      };
+      if (mine !== undefined) tag.mine = mine;
+      return tag;
+    });
+  }
+
+  /** The post's applied tags (social.md §13.3 `applies(p, t)`), sorted, as `PostSummary.tags`
+   * has them; the declared tags stay in the record (`raw`, an edit's draft). */
+  private appliedTags(p: PostRec): Slug[] {
+    return this.tagRelevance(p)
+      .filter((t) => t.applies)
+      .map((t) => t.slug);
+  }
+
+  private postSummary(p: PostRec): PostSummary {
+    const thread = [...this.s.comments.values()].filter((c) => c.root === p.uri);
+    const listedComments = thread.filter((c) => listed(c.state));
+    const visibleTimes = thread.filter((c) => c.state.kind === "visible").map((c) => c.tRankMs);
+    const summary: PostSummary = {
+      uri: p.uri,
+      cid: p.cid,
+      forum: p.forum,
+      author: this.actor(p.author),
+      kind: p.kind,
+      excerpt: p.body.excerpt,
+      // the engine lists a post's tags only while it is listed (views.rs `post_summary`)
+      tags: listed(p.state) ? this.appliedTags(p) : [],
+      tier: p.tier,
+      pinned: p.pinned,
+      locked: p.locked,
+      createdAtMs: p.createdAtMs,
+      tRankMs: p.tRankMs,
+      commentCount: listedComments.length,
+      score: this.scoreView(p.uri, p.base),
+      state: this.lens(p.author, p.state),
+      badges: { ...p.badges },
+      labels: [...p.labels],
+    };
+    if (p.kind !== "quickTake" && p.title !== undefined) summary.title = p.title;
+    if (visibleTimes.length > 0) summary.lastCommentAtMs = Math.max(...visibleTimes);
+    const lv = this.s.lastVisited.get(p.uri);
+    if (lv !== undefined) {
+      summary.unreadComments = listedComments.filter(
+        (c) => c.tRankMs > lv && c.author !== this.s.active,
+      ).length;
+    }
+    if (p.link) summary.link = clone(p.link);
+    return summary;
+  }
+
+  private fkOf(uri: AtUri): string {
+    return uri === FORUM_URI ? FK : b32hash(`pandoras-forum-fk/1:${uri}`, 12);
+  }
+
+  private postView(p: PostRec, from?: AtUri): PostView {
+    const summary = this.postSummary(p);
+    const hidden = p.state.kind === "hidden";
+    const view: PostView = {
+      dto: DTO_VERSION,
+      post: summary,
+      body: hidden ? emptyBody("[hidden]") : clone(p.body),
+      reacts: hidden ? [] : this.reacts(p.uri, p.reacts, p.body.text, this.forumRec(p.forum)),
+      history: { revisions: p.revisions.length, redacted: p.redacted },
+      sequences: [],
+      // a post that is not listed shows none, except to the forum's authorities (views.rs)
+      tagRelevance: listed(p.state) || this.isAuthority(p.forum) ? this.tagRelevance(p) : [],
+    };
+    // next and previous follow one context (social.md §14): the sequence the reader came from
+    // if it contains the post, else the author's own, else a listed one (score desc, uri asc)
+    const containing = [...this.s.sequences.values()]
+      .filter((s) => this.seqEntries(s).includes(p.uri))
+      .sort((a, b) => {
+        const d = this.scoreView(b.uri, b.base).score - this.scoreView(a.uri, a.base).score;
+        return d !== 0 ? d : a.uri < b.uri ? -1 : a.uri > b.uri ? 1 : 0;
+      });
+    const seq =
+      containing.find((s) => s.uri === from) ??
+      containing.find((s) => s.author === p.author) ??
+      containing[0];
+    if (seq) {
+      const entries = this.seqEntries(seq);
+      const i = entries.indexOf(p.uri);
+      const nav: PostView["sequences"][number] = { sequence: seq.uri, title: seq.title };
+      const prev = entries[i - 1];
+      const next = entries[i + 1];
+      if (prev) nav.prev = prev;
+      if (next) nav.next = next;
+      view.sequences.push(nav);
+    }
+    return view;
+  }
+
+  private commentNode(
+    c: CommentRec,
+    depth: number,
+    parent: AtUri | undefined,
+    state: ItemState,
+  ): CommentNode {
+    const lv = this.s.lastVisited.get(c.root);
+    const node: CommentNode = {
+      uri: c.uri,
+      cid: c.cid,
+      root: c.root,
+      depth,
+      author: this.actor(c.author),
+      body: state.kind === "tombstone" ? emptyBody("[removed]") : clone(c.body),
+      createdAtMs: c.createdAtMs,
+      tRankMs: c.tRankMs,
+      score: this.scoreView(c.uri, c.base),
+      reacts:
+        state.kind === "tombstone"
+          ? []
+          : this.reacts(c.uri, c.reacts, c.body.text, this.forumRec(c.forum)),
+      state,
+      badges: { ...c.badges },
+      retracted: c.retracted,
+      moderatorHat: c.moderatorHat && this.isAuthorityDid(c.forum, c.author),
+      orphaned: c.orphaned,
+      missing: false,
+      unread: lv !== undefined && c.tRankMs > lv && c.author !== this.s.active,
+      pinned: c.pinned,
+    };
+    if (parent !== undefined) node.parent = parent;
+    if (c.quote) node.quote = clone(c.quote);
+    if (c.quoteAnchor) node.quoteAnchor = clone(c.quoteAnchor);
+    if (c.version) node.version = clone(c.version);
+    return node;
+  }
+
+  private missingNode(uri: AtUri, root: AtUri, depth: number): CommentNode {
+    const author = splitAtUri(uri)?.did ?? "did:plc:unknown";
+    return {
+      uri,
+      cid: "",
+      root,
+      depth,
+      author: this.actor(author),
+      body: emptyBody("[missing]"),
+      createdAtMs: 0,
+      tRankMs: 0,
+      score: { score: 0, agreement: 0, unweighted: 0, earlierVersionVotes: 0 },
+      reacts: [],
+      state: { kind: "visible" },
+      badges: {},
+      retracted: false,
+      moderatorHat: false,
+      orphaned: false,
+      missing: true,
+      unread: false,
+      pinned: false,
+    };
+  }
+
+  /** Thread placement (social.md §11), thread pass (§10.2) and comment sorts (§12.4). */
+  private thread(rootUri: AtUri, sort: ThreadOpts["sort"]): CommentNode[] {
+    const recs = [...this.s.comments.values()].filter((c) => c.root === rootUri);
+    const byUri = new Map(recs.map((c) => [c.uri, c]));
+    const children = new Map<string, string[]>(); // parent key → child uris ("" = root)
+    const missing = new Set<string>();
+    const add = (parent: string, child: string): void => {
+      const list = children.get(parent) ?? [];
+      list.push(child);
+      children.set(parent, list);
+    };
+    for (const c of recs) {
+      if (c.orphaned || c.parent === undefined) add("", c.uri);
+      else if (byUri.has(c.parent)) add(c.parent, c.uri);
+      else {
+        if (!missing.has(c.parent)) {
+          missing.add(c.parent);
+          add("", c.parent);
+        }
+        add(c.parent, c.uri);
+      }
+    }
+    const state = (uri: string): ItemState => {
+      const c = byUri.get(uri);
+      return c ? this.lens(c.author, c.state) : { kind: "visible" };
+    };
+    // listed descendants, bottom-up over a post-order walk
+    const hasListed = new Map<string, boolean>();
+    const order: string[] = [];
+    const stack: string[] = [""];
+    while (stack.length > 0) {
+      const u = stack.pop() ?? "";
+      order.push(u);
+      for (const ch of children.get(u) ?? []) stack.push(ch);
+    }
+    for (let i = order.length - 1; i >= 0; i--) {
+      const u = order[i] ?? "";
+      const any = (children.get(u) ?? []).some(
+        (ch) => (byUri.has(ch) && listed(state(ch))) || hasListed.get(ch) === true,
+      );
+      hasListed.set(u, any);
+    }
+    const now = this.now();
+    const latest = (uri: string): number => {
+      let best = byUri.get(uri)?.tRankMs ?? 0;
+      const st: string[] = [...(children.get(uri) ?? [])];
+      while (st.length > 0) {
+        const u = st.pop() ?? "";
+        const c = byUri.get(u);
+        if (c && c.state.kind === "visible") best = Math.max(best, c.tRankMs);
+        st.push(...(children.get(u) ?? []));
+      }
+      return best;
+    };
+    const cmp = (a: string, b: string): number => {
+      const ca = byUri.get(a);
+      const cb = byUri.get(b);
+      if (!ca || !cb) {
+        if (!ca && !cb) return a < b ? -1 : a > b ? 1 : 0;
+        return ca ? -1 : 1; // missing placeholders after comments
+      }
+      if (ca.pinned !== cb.pinned) return ca.pinned ? -1 : 1;
+      const sa = this.scoreView(a, ca.base).score;
+      const sb = this.scoreView(b, cb.base).score;
+      let d = 0;
+      switch (sort) {
+        case "top":
+          d = sb - sa || cb.tRankMs - ca.tRankMs;
+          break;
+        case "new":
+          d = cb.tRankMs - ca.tRankMs;
+          break;
+        case "old":
+          d = ca.tRankMs - cb.tRankMs;
+          break;
+        case "latestReply":
+          d = latest(b) - latest(a);
+          break;
+        default: {
+          const pa = sa > 0;
+          const pb = sb > 0;
+          if (pa !== pb) d = pa ? -1 : 1;
+          else if (pa) d = hot(sb, cb.tRankMs, now, 2, 1150) - hot(sa, ca.tRankMs, now, 2, 1150);
+          else d = sb - sa || cb.tRankMs - ca.tRankMs;
+        }
+      }
+      if (d !== 0) return d < 0 ? -1 : 1;
+      return a < b ? -1 : a > b ? 1 : 0;
+    };
+    const out: CommentNode[] = [];
+    const walk: { uri: string; depth: number; parent?: string }[] = [];
+    const pushChildren = (parent: string, depth: number): void => {
+      const kids = [...(children.get(parent) ?? [])].sort(cmp);
+      for (let i = kids.length - 1; i >= 0; i--) {
+        const k = kids[i] ?? "";
+        walk.push(parent === "" ? { uri: k, depth } : { uri: k, depth, parent });
+      }
+    };
+    pushChildren("", 1);
+    while (walk.length > 0) {
+      const w = walk.pop();
+      if (!w) break;
+      const c = byUri.get(w.uri);
+      if (!c) {
+        if (hasListed.get(w.uri)) {
+          out.push(this.missingNode(w.uri, rootUri, w.depth));
+          pushChildren(w.uri, w.depth + 1);
+        }
+        continue;
+      }
+      const st = state(w.uri);
+      if (listed(st)) {
+        out.push(this.commentNode(c, w.depth, w.parent, st));
+      } else if (st.kind === "hidden" && hasListed.get(w.uri)) {
+        out.push(this.commentNode(c, w.depth, w.parent, { kind: "tombstone", reason: st.reason }));
+      } else {
+        continue;
+      }
+      pushChildren(w.uri, w.depth + 1);
+    }
+    return out;
+  }
+
+  private postRec(uri: AtUri): PostRec {
+    const p = this.s.posts.get(uri);
+    if (!p) throw err("not_found", `No post ${uri}`);
+    return p;
+  }
+
+  private resolveAuthority(authority: string): Did {
+    const a = decodeURIComponent(authority).replace(/^@/, "");
+    if (isDid(a)) return a;
+    const lower = a.toLowerCase();
+    for (const rec of this.s.actors.values()) {
+      if (rec.view.handle === lower) return rec.view.did;
+    }
+    throw err("not_found", `Could not resolve ${a}`);
+  }
+
+  private refForUri(did: Did, collection: string, rkey: string): Ref {
+    const uri = atUri(did, collection, rkey);
+    switch (collection) {
+      case COLL.forum:
+        return { kind: "forum", uri };
+      case COLL.post:
+        return { kind: "post", uri };
+      case COLL.comment:
+        return { kind: "comment", uri };
+      case COLL.sequence:
+        return { kind: "sequence", uri };
+      default:
+        return { kind: "record", uri };
+    }
+  }
+
+  // ------------------------------------------------------------------------------- writes
+
+  private write(undoable: boolean, apply: () => Applied): WriteTicket {
+    // The same account/sequence shape as crates/core/src/outbox/model.rs `write_id`.
+    const id = `${this.me()}/${this.s.nextId++}`;
+    const rec: WriteRec = { id, state: { kind: "pending" }, undoable, apply };
+    this.writeRecs.set(id, rec);
+    this.emit({ kind: "write", id, state: { kind: "pending" } });
+    this.changed({ kind: "outbox" });
+    rec.timer = setTimeout(() => this.send(id), undoable ? this.holdMs : 0);
+    return { id, state: { kind: "pending" } };
+  }
+
+  private send(id: string): void {
+    const rec = this.writeRecs.get(id);
+    if (rec?.state.kind !== "pending") return;
+    rec.state = { kind: "sending" };
+    this.emit({ kind: "write", id, state: rec.state });
+    rec.timer = setTimeout(() => {
+      try {
+        const r = rec.apply();
+        rec.state = { kind: "done", uri: r.uri, cid: r.cid };
+        if (r.report !== undefined && r.report.length > 0) rec.state.report = r.report;
+        this.emit({ kind: "write", id, state: clone(rec.state) });
+        this.changed(...r.topics, { kind: "outbox" });
+      } catch (e) {
+        const error =
+          typeof e === "object" && e !== null && "code" in e
+            ? (e as EngineError)
+            : err("internal", String(e));
+        rec.state = { kind: "failed", error };
+        this.emit({ kind: "write", id, state: clone(rec.state) });
+        this.changed({ kind: "outbox" });
+      }
+    }, this.sendMs);
+  }
+
+  private threadTopics(root: AtUri): Topic[] {
+    const p = this.s.posts.get(root);
+    const forum = p ? p.forum : FORUM_URI;
+    const topics: Topic[] = [
+      { kind: "thread", uri: root },
+      { kind: "forum", uri: forum },
+    ];
+    if (this.s.active) topics.push({ kind: "user", did: this.s.active });
+    return topics;
+  }
+
+  private subjectInfo(uri: AtUri): { author: Did; root: AtUri; forum: AtUri; text: string } {
+    const p = this.s.posts.get(uri);
+    if (p) return { author: p.author, root: p.uri, forum: p.forum, text: p.body.text };
+    const c = this.s.comments.get(uri);
+    if (c) return { author: c.author, root: c.root, forum: c.forum, text: c.body.text };
+    const seq = this.s.sequences.get(uri);
+    if (seq) return { author: seq.author, root: seq.uri, forum: FORUM_URI, text: seq.body ?? "" };
+    throw err("not_found", `No subject ${uri}`);
+  }
+
+  // =============================================================================== §3.1
+
+  async resolveActor(input: string): Promise<ActorView> {
+    const s = input.trim().replace(/^@/, "");
+    if (isDid(s)) {
+      if (!this.s.actors.has(s)) throw err("not_found", `Unknown identity ${s}`);
+      return this.actor(s);
+    }
+    if (!isHandle(s)) throw err("invalid_input", `"${input}" is neither a handle nor a DID.`);
+    const handle = s.toLowerCase();
+    for (const a of this.s.actors.values()) {
+      if (a.view.handle === handle) return clone(a.view);
+    }
+    // The mock "resolves" any other well-formed handle to a deterministic new identity.
+    const did = didFor(`handle:${handle}`);
+    const rec = this.actorRec(did);
+    rec.view = { did, handle, handleState: "verified", shortDid: shortDid(did) };
+    return clone(rec.view);
+  }
+
+  private accountView(did: Did): AccountView {
+    const a = this.s.accounts.find((x) => x.did === did);
+    if (!a) throw err("not_found", `No account ${did}`);
+    const view: AccountView = { did, pds: a.pds, authKind: a.auth, active: this.s.active === did };
+    const actor = this.s.actors.get(did)?.view;
+    if (actor?.handle !== undefined) view.handle = actor.handle;
+    return view;
+  }
+
+  async accounts(): Promise<AccountView[]> {
+    return this.s.accounts.map((a) => this.accountView(a.did));
+  }
+
+  async addAccount(info: AccountInfo): Promise<AccountView> {
+    this.actorRec(info.did);
+    if (!this.s.accounts.some((a) => a.did === info.did)) {
+      this.s.accounts.push({ did: info.did, pds: info.pds, auth: info.auth });
+    }
+    if (!this.s.active) this.s.active = info.did;
+    this.changed({ kind: "accounts" });
+    this.emit({ kind: "auth", did: info.did, state: { kind: "ok" } });
+    return this.accountView(info.did);
+  }
+
+  async removeAccount(did: Did, purge: boolean): Promise<void> {
+    this.s.accounts = this.s.accounts.filter((a) => a.did !== did);
+    if (this.s.active === did) this.s.active = this.s.accounts[0]?.did ?? null;
+    if (purge) this.s.opinions.delete(did);
+    this.changed(
+      { kind: "accounts" },
+      { kind: "forum", uri: FORUM_URI },
+      { kind: "notifications" },
+    );
+  }
+
+  async setActiveAccount(did: Did): Promise<void> {
+    if (!this.s.accounts.some((a) => a.did === did)) throw err("not_found", `No account ${did}`);
+    this.s.active = did;
+    this.changed(
+      { kind: "accounts" },
+      { kind: "forum", uri: FORUM_URI },
+      { kind: "notifications" },
+    );
+  }
+
+  async activeAccount(): Promise<AccountView | null> {
+    return this.s.active ? this.accountView(this.s.active) : null;
+  }
+
+  async parseRef(input: string, ctx: RefContext): Promise<Ref> {
+    const raw = input.trim();
+    const route = /^#?\/(p|c|s|f|u|at)\/(.+)$/.exec(raw.replace(/[?].*$/, ""));
+    if (route) {
+      const kind = route[1];
+      const parts = (route[2] ?? "").split("/").map((p) => decodeURIComponent(p));
+      const [a, b] = parts;
+      if (kind === "at") return this.parseRef(`at://${parts.join("/")}`, ctx);
+      if (kind === "u" && a) return { kind: "actor", did: this.resolveAuthority(a) };
+      if (!a || !b) throw err("invalid_ref", `Incomplete reference ${input}`);
+      const did = this.resolveAuthority(a);
+      if (kind === "f") return { kind: "forum", uri: atUri(did, COLL.forum, b) };
+      if (kind === "p") return { kind: "post", uri: atUri(did, COLL.post, b) };
+      if (kind === "c") return { kind: "comment", uri: atUri(did, COLL.comment, b) };
+      return { kind: "sequence", uri: atUri(did, COLL.sequence, b) };
+    }
+    if (raw.startsWith("at://")) {
+      const segs = raw.slice(5).split("/");
+      const [a, coll, rkey] = segs;
+      if (!a) throw err("invalid_ref", `Invalid at-uri ${input}`);
+      const did = this.resolveAuthority(a);
+      if (segs.length === 1) return { kind: "actor", did };
+      if (segs.length !== 3 || !coll || !rkey) throw err("invalid_ref", `Invalid at-uri ${input}`);
+      return this.refForUri(did, coll, rkey);
+    }
+    const bare = raw.replace(/^@/, "");
+    if (isDid(bare)) return { kind: "actor", did: bare };
+    const slash = /^([^/]+)\/([^/]+)$/.exec(bare);
+    if (slash?.[1] && slash[2]) {
+      if (!ctx.forum) throw err("invalid_ref", "A handle/rkey reference needs a current forum.");
+      return { kind: "post", uri: atUri(this.resolveAuthority(slash[1]), COLL.post, slash[2]) };
+    }
+    if (isHandle(bare)) return { kind: "actor", did: this.resolveAuthority(bare) };
+    throw err("invalid_ref", `Not a reference: ${input}`);
+  }
+
+  // =============================================================================== §3.2
+
+  private forumSummary(f: ForumRec): ForumSummary {
+    const me = this.s.active;
+    const status = me ? (this.s.actors.get(me)?.status ?? "none") : "none";
+    const summary: ForumSummary = {
+      uri: f.summary.uri,
+      owner: this.actor(f.summary.owner),
+      name: f.summary.name,
+      membership: f.membership,
+      followed: this.s.followed.has(f.summary.uri),
+      member: me !== null && status !== "none",
+    };
+    if (f.summary.description !== undefined) summary.description = f.summary.description;
+    const alias = this.s.followed.get(f.summary.uri);
+    if (alias !== undefined) summary.alias = alias;
+    if (f.reportContact !== undefined) summary.reportContact = f.reportContact;
+    return summary;
+  }
+
+  async forumIndexers(ref: string): Promise<ForumIndexer[]> {
+    const uri = this.forumRec(ref).summary.uri;
+    return this.s.settings.indexers
+      .filter((i) => i.forum === undefined || i.forum === uri)
+      .map((i) => {
+        const indexer: ForumIndexer = { url: i.url, consented: true };
+        if (i.did !== undefined) indexer.did = i.did;
+        return indexer;
+      });
+  }
+
+  async forumOpen(ref: string): Promise<ForumView> {
+    const parsed =
+      ref.startsWith("at://") && ref.includes(`/${COLL.forum}/`)
+        ? null
+        : await this.parseRef(ref, {});
+    const uri = parsed ? (parsed.kind === "forum" ? parsed.uri : null) : ref;
+    if (!uri) throw err("invalid_ref", `${ref} is not a forum`);
+    const f = this.forumRec(uri);
+    const view: ForumView = {
+      dto: DTO_VERSION,
+      forum: this.forumSummary(f),
+      moderators: f.moderators.map((m) => {
+        const mod: ForumView["moderators"][number] = {
+          actor: this.actor(m.did),
+          role: m.role,
+          shown: m.shown,
+        };
+        if (m.title !== undefined) mod.title = m.title;
+        return mod;
+      }),
+      policy: effectivePolicy(f.policy),
+      myRole: this.myRole(f),
+      banners: clone(f.banners),
+      completeness: this.completeness(),
+    };
+    if (f.about !== undefined) view.about = renderMarkdown(f.about).body;
+    const me = this.s.active;
+    if (me) view.myKarma = this.s.actors.get(me)?.karma.k ?? 0;
+    const viewer = this.viewerCaps(f);
+    if (viewer !== undefined) view.viewer = viewer;
+    return view;
+  }
+
+  /** Grouped by owner as sync.md §4.7 orders the directory: owners with a verified handle
+   * first, by handle, then the others by DID; within an owner, by name (case-insensitive),
+   * then uri. */
+  async forumDiscover(q: string): Promise<ForumSummary[]> {
+    const needle = q.trim().toLowerCase();
+    const owner = (f: ForumSummary): [number, string] =>
+      f.owner.handleState === "verified" && f.owner.handle !== undefined
+        ? [0, f.owner.handle]
+        : [1, f.owner.did];
+    const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+    return [...this.s.forums.values()]
+      .filter((f) => needle === "" || f.summary.name.toLowerCase().includes(needle))
+      .map((f) => this.forumSummary(f))
+      .sort((a, b) => {
+        const [ga, ka] = owner(a);
+        const [gb, kb] = owner(b);
+        return (
+          ga - gb ||
+          cmp(ka, kb) ||
+          cmp(a.owner.did, b.owner.did) ||
+          cmp(a.name.toLowerCase(), b.name.toLowerCase()) ||
+          cmp(a.uri, b.uri)
+        );
+      });
+  }
+
+  async forumFollow(uri: AtUri, alias?: string): Promise<void> {
+    this.forumRec(uri);
+    this.s.followed.set(uri, alias);
+    this.changed({ kind: "forum", uri });
+  }
+
+  async forumUnfollow(uri: AtUri): Promise<void> {
+    this.s.followed.delete(uri);
+    this.changed({ kind: "forum", uri });
+  }
+
+  async followed(): Promise<ForumSummary[]> {
+    return [...this.s.followed.keys()]
+      .map((u) => this.s.forums.get(u))
+      .filter((f): f is ForumRec => f !== undefined)
+      .map((f) => this.forumSummary(f));
+  }
+
+  async forumCreate(draft: ForumDraft): Promise<WriteTicket> {
+    const me = this.me();
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(draft.slug)) throw err("invalid_input", "Invalid slug.");
+    const uri = atUri(me, COLL.forum, draft.slug);
+    if (this.s.forums.has(uri)) throw err("conflict", "A forum with this slug already exists.");
+    return this.write(false, () => {
+      const f: ForumRec = {
+        summary: { uri, owner: me, name: draft.name, membership: draft.membership },
+        moderators: (draft.moderators ?? []).map((m) => ({ ...m, shown: true })),
+        policy: clone(this.forumRec(FORUM_URI).policy),
+        banners: [],
+        featuredTags: [...(draft.featuredTags ?? [])],
+        defaultTier: draft.defaultTier,
+        membership: draft.membership,
+      };
+      if (draft.description !== undefined) f.summary.description = draft.description;
+      if (draft.about) f.about = draft.about.markdown;
+      if (draft.reportContact !== undefined) f.reportContact = draft.reportContact;
+      this.s.forums.set(uri, f);
+      this.s.followed.set(uri, undefined);
+      this.s.tags.set(uri, new Map());
+      return { uri, cid: fakeCid(`${uri}@${this.tick()}`), topics: [{ kind: "forum", uri }] };
+    });
+  }
+
+  async forumUpdate(uri: AtUri, draft: ForumDraft): Promise<WriteTicket> {
+    const f = this.forumRec(uri);
+    if (f.summary.owner !== this.me())
+      throw err("blocked", "Only the owner can edit the declaration.");
+    return this.write(false, () => {
+      f.summary.name = draft.name;
+      if (draft.description !== undefined) f.summary.description = draft.description;
+      else delete f.summary.description;
+      if (draft.about) f.about = draft.about.markdown;
+      else delete f.about;
+      if (draft.reportContact !== undefined) f.reportContact = draft.reportContact;
+      else delete f.reportContact;
+      f.membership = draft.membership;
+      f.summary.membership = draft.membership;
+      f.defaultTier = draft.defaultTier;
+      f.featuredTags = [...(draft.featuredTags ?? [])];
+      // an empty or absent list keeps the moderators (the engine changes them with modsSet)
+      if (draft.moderators?.length) {
+        f.moderators = draft.moderators.map((m) => ({ ...m, shown: true }));
+      }
+      return { uri, cid: fakeCid(`${uri}@${this.tick()}`), topics: [{ kind: "forum", uri }] };
+    });
+  }
+
+  async join(uri: AtUri, note?: string): Promise<WriteTicket> {
+    const me = this.me();
+    const f = this.forumRec(uri);
+    return this.write(false, () => {
+      const a = this.actorRec(me);
+      if (a.status === "none" && f.membership === "open") a.status = "newcomer";
+      if (note !== undefined) a.membershipNote = note;
+      a.joinedAtMs = this.tick();
+      this.s.followed.set(uri, this.s.followed.get(uri));
+      const rkey = this.fkOf(uri);
+      return {
+        uri: atUri(me, COLL.membership, rkey),
+        cid: fakeCid(`membership:${me}:${uri}`),
+        topics: [
+          { kind: "forum", uri },
+          { kind: "user", did: me },
+        ],
+      };
+    });
+  }
+
+  async leave(uri: AtUri): Promise<WriteTicket> {
+    const me = this.me();
+    this.forumRec(uri);
+    return this.write(false, () => {
+      const a = this.actorRec(me);
+      if (!AUTHORITY.has(a.status)) a.status = "none";
+      this.tick();
+      return {
+        uri: atUri(me, COLL.membership, this.fkOf(uri)),
+        cid: "",
+        topics: [
+          { kind: "forum", uri },
+          { kind: "user", did: me },
+        ],
+      };
+    });
+  }
+
+  async members(uri: AtUri, query: MembersQuery): Promise<MemberView[]> {
+    this.forumRec(uri);
+    return [...this.s.actors.values()]
+      .filter((a) => a.status !== "none")
+      .filter((a) => query.status === undefined || a.status === query.status)
+      .filter((a) => !query.pending || a.status === "newcomer")
+      .filter((a) => !query.pending || !this.rejected.get(uri)?.has(a.view.did))
+      .sort((x, y) => x.joinedAtMs - y.joinedAtMs || (x.view.did < y.view.did ? -1 : 1))
+      .map((a) => {
+        const m: MemberView = {
+          actor: clone(a.view),
+          status: a.status,
+          granted: a.granted,
+          joinedAtMs: a.joinedAtMs,
+        };
+        if (a.membershipNote !== undefined) m.membershipNote = a.membershipNote;
+        if (a.karma.k !== 0) m.karma = a.karma.k;
+        // Approval mode: a membership record without a grant (`MemberView.applicant`).
+        const f = this.s.forums.get(uri);
+        if (f?.membership === "approval" && !a.granted) m.applicant = true;
+        if (a.banned === true) m.banned = true;
+        if (a.nullified === true) m.nullified = true;
+        if (a.restricted !== undefined && a.restricted.length > 0) m.restricted = [...a.restricted];
+        return m;
+      });
+  }
+
+  private grantWrite(uri: AtUri, dids: Did[], on: boolean): Promise<WriteTicket> {
+    if (!this.isAuthority(uri)) throw err("blocked", "Only moderators can grant membership.");
+    return Promise.resolve(
+      this.write(false, () => {
+        for (const d of dids) {
+          const a = this.actorRec(d);
+          a.granted = on;
+          if (on && a.status === "newcomer") a.status = "member";
+        }
+        this.tick();
+        return {
+          uri: atUri(this.me(), COLL.modAction, `${this.fkOf(uri)}-${b32hash(dids.join(","), 16)}`),
+          cid: fakeCid(`grant:${dids.join(",")}:${on}`),
+          topics: [{ kind: "forum", uri }],
+        };
+      }),
+    );
+  }
+
+  async grant(uri: AtUri, dids: Did[]): Promise<WriteTicket> {
+    return this.grantWrite(uri, dids, true);
+  }
+
+  async revoke(uri: AtUri, dids: Did[]): Promise<WriteTicket> {
+    return this.grantWrite(uri, dids, false);
+  }
+
+  async approve(uri: AtUri, actors: string[]): Promise<WriteTicket[]> {
+    const tickets: WriteTicket[] = [];
+    for (const d of actors) {
+      tickets.push(await this.grantWrite(uri, [d], true));
+      this.rejected.get(uri)?.delete(d);
+    }
+    return tickets;
+  }
+
+  async reject(uri: AtUri, actors: string[]): Promise<WriteTicket[]> {
+    this.forumRec(uri);
+    const set = this.rejected.get(uri) ?? new Set<Did>();
+    this.rejected.set(uri, set);
+    const tickets: WriteTicket[] = [];
+    for (const d of actors) {
+      set.add(d);
+      if (this.s.actors.get(d)?.granted && this.isAuthority(uri)) {
+        tickets.push(await this.grantWrite(uri, [d], false));
+      }
+    }
+    this.changed({ kind: "forum", uri });
+    return tickets;
+  }
+
+  async rejectedApplicants(uri: AtUri): Promise<Did[]> {
+    this.forumRec(uri);
+    return [...(this.rejected.get(uri) ?? [])].sort();
+  }
+
+  async modsSet(uri: AtUri, change: ModsChange): Promise<ActionTicket> {
+    const f = this.forumRec(uri);
+    if (f.summary.owner !== this.me())
+      throw err("blocked", "Only the owner can change moderators.");
+    // Removing a moderator adopts their assertions first, and the ticket says so
+    // (engine-api.md §3.2 `mods_set`)
+    const notices: ActionNotice[] = [];
+    if (change.kind === "remove" && change.skipAdopt !== true) {
+      const theirs = (this.s.modLog.get(uri) ?? []).filter((e) => e.actor === change.did);
+      const lapsed = theirs.filter((e) => e.lapsed).length;
+      const adoption = await this.modAdopt(uri, change.did);
+      notices.push({
+        code: "adoptedFirst",
+        message: `mod adopt runs first (write ${adoption.id}, ${theirs.length - lapsed} assertion(s) in effect); the moderator is removed only once it completes`,
+      });
+      if (lapsed > 0) {
+        notices.push({
+          code: "adoptedFirst",
+          message: `not adopted, since they are not in effect: ${lapsed} lapsed`,
+        });
+      }
+    }
+    const ticket = this.write(false, () => {
+      if (change.kind === "add") {
+        f.moderators = f.moderators.filter((m) => m.did !== change.did);
+        const m: ForumRec["moderators"][number] = {
+          did: change.did,
+          role: change.role,
+          shown: true,
+        };
+        if (change.title !== undefined) m.title = change.title;
+        f.moderators.push(m);
+        this.actorRec(change.did).status = change.role;
+      } else {
+        f.moderators = f.moderators.filter((m) => m.did !== change.did);
+        this.actorRec(change.did).status = "member";
+      }
+      return { uri, cid: fakeCid(`${uri}@${this.tick()}`), topics: [{ kind: "forum", uri }] };
+    });
+    return notices.length > 0 ? { ...ticket, notices } : ticket;
+  }
+
+  // =============================================================================== §3.3
+
+  private syncReport(forum: AtUri): SyncReport {
+    return {
+      dto: DTO_VERSION,
+      forum,
+      reposTotal: 9,
+      reposComplete: 8,
+      reposStale: 1,
+      reposUnavailable: 0,
+      requests: 27,
+      bytes: 482_113,
+      changed: 0,
+      partial: true,
+      degraded: false,
+      errors: [
+        {
+          did: "did:web:heidi.example.com",
+          host: "pds.heidi.example.com",
+          code: "network",
+          message: "PDS timed out; using cached records (stale).",
+        },
+      ],
+    };
+  }
+
+  async syncForum(uri: AtUri, _opts: SyncOpts): Promise<SyncReport> {
+    this.forumRec(uri);
+    for (let done = 0; done <= 9; done += 3)
+      this.emit({ kind: "syncProgress", forum: uri, done, total: 9 });
+    return this.syncReport(uri);
+  }
+
+  async auditIndexer(uri: AtUri): Promise<AuditReport> {
+    this.forumRec(uri);
+    const eligible = this.s.settings.indexers.filter(
+      (i) => i.forum === undefined || i.forum === uri,
+    );
+    if (eligible.length !== 1) {
+      throw {
+        code: "invalid_input",
+        message: `audit requires exactly one consented indexer for this forum (found ${eligible.length})`,
+        retryable: false,
+      } satisfies EngineError;
+    }
+    const selected = eligible[0];
+    if (!selected) throw new Error("eligible indexer invariant");
+    return {
+      forum: uri,
+      indexer: selected.did ?? "did:web:indexer.example.com",
+      endpoint: selected.url,
+      checks: [],
+      counts: { checked: 0, contradictions: 0, omissions: 0, lag: 0 },
+    };
+  }
+
+  async syncThread(postUri: AtUri, _opts: SyncOpts): Promise<SyncReport> {
+    const p = this.postRec(postUri);
+    return this.syncReport(p.forum);
+  }
+
+  async liveTail(): Promise<void> {}
+
+  async liveStop(): Promise<void> {}
+
+  async verifyHandles(_n: number): Promise<number> {
+    return 0;
+  }
+
+  async outboxPump(): Promise<void> {}
+
+  async outboxStop(): Promise<void> {}
+
+  async outboxExpedite(): Promise<number> {
+    return 0;
+  }
+
+  async backgroundVerify(): Promise<void> {}
+
+  // =============================================================================== §3.4
+
+  private listedPosts(forum: AtUri): PostRec[] {
+    return [...this.s.posts.values()].filter(
+      (p) => p.forum === forum && listed(this.lens(p.author, p.state)),
+    );
+  }
+
+  async listPosts(q: ListPostsQuery): Promise<PostList> {
+    const f = this.forumRec(q.forum);
+    const { ranking } = f.policy;
+    const now = this.now();
+    let items = this.listedPosts(q.forum).filter((p) => {
+      if (q.filter === "frontpage" && (p.tier === "personal" || p.kind === "quickTake"))
+        return false;
+      if (q.filter === "curated" && (p.tier !== "curated" || p.kind === "quickTake")) return false;
+      if (q.tag !== undefined && !this.appliedTags(p).includes(q.tag)) return false;
+      if (q.kind !== undefined && p.kind !== q.kind) return false;
+      if (q.author !== undefined && p.author !== q.author) return false;
+      return true;
+    });
+    const summaries = new Map(items.map((p) => [p.uri, this.postSummary(p)]));
+    const scoreOf = (p: PostRec): number => summaries.get(p.uri)?.score.score ?? 0;
+    const bonus = (p: PostRec): number =>
+      scoreOf(p) +
+      (p.tier === "curated" ? ranking.curatedBonus : 0) +
+      (p.tier !== "personal" ? ranking.frontpageBonus : 0);
+    const activity = (p: PostRec): number =>
+      Math.max(p.tRankMs, summaries.get(p.uri)?.lastCommentAtMs ?? 0);
+    if (q.sort === "magic") {
+      items = items.filter((p) => p.pinned || now - p.tRankMs <= ranking.cutoffDays * 86_400_000);
+    }
+    items.sort((a, b) => {
+      let d = 0;
+      switch (q.sort) {
+        case "top":
+          d = scoreOf(b) - scoreOf(a) || b.tRankMs - a.tRankMs;
+          break;
+        case "new":
+          d = b.tRankMs - a.tRankMs;
+          break;
+        case "old":
+          d = a.tRankMs - b.tRankMs;
+          break;
+        case "recentComments":
+          d = activity(b) - activity(a);
+          break;
+        default: {
+          if (a.pinned !== b.pinned) {
+            d = a.pinned ? -1 : 1;
+            break;
+          }
+          const ba = bonus(a);
+          const bb = bonus(b);
+          if (ba > 0 !== bb > 0) d = ba > 0 ? -1 : 1;
+          else if (ba > 0) {
+            d =
+              hot(bb, b.tRankMs, now, ranking.offsetHours, ranking.exponentMilli) -
+              hot(ba, a.tRankMs, now, ranking.offsetHours, ranking.exponentMilli);
+          } else d = bb - ba || b.tRankMs - a.tRankMs;
+        }
+      }
+      if (d !== 0) return d < 0 ? -1 : 1;
+      return a.uri < b.uri ? -1 : a.uri > b.uri ? 1 : 0;
+    });
+    const offset = q.cursor !== undefined ? Number(q.cursor) || 0 : 0;
+    const page = items.slice(offset, offset + q.limit);
+    const list: PostList = {
+      dto: DTO_VERSION,
+      forum: q.forum,
+      sort: q.sort,
+      filter: q.filter,
+      items: page.map((p) => summaries.get(p.uri) ?? this.postSummary(p)),
+      completeness: this.completeness(),
+    };
+    if (offset + q.limit < items.length) list.cursor = String(offset + q.limit);
+    return list;
+  }
+
+  async recentDiscussion(
+    forum: AtUri,
+    cursor: string | undefined,
+    limit: number,
+  ): Promise<DiscussionList> {
+    this.forumRec(forum);
+    const entries = this.listedPosts(forum)
+      .map((p) => {
+        const visible = this.thread(p.uri, "new").filter(
+          (c) => !c.missing && c.state.kind === "visible",
+        );
+        return { p, visible };
+      })
+      .filter((e) => e.visible.length > 0)
+      .sort((a, b) => {
+        const ta = Math.max(...a.visible.map((c) => c.tRankMs));
+        const tb = Math.max(...b.visible.map((c) => c.tRankMs));
+        return tb - ta || (a.p.uri < b.p.uri ? -1 : 1);
+      });
+    const offset = cursor !== undefined ? Number(cursor) || 0 : 0;
+    const page = entries.slice(offset, offset + limit);
+    const out: DiscussionList = {
+      dto: DTO_VERSION,
+      items: page.map((e) => ({
+        post: this.postSummary(e.p),
+        comments: [...e.visible]
+          .sort((a, b) => b.tRankMs - a.tRankMs || (a.uri < b.uri ? -1 : 1))
+          .slice(0, 3),
+      })),
+      completeness: this.completeness(),
+    };
+    if (offset + limit < entries.length) out.cursor = String(offset + limit);
+    return out;
+  }
+
+  /** `sequence`: the sequence the reader came from (engine-api.md §3.4 `get_post`): navigated
+   * when it contains the post, which then becomes its "continue reading" position. */
+  async getPost(uri: AtUri, sequence?: AtUri): Promise<PostView> {
+    if (sequence !== undefined && !splitAtUri(sequence)) {
+      throw err("invalid_ref", `Not an at-uri: ${sequence}`);
+    }
+    const view = this.postView(this.postRec(uri), sequence);
+    const nav = view.sequences[0];
+    if (nav !== undefined && nav.sequence === sequence) {
+      // a side effect of the read, announced only when the position moved
+      if (this.s.seqpos.get(sequence)?.post !== uri) {
+        this.s.seqpos.set(sequence, { post: uri, atMs: this.now() });
+        this.changed({ kind: "thread", uri: sequence });
+      }
+    }
+    return view;
+  }
+
+  async backlinks(uri: AtUri): Promise<PostSummary[]> {
+    if (!splitAtUri(uri)) throw err("invalid_ref", `Not an at-uri: ${uri}`);
+    return [...this.s.posts.values()]
+      .filter((p) => listed(this.lens(p.author, p.state)))
+      .filter((p) => p.body.html.includes(`data-at-uri="${uri}"`))
+      .sort((a, b) => b.tRankMs - a.tRankMs || (a.uri < b.uri ? -1 : a.uri > b.uri ? 1 : 0))
+      .map((p) => this.postSummary(p));
+  }
+
+  async getThread(uri: AtUri, opts: ThreadOpts): Promise<ThreadView> {
+    const p = this.s.posts.get(uri);
+    let comments = this.thread(uri, opts.sort);
+    if (opts.unreadOnly) {
+      const keep = new Set<string>();
+      const byUri = new Map(comments.map((c) => [c.uri, c]));
+      for (const c of comments) {
+        if (!c.unread) continue;
+        let cur: CommentNode | undefined = c;
+        while (cur && !keep.has(cur.uri)) {
+          keep.add(cur.uri);
+          cur = cur.parent ? byUri.get(cur.parent) : undefined;
+        }
+      }
+      comments = comments.filter((c) => keep.has(c.uri));
+    }
+    if (!p && comments.length === 0) throw err("not_found", `No post ${uri}`);
+    return {
+      dto: DTO_VERSION,
+      post: p ? this.postView(p) : { missing: uri },
+      comments,
+      sort: opts.sort,
+      completeness: this.completeness(),
+    };
+  }
+
+  async history(uri: AtUri): Promise<HistoryView> {
+    const p = this.s.posts.get(uri);
+    if (p) {
+      const versions: HistoryView["versions"] = clone(p.revisions);
+      versions.push({
+        n: p.revisions.length + 1,
+        cid: p.cid,
+        createdAtMs:
+          p.revisions.length > 0 ? p.tRankMs + (p.revisions.length + 1) * 3_600_000 : p.createdAtMs,
+        available: true,
+      });
+      return { dto: DTO_VERSION, uri, versions };
+    }
+    const c = this.s.comments.get(uri);
+    if (c) {
+      return {
+        dto: DTO_VERSION,
+        uri,
+        versions: [{ n: 1, cid: c.cid, createdAtMs: c.createdAtMs, available: true }],
+      };
+    }
+    throw err("not_found", `No record ${uri}`);
+  }
+
+  private tagMap(forum: AtUri): Map<Slug, TagRec> {
+    const m = this.s.tags.get(forum);
+    if (!m) throw err("not_found", `No forum ${forum}`);
+    return m;
+  }
+
+  private tagSummary(forum: AtUri, t: TagRec): TagSummary {
+    const s: TagSummary = {
+      slug: t.slug,
+      name: t.name,
+      postCount: this.listedPosts(forum).filter((p) => this.appliedTags(p).includes(t.slug)).length,
+      unmergedEdits: t.unmergedEdits,
+    };
+    if (t.description !== undefined) s.description = t.description;
+    return s;
+  }
+
+  async tags(forum: AtUri): Promise<TagSummary[]> {
+    // only applicable pages are tags (views.rs `tag_summary`): a page that is not a tag is left out
+    return [...this.tagMap(forum).values()]
+      .filter((t) => t.isTag !== false)
+      .map((t) => this.tagSummary(forum, t))
+      .sort((a, b) => b.postCount - a.postCount || (a.slug < b.slug ? -1 : 1));
+  }
+
+  async tag(forum: AtUri, slug: Slug): Promise<TagView> {
+    const t = this.tagMap(forum).get(slug);
+    // a page that exists but is not a tag is not_found too, as the engine has it
+    if (!t || t.isTag === false) throw err("not_found", `No tag ${slug}`);
+    const posts = this.listedPosts(forum)
+      .filter((p) => this.appliedTags(p).includes(slug))
+      .map((p) => this.postSummary(p))
+      .sort((a, b) => b.score.score - a.score.score || (a.uri < b.uri ? -1 : 1));
+    const view: TagView = { dto: DTO_VERSION, tag: this.tagSummary(forum, t), posts };
+    if (t.page !== undefined) view.page = renderMarkdown(t.page).body;
+    if (t.head !== undefined) view.head = t.head;
+    return view;
+  }
+
+  async wikiPage(forum: AtUri, slug: Slug): Promise<WikiPageView> {
+    // the mock drops a removed tag's page (modAction), so it has no head then
+    const t = this.tagMap(forum).get(slug);
+    const view: WikiPageView = {
+      dto: DTO_VERSION,
+      forum,
+      slug,
+      exists: t !== undefined,
+      applicable: t !== undefined && t.isTag !== false,
+      unmergedEdits: t?.unmergedEdits ?? 0,
+    };
+    if (t?.head !== undefined) view.head = t.head;
+    return view;
+  }
+
+  private sequenceSummary(seq: SequenceRec): SequenceSummary {
+    return {
+      uri: seq.uri,
+      author: this.actor(seq.author),
+      title: seq.title,
+      chapters: seq.chapters.length,
+      posts: seq.chapters.reduce((n, c) => n + c.posts.length, 0),
+      score: this.scoreView(seq.uri, seq.base),
+      pinned: seq.pinned,
+    };
+  }
+
+  async sequences(forum: AtUri): Promise<SequenceSummary[]> {
+    this.forumRec(forum);
+    return [...this.s.sequences.values()]
+      .map((s) => this.sequenceSummary(s))
+      .sort(
+        (a, b) =>
+          Number(b.pinned) - Number(a.pinned) ||
+          b.score.score - a.score.score ||
+          (a.uri < b.uri ? -1 : 1),
+      );
+  }
+
+  async sequence(uri: AtUri): Promise<SequenceView> {
+    const seq = this.s.sequences.get(uri);
+    if (!seq) throw err("not_found", `No sequence ${uri}`);
+    const view: SequenceView = {
+      dto: DTO_VERSION,
+      sequence: this.sequenceSummary(seq),
+      chapters: seq.chapters.map((c) => {
+        const ch: SequenceView["chapters"][number] = {
+          posts: c.posts
+            .map((u) => this.s.posts.get(u))
+            .filter((p): p is PostRec => p !== undefined && listed(p.state))
+            .map((p) => this.postSummary(p)),
+        };
+        if (c.title !== undefined) ch.title = c.title;
+        if (c.body !== undefined) ch.body = renderMarkdown(c.body).body;
+        return ch;
+      }),
+    };
+    if (seq.body !== undefined) view.body = renderMarkdown(seq.body).body;
+    // only while the post is a displayable entry, so a stale position shows nothing
+    const at = this.s.seqpos.get(uri);
+    if (at !== undefined && this.seqEntries(seq).includes(at.post)) {
+      view.continueReading = clone(at);
+    }
+    return view;
+  }
+
+  /** A sequence's displayable entries (social.md §14 "Entries"), in order. */
+  private seqEntries(seq: SequenceRec): AtUri[] {
+    return seq.chapters
+      .flatMap((c) => c.posts)
+      .filter((u) => {
+        const p = this.s.posts.get(u);
+        return p !== undefined && listed(p.state);
+      });
+  }
+
+  async user(forum: AtUri | undefined, actor: string): Promise<UserView> {
+    const did = this.resolveAuthority(actor);
+    const a = this.s.actors.get(did);
+    if (!a) throw err("not_found", `No user ${actor}`);
+    const posts = [...this.s.posts.values()]
+      .filter((p) => p.author === did && listed(p.state))
+      .sort((x, y) => y.tRankMs - x.tRankMs);
+    const comments = [...this.s.comments.values()]
+      .filter((c) => c.author === did && listed(c.state))
+      .sort((x, y) => y.tRankMs - x.tRankMs)
+      .slice(0, 10)
+      .map((c) => this.commentNode(c, 1, c.parent, this.lens(c.author, c.state)));
+    const view: UserView = {
+      dto: DTO_VERSION,
+      actor: clone(a.view),
+      status: a.status,
+      links: a.links.map((l) => {
+        const href = safeHref(l.uri, "field");
+        const host = href?.kind === "external" || href?.kind === "mailto" ? href.host : "";
+        const out: UserView["links"][number] = { uri: l.uri, host };
+        if (l.label !== undefined) out.label = l.label;
+        return out;
+      }),
+      pinned: a.pinned
+        .map((u) => this.s.posts.get(u))
+        .filter((p): p is PostRec => p !== undefined)
+        .map((p) => this.postSummary(p)),
+      recentPosts: posts.slice(0, 10).map((p) => this.postSummary(p)),
+      recentComments: comments,
+    };
+    if (forum !== undefined) {
+      view.forum = forum;
+      view.karma = clone(a.karma);
+    }
+    if (a.bio !== undefined) view.bio = renderMarkdown(a.bio).body;
+    return view;
+  }
+
+  async search(q: SearchQuery): Promise<SearchResults> {
+    const needle = normalizeP(q.q).toLowerCase();
+    if (needle === "") return { dto: DTO_VERSION, hits: [] };
+    const hits: SearchHit[] = [];
+    const snippetOf = (text: string): Omit<SearchHit, "item"> | null => {
+      const lower = text.toLowerCase();
+      const i = lower.indexOf(needle);
+      if (i < 0) return null;
+      const cps = Array.from(text);
+      const start = Math.max(0, Array.from(text.slice(0, i)).length - 60);
+      const end = Math.min(cps.length, start + 160);
+      const snippet =
+        (start > 0 ? "…" : "") + cps.slice(start, end).join("") + (end < cps.length ? "…" : "");
+      const highlights: [number, number][] = [];
+      const sl = snippet.toLowerCase();
+      let from = 0;
+      for (;;) {
+        const j = sl.indexOf(needle, from);
+        if (j < 0) break;
+        const s0 = Array.from(snippet.slice(0, j)).length;
+        highlights.push([s0, s0 + Array.from(needle).length]);
+        from = j + needle.length;
+      }
+      return { snippet, highlights };
+    };
+    for (const p of this.s.posts.values()) {
+      if (!listed(p.state)) continue;
+      if (q.author !== undefined && p.author !== q.author) continue;
+      const hit = snippetOf(
+        `${p.kind === "quickTake" ? "" : (p.title ?? "")} ${p.body.text}`.trim(),
+      );
+      if (hit) hits.push({ ...hit, item: this.postSummary(p) });
+    }
+    for (const c of this.s.comments.values()) {
+      if (c.state.kind !== "visible") continue;
+      if (q.author !== undefined && c.author !== q.author) continue;
+      const hit = snippetOf(c.body.text);
+      if (hit) hits.push({ ...hit, item: this.commentNode(c, 1, c.parent, { kind: "visible" }) });
+    }
+    return { dto: DTO_VERSION, hits: hits.slice(0, q.limit) };
+  }
+
+  async notifications(q: NotificationsQuery): Promise<NotificationList> {
+    const me = this.s.active;
+    if (!me) return { dto: DTO_VERSION, items: [], unread: 0 };
+    const unread = (this.s.notifications.get(me) ?? []).filter((n) => !n.read).length;
+    const items = (this.s.notifications.get(me) ?? [])
+      .filter((n) => q.all || !n.read)
+      .sort((a, b) => b.atMs - a.atMs || (a.id < b.id ? -1 : 1))
+      .slice(0, q.limit)
+      .map((n) => {
+        const item: NotificationList["items"][number] = {
+          id: n.id,
+          reason: n.reason,
+          atMs: n.atMs,
+          subject: n.subject,
+          read: n.read,
+        };
+        if (n.actor !== undefined) item.actor = this.actor(n.actor);
+        if (n.preview !== undefined) item.preview = n.preview;
+        return item;
+      });
+    return { dto: DTO_VERSION, items, unread };
+  }
+
+  async unreadCounts(): Promise<UnreadCounts> {
+    const me = this.s.active;
+    const unread = me ? (this.s.notifications.get(me) ?? []).filter((n) => !n.read).length : 0;
+    const forums = me
+      ? [...this.s.followed.keys()].sort().map((forum) => ({
+          forum,
+          posts: 0,
+          comments: 0,
+          notifications: forum === FORUM_URI ? unread : 0,
+        }))
+      : [];
+    return { dto: DTO_VERSION, notifications: unread, forums };
+  }
+
+  async modQueue(forum: AtUri): Promise<ModQueue> {
+    this.forumRec(forum);
+    // Authorities only; anyone else gets `blocked` (engine-api.md §3.4 `mod_queue`).
+    if (!this.isAuthorityDid(forum, this.s.active ?? "")) {
+      throw err("blocked", "The mod queue is available to this forum's authorities only.");
+    }
+    const queue: ModQueue = { dto: DTO_VERSION, items: clone(this.s.modQueue.get(forum) ?? []) };
+    // approval mode: where the applicants come from (sync.md §4.4, decision O-8), by the
+    // `sources` in effect, as views.rs `mod_queue` words it
+    if (this.forumRec(forum).membership === "approval") {
+      queue.banners = [
+        this.s.settings.sources === "direct"
+          ? { code: "applicantsNotDiscovered", message: APPLICANTS_DIRECT }
+          : { code: "applicantsViaHints", message: APPLICANTS_ASSISTED },
+      ];
+    }
+    return queue;
+  }
+
+  async modLog(forum: AtUri, _cursor?: string, _limit?: number): Promise<ModLog> {
+    this.forumRec(forum);
+    const entries = [...(this.s.modLog.get(forum) ?? [])]
+      .sort((a, b) => b.atMs - a.atMs || (a.subject < b.subject ? -1 : 1))
+      .map((e) => ({
+        ...clone(e),
+        uri: this.logEntryUri(forum, e),
+        actor: this.actor(e.actor),
+        status: e.lapsed ? ("lapsed" as const) : ("effective" as const),
+      }));
+    return { dto: DTO_VERSION, entries };
+  }
+
+  private logEntryUri(forum: AtUri, e: ModLogEntryRec): AtUri {
+    return atUri(
+      e.actor,
+      COLL.modAction,
+      `${this.fkOf(forum)}-${b32hash(`${e.action}:${e.subject}`, 16)}`,
+    );
+  }
+
+  /** The modActions naming `uri`, as the engine's raw view lists them: one record per (actor,
+   * action key), the latest, unless it was removed (`{uri, cid, valid, record, status}`). */
+  private rawAssertions(uri: AtUri): Json[] {
+    const naming = (this.s.modLog.get(FORUM_URI) ?? []).filter((e) => e.subject === uri);
+    const latest = new Map(naming.map((e) => [`${e.actor} ${e.action}`, e] as const));
+    const t = (name: string, fields: { [k: string]: Json }): Json => ({
+      $type: `${COLL.modAction}#${name}`,
+      ...fields,
+    });
+    const action = (key: string, value: string): Json => {
+      if (key === "hide")
+        return t("hide", value === "keep" ? { hidden: false } : { spam: value.includes("spam") });
+      if (key === "tier") return t("tier", { tier: value });
+      if (key.startsWith("pin:"))
+        return t("pin", { scope: key.slice(4), pinned: value === "pinned" });
+      if (key === "lock") return t("lock", { locked: value === "locked" });
+      return t(key, {});
+    };
+    return [...latest.values()]
+      .filter((e) => e.value !== "removed")
+      .map((e) => {
+        const auri = atUri(e.actor, COLL.modAction, `${FK}-${b32hash(`${e.action}:${uri}`, 16)}`);
+        const record: { [k: string]: Json } = {
+          $type: COLL.modAction,
+          forum: FORUM_URI,
+          subject: uri,
+          action: action(e.action, e.value),
+          createdAt: new Date(FIXTURE_NOW).toISOString(),
+        };
+        if (e.reason !== undefined) record.reason = e.reason;
+        return {
+          uri: auri,
+          cid: fakeCid(auri),
+          valid: true,
+          record,
+          status: e.lapsed ? "lapsed" : "effective",
+        };
+      });
+  }
+
+  async raw(uri: AtUri): Promise<RawView> {
+    const p = this.s.posts.get(uri);
+    const c = this.s.comments.get(uri);
+    const seq = this.s.sequences.get(uri);
+    const f = this.s.forums.get(uri);
+    const w = this.s.wiki.get(uri);
+    const md = (text: string, media: readonly MediaRef[]): Json => {
+      const mediaRecords = media.map((m) => ({
+        blob: {
+          $type: "blob",
+          ref: { $link: m.cid },
+          mimeType: m.mime,
+          size: m.sizeBytes,
+        },
+        ...(m.alt !== undefined ? { alt: m.alt } : {}),
+        ...(m.aspectRatio !== undefined
+          ? { aspectRatio: { width: m.aspectRatio.width, height: m.aspectRatio.height } }
+          : {}),
+        ...(m.durationMs !== undefined ? { durationMs: m.durationMs } : {}),
+        ...(m.name !== undefined ? { name: m.name } : {}),
+      }));
+      if (!this.spilledBodies) {
+        return { $type: COLL.markdown, text, profile: "lfm/1", media: mediaRecords };
+      }
+      return {
+        $type: COLL.markdown,
+        textBlob: {
+          $type: "blob",
+          ref: { $link: fakeCid(`markdown:${text}`) },
+          mimeType: "text/markdown",
+          size: new TextEncoder().encode(text).length,
+        },
+        profile: "lfm/1",
+        media: mediaRecords,
+      };
+    };
+    let record: Json | undefined;
+    let cid: string | undefined;
+    let state: ItemState | undefined;
+    if (p) {
+      const r: { [k: string]: Json } = {
+        $type: COLL.post,
+        forum: p.forum,
+        kind: p.kind,
+        body: md(p.markdown, p.media),
+        tags: p.tags,
+        labels: p.labels,
+        createdAt: new Date(p.createdAtMs).toISOString(),
+      };
+      if (p.title !== undefined) r.title = p.title;
+      if (p.link) {
+        r.link = {
+          uri: p.link.uri,
+          ...(p.link.title ? { title: p.link.title } : {}),
+          ...(p.link.description !== undefined ? { description: p.link.description } : {}),
+        };
+      }
+      record = r;
+      cid = p.cid;
+      state = clone(p.state);
+    } else if (c) {
+      const root = this.s.posts.get(c.root);
+      const r: { [k: string]: Json } = {
+        $type: COLL.comment,
+        forum: c.forum,
+        root: { uri: c.root, cid: root?.cid ?? fakeCid(c.root) },
+        body: md(c.markdown, c.media),
+        createdAt: new Date(c.createdAtMs).toISOString(),
+      };
+      if (c.parent !== undefined) {
+        r.parent = { uri: c.parent, cid: this.s.comments.get(c.parent)?.cid ?? fakeCid(c.parent) };
+      }
+      if (c.retracted) r.retracted = true;
+      if (c.moderatorHat) r.moderatorHat = true;
+      if (c.quote) r.quote = clone(c.quote) as unknown as Json;
+      record = r;
+      cid = c.cid;
+      state = clone(c.state);
+    } else if (seq) {
+      // a sequence's bodies are inline (a chapter's always is, data-model.md §6.9)
+      const inline = (text: string): Json => ({ $type: COLL.markdown, text, profile: "lfm/1" });
+      record = {
+        $type: COLL.sequence,
+        forum: FORUM_URI,
+        title: seq.title,
+        ...(seq.body !== undefined ? { body: inline(seq.body) } : {}),
+        chapters: seq.chapters.map((ch) => ({
+          ...(ch.title ? { title: ch.title } : {}),
+          ...(ch.body !== undefined ? { body: inline(ch.body) } : {}),
+          posts: ch.posts,
+        })),
+        createdAt: new Date(seq.createdAtMs).toISOString(),
+      };
+      cid = fakeCid(seq.uri);
+    } else if (w) {
+      const r: { [k: string]: Json } = {
+        $type: COLL.wikiRevision,
+        forum: w.forum,
+        slug: w.slug,
+        parents: w.parents.map((x) => ({ uri: x.uri, cid: x.cid })),
+        name: w.name,
+        createdAt: new Date(w.createdAtMs).toISOString(),
+      };
+      if (w.description !== undefined) r.description = w.description;
+      if (w.body !== undefined) r.body = md(w.body, []);
+      if (w.isTag !== undefined) r.isTag = w.isTag;
+      if (w.parentTags.length > 0) r.parentTags = [...w.parentTags];
+      if (w.summary !== undefined) r.summary = w.summary;
+      record = r;
+      cid = w.cid;
+    } else if (f) {
+      const r: { [k: string]: Json } = {
+        $type: COLL.forum,
+        name: f.summary.name,
+        membership: f.membership,
+        defaultTier: f.defaultTier,
+        featuredTags: f.featuredTags,
+        moderators: f.moderators.map((m) => ({
+          did: m.did,
+          role: m.role,
+          ...(m.title !== undefined ? { title: m.title } : {}),
+        })),
+      };
+      if (f.summary.description !== undefined) r.description = f.summary.description;
+      if (f.about !== undefined) r.about = md(f.about, []);
+      if (f.reportContact !== undefined) r.reportContact = f.reportContact;
+      record = r;
+      // A declaration revision changes its record CID as well as its contents.
+      cid = fakeCid(JSON.stringify(r));
+    } else {
+      throw err("not_found", `No record ${uri}`);
+    }
+    const view: RawView = {
+      dto: DTO_VERSION,
+      uri,
+      level: "pds",
+      record,
+      validity: [],
+      assertions: this.rawAssertions(uri),
+    };
+    if (cid !== undefined) view.cid = cid;
+    if (c) view.root = c.root;
+    if (state !== undefined) view.state = state;
+    return view;
+  }
+
+  async bodySource(uri: AtUri): Promise<BodySource> {
+    const p = this.s.posts.get(uri);
+    const c = this.s.comments.get(uri);
+    const f = this.s.forums.get(uri);
+    if (!p && !c && !f) {
+      // any other collection is `invalid_ref` (engine-api.md §3.4)
+      if (this.s.sequences.has(uri))
+        throw err("invalid_ref", `Not a post, comment or forum: ${uri}`);
+      throw err("not_found", `No post, comment or forum ${uri}`);
+    }
+    // raw and the source/profile are read from the same synchronous state snapshot.
+    const raw = await this.raw(uri);
+    const record =
+      raw.record !== null && typeof raw.record === "object" && !Array.isArray(raw.record)
+        ? raw.record
+        : undefined;
+    const bodyValue = record?.body ?? record?.about;
+    const body: { [key: string]: Json } | undefined =
+      bodyValue !== null && typeof bodyValue === "object" && !Array.isArray(bodyValue)
+        ? bodyValue
+        : undefined;
+    const present = p !== undefined || c !== undefined || f?.about !== undefined;
+    const markdown =
+      typeof body?.text === "string" ? body.text : (p?.markdown ?? c?.markdown ?? f?.about ?? "");
+    return {
+      markdown,
+      cid: raw.cid ?? "",
+      profile: typeof body?.profile === "string" ? body.profile : "lfm/1",
+      spilled: present && this.spilledBodies,
+    };
+  }
+
+  async loadMedia(cid: Cid): Promise<LoadedMedia> {
+    // the mock has no network: it refuses rather than pretending a blob arrived
+    throw new Error(`the mock engine cannot load media (${cid})`);
+  }
+
+  async drafts(): Promise<DraftEntry[]> {
+    return [...this.s.drafts.values()]
+      .sort((a, b) => b.savedAtMs - a.savedAtMs || (a.id < b.id ? -1 : 1))
+      .map((d) => clone(d));
+  }
+
+  async bookmarks(): Promise<BookmarkEntry[]> {
+    return [...this.s.bookmarks.values()]
+      .sort((a, b) => b.savedAtMs - a.savedAtMs)
+      .map((b) => {
+        const p = this.s.posts.get(b.uri);
+        return p ? { ...clone(b), post: this.postSummary(p) } : clone(b);
+      });
+  }
+
+  async subscriptions(): Promise<SubscriptionEntry[]> {
+    return clone(this.s.subscriptions);
+  }
+
+  async bookmarked(uri: AtUri): Promise<boolean> {
+    return this.s.bookmarks.has(uri);
+  }
+
+  async mutes(): Promise<ActorView[]> {
+    return [...this.s.mutes].sort().map((d) => this.actor(d));
+  }
+
+  // =============================================================================== §3.5
+
+  async publish(draft: PostDraft): Promise<WriteTicket> {
+    const me = this.me();
+    const f = this.forumRec(draft.forum);
+    const title = draft.title?.trim() ?? "";
+    if (draft.kind !== "quickTake" && title === "")
+      throw err("invalid_input", "A title is required (PO3).");
+    if (draft.kind === "quickTake" && draft.body.markdown.trim() === "") {
+      throw err("invalid_input", "A quick take needs a body (PO4).");
+    }
+    if (draft.kind === "link" && !draft.link?.uri)
+      throw err("invalid_input", "A link post needs a link (PO5).");
+    return this.write(false, () => {
+      const t = this.tick();
+      const uri = atUri(me, COLL.post, `${this.fkOf(draft.forum)}-${tid(t, this.s.nextId % 1024)}`);
+      const rec: PostRec = {
+        uri,
+        cid: fakeCid(`${uri}#v0`),
+        forum: draft.forum,
+        author: me,
+        kind: draft.kind,
+        markdown: draft.body.markdown,
+        body: renderMarkdown(draft.body.markdown).body,
+        media: clone(draft.body.media ?? []),
+        tags: [...(draft.tags ?? [])],
+        tier: f.defaultTier,
+        pinned: false,
+        locked: false,
+        createdAtMs: t,
+        tRankMs: t,
+        base: { score: 1, agreement: 0, unweighted: 0, earlier: 0, weighted: 0 },
+        reacts: [],
+        state: { kind: "visible" },
+        badges: {},
+        labels: [...(draft.labels ?? [])],
+        revisions: [],
+        redacted: false,
+      };
+      if (draft.kind !== "quickTake") rec.title = title;
+      if (draft.link) {
+        const href = safeHref(draft.link.uri, "field");
+        const link: NonNullable<PostRec["link"]> = {
+          uri: draft.link.uri,
+          host: href?.kind === "external" ? href.host : "",
+        };
+        if (draft.link.title !== undefined) link.title = draft.link.title;
+        if (draft.link.description !== undefined) link.description = draft.link.description;
+        rec.link = link;
+      }
+      this.s.posts.set(uri, rec);
+      const a = this.actorRec(me);
+      if (a.status === "none") a.status = "newcomer";
+      return {
+        uri,
+        cid: rec.cid,
+        topics: [
+          { kind: "forum", uri: draft.forum },
+          { kind: "user", did: me },
+        ],
+      };
+    });
+  }
+
+  async comment(draft: CommentDraft): Promise<WriteTicket> {
+    const me = this.me();
+    const root = this.postRec(draft.root);
+    const forum = root.forum;
+    if (root.locked && !this.isAuthority(forum)) {
+      throw err("blocked", "This post is locked; new comments would be hidden.");
+    }
+    if (draft.parent !== undefined && !this.s.comments.has(draft.parent)) {
+      throw err("invalid_ref", "The parent comment does not exist.");
+    }
+    if (draft.body.markdown.trim() === "") throw err("invalid_input", "A comment needs a body.");
+    return this.write(false, () => {
+      const t = this.tick();
+      const rootTid = root.uri.split("/").pop()?.slice(13) ?? "";
+      const uri = atUri(
+        me,
+        COLL.comment,
+        `${this.fkOf(forum)}-${rootTid}-${tid(t, this.s.nextId % 1024)}`,
+      );
+      const rec: CommentRec = {
+        uri,
+        cid: fakeCid(uri),
+        forum,
+        root: root.uri,
+        author: me,
+        markdown: draft.body.markdown,
+        body: renderMarkdown(draft.body.markdown).body,
+        media: clone(draft.body.media ?? []),
+        createdAtMs: t,
+        tRankMs: t,
+        base: { score: 1, agreement: 0, unweighted: 0, earlier: 0, weighted: 0 },
+        reacts: [],
+        state: { kind: "visible" },
+        badges: {},
+        retracted: false,
+        moderatorHat: false,
+        orphaned: false,
+        pinned: false,
+      };
+      if (draft.parent !== undefined) rec.parent = draft.parent;
+      if (draft.quote) {
+        rec.quote = clone(draft.quote);
+        const target = draft.parent ? this.s.comments.get(draft.parent)?.body.text : root.body.text;
+        rec.quoteAnchor = cpIndexOf(target ?? "", normalizeP(draft.quote.exact));
+      }
+      this.s.comments.set(uri, rec);
+      const a = this.actorRec(me);
+      if (a.status === "none") a.status = "newcomer";
+      return { uri, cid: rec.cid, topics: this.threadTopics(root.uri) };
+    });
+  }
+
+  /** The mock tracks no CID-bound assertions: nothing to suspend. */
+  async editPreflight(uri: AtUri): Promise<ActionNotice[]> {
+    if (!this.s.posts.has(uri) && !this.s.comments.has(uri))
+      throw err("not_found", `No record ${uri}`);
+    return [];
+  }
+
+  async edit(uri: AtUri, draft: Draft, opts: EditOpts): Promise<WriteTicket> {
+    const me = this.me();
+    const p = this.s.posts.get(uri);
+    const c = this.s.comments.get(uri);
+    if (!p && !c) throw err("not_found", `No record ${uri}`);
+    if ((p?.author ?? c?.author) !== me)
+      throw err("blocked", "You can only edit your own records.");
+    return this.write(false, () => {
+      const t = this.tick();
+      if (p && draft.kind === "post") {
+        if (opts.history) {
+          const v: PostRec["revisions"][number] = {
+            n: p.revisions.length + 1,
+            cid: p.cid,
+            createdAtMs: t,
+            available: true,
+          };
+          if (opts.summary !== undefined) v.summary = opts.summary;
+          p.revisions.push(v);
+        }
+        p.markdown = draft.post.body.markdown;
+        p.body = renderMarkdown(p.markdown).body;
+        p.media = clone(draft.post.body.media ?? []);
+        if (draft.post.title !== undefined && p.kind !== "quickTake") p.title = draft.post.title;
+        p.tags = [...(draft.post.tags ?? [])];
+        p.labels = [...(draft.post.labels ?? [])];
+        const given = draft.post.link;
+        if (given) {
+          // engine-api.md §3.5 `edit`: a draft of the cached uri that names no title or
+          // description keeps the cached card, unless `dropLinkCard` writes it as given (the mock
+          // has no thumb to keep for a draft that names some)
+          const keep =
+            !opts.dropLinkCard &&
+            p.link?.uri === given.uri &&
+            given.title === undefined &&
+            given.description === undefined;
+          if (!keep) {
+            const href = safeHref(given.uri, "field");
+            p.link = { ...clone(given), host: href?.kind === "external" ? href.host : "" };
+          }
+        } else {
+          delete p.link;
+        }
+        p.cid = fakeCid(`${uri}#t${t}`);
+        p.badges = { ...p.badges, edited: true };
+        return { uri, cid: p.cid, topics: this.threadTopics(uri) };
+      }
+      if (c && draft.kind === "comment") {
+        c.markdown = draft.comment.body.markdown;
+        c.body = renderMarkdown(c.markdown).body;
+        c.media = clone(draft.comment.body.media ?? []);
+        // The edit replaces the whole record: the quote is whatever the draft carries.
+        if (draft.comment.quote) {
+          c.quote = clone(draft.comment.quote);
+          const target = c.parent
+            ? this.s.comments.get(c.parent)?.body.text
+            : this.s.posts.get(c.root)?.body.text;
+          c.quoteAnchor = cpIndexOf(target ?? "", normalizeP(draft.comment.quote.exact));
+        } else {
+          delete c.quote;
+          delete c.quoteAnchor;
+        }
+        c.cid = fakeCid(`${uri}#t${t}`);
+        c.badges = { ...c.badges, edited: true };
+        return { uri, cid: c.cid, topics: this.threadTopics(c.root) };
+      }
+      throw err("invalid_input", "The draft kind does not match the record.");
+    });
+  }
+
+  async delete(uri: AtUri): Promise<WriteTicket> {
+    const me = this.me();
+    const p = this.s.posts.get(uri);
+    const c = this.s.comments.get(uri);
+    if (!p && !c) throw err("not_found", `No record ${uri}`);
+    if ((p?.author ?? c?.author) !== me)
+      throw err("blocked", "You can only delete your own records.");
+    return this.write(false, () => {
+      this.tick();
+      const root = p ? p.uri : (c?.root ?? "");
+      const topics = this.threadTopics(root);
+      this.s.posts.delete(uri);
+      this.s.comments.delete(uri);
+      return { uri, cid: "", topics };
+    });
+  }
+
+  async retract(uri: AtUri): Promise<WriteTicket> {
+    const me = this.me();
+    const c = this.s.comments.get(uri);
+    if (!c) throw err("not_found", `No comment ${uri}`);
+    if (c.author !== me) throw err("blocked", "You can only retract your own comments.");
+    return this.write(false, () => {
+      c.retracted = true;
+      c.badges = { ...c.badges, edited: true };
+      c.cid = fakeCid(`${uri}#t${this.tick()}`);
+      return { uri, cid: c.cid, topics: this.threadTopics(c.root) };
+    });
+  }
+
+  async opinion(subjectUri: AtUri, intent: OpinionIntent): Promise<WriteTicket> {
+    const me = this.me();
+    const subject = this.subjectInfo(subjectUri);
+    if (subject.author === me)
+      throw err("invalid_input", "You cannot vote or react on your own items (O3).");
+    if (intent.kind === "react" && !paletteReact(intent.id)) {
+      throw err("invalid_input", `Unknown react ${intent.id}`);
+    }
+    if (intent.kind === "tag" && !this.s.posts.has(subjectUri)) {
+      throw err("invalid_input", "Tag votes apply to posts only.");
+    }
+    const intentCopy = clone(intent);
+    return this.write(true, () => {
+      this.tick();
+      let mine = this.s.opinions.get(me);
+      if (!mine) {
+        mine = new Map();
+        this.s.opinions.set(me, mine);
+      }
+      const op: MyOpinionRec = mine.get(subjectUri) ?? { reacts: [] };
+      switch (intentCopy.kind) {
+        case "karma":
+          if (intentCopy.value === undefined) delete op.karma;
+          else op.karma = intentCopy.value;
+          break;
+        case "agreement":
+          if (intentCopy.value === undefined) delete op.agreement;
+          else op.agreement = intentCopy.value;
+          break;
+        case "react": {
+          const k = qkey(intentCopy.quote);
+          op.reacts = op.reacts.filter((r) => !(r.react === intentCopy.id && qkey(r.quote) === k));
+          if (!intentCopy.remove) {
+            const r: MyOpinionRec["reacts"][number] = {
+              react: intentCopy.id,
+              stance: intentCopy.stance,
+            };
+            if (intentCopy.quote) r.quote = intentCopy.quote;
+            op.reacts.push(r);
+          }
+          break;
+        }
+        case "tag": {
+          const tags = { ...(op.tags ?? {}) };
+          if (intentCopy.value === undefined) delete tags[intentCopy.slug];
+          else tags[intentCopy.slug] = intentCopy.value;
+          if (Object.keys(tags).length > 0) op.tags = tags;
+          else delete op.tags;
+          break;
+        }
+      }
+      mine.set(subjectUri, op);
+      const p = splitAtUri(subjectUri);
+      const stid =
+        p?.collection === COLL.post
+          ? p.rkey.slice(13)
+          : p?.collection === COLL.comment
+            ? p.rkey.slice(13, 26)
+            : "~";
+      const uri = atUri(me, COLL.opinion, `${FK}-${stid}-${b32hash(`opinion:${subjectUri}`, 16)}`);
+      return {
+        uri,
+        cid: fakeCid(`${uri}@${JSON.stringify(op)}`),
+        topics: this.threadTopics(subject.root),
+      };
+    });
+  }
+
+  async modAction(intent: ModActionIntent): Promise<ActionTicket> {
+    const ticket = await this.modActionWrite(intent);
+    // bans and restrictions are retroactive, and the engine says so (social.md §4.6, §4.7)
+    if (intent.kind === "assert") {
+      const a = intent.action;
+      if (a.kind === "access" && a.level === "banned") {
+        return { ...ticket, notices: [{ code: "retroactive", message: RETROACTIVE_BAN }] };
+      }
+      if (a.kind === "restrict" && (a.capabilities?.length ?? 0) > 0) {
+        return { ...ticket, notices: [{ code: "retroactive", message: RETROACTIVE_RESTRICT }] };
+      }
+    }
+    return ticket;
+  }
+
+  private async modActionWrite(intent: ModActionIntent): Promise<WriteTicket> {
+    const me = this.me();
+    const f = this.forumRec(intent.forum);
+    const role = this.myRole(f);
+    if (intent.scope === "forum" && !AUTHORITY.has(role)) {
+      throw err("blocked", "Only moderators can take forum-scope moderation actions.");
+    }
+    if (
+      intent.kind === "assert" &&
+      intent.action.kind === "tier" &&
+      intent.action.tier === "curated" &&
+      role === "moderator"
+    ) {
+      throw err("blocked", "Only admins and the owner can curate.");
+    }
+    if (
+      intent.kind === "assert" &&
+      intent.action.kind === "restrict" &&
+      intent.action.capabilities === undefined &&
+      intent.action.nullifyVotes === undefined
+    ) {
+      throw err("invalid_input", "A restriction names its capabilities or nullifyVotes.");
+    }
+    const rank = RANK[role] ?? 0;
+    const copy = clone(intent);
+    return this.write(false, () => {
+      const t = this.tick();
+      const subject = copy.subject;
+      const post = this.s.posts.get(subject);
+      const comment = this.s.comments.get(subject);
+      const item = post ?? comment;
+      let actionKey: string;
+      let value: string;
+      if (copy.kind === "assert") {
+        const a = copy.action;
+        actionKey = a.kind === "pin" ? `pin:${a.scope}` : a.kind;
+        switch (a.kind) {
+          case "hide":
+            if (!item) throw err("not_found", `No item ${subject}`);
+            if (a.hidden) {
+              const reason: {
+                kind: "removed";
+                rank: number;
+                actor?: Did;
+                spam: boolean;
+                reason?: string;
+              } = {
+                kind: "removed",
+                rank,
+                actor: me,
+                spam: a.spam ?? false,
+              };
+              if (copy.reason !== undefined && a.showReason !== false) reason.reason = copy.reason;
+              item.state = { kind: "hidden", reason };
+              value = a.spam ? "hidden (spam)" : "hidden";
+            } else {
+              item.state = { kind: "visible" };
+              value = "keep";
+            }
+            break;
+          case "access": {
+            const target = this.actorRec(subject);
+            if (!AUTHORITY.has(target.status)) target.status = "member";
+            for (const x of [...this.s.posts.values(), ...this.s.comments.values()]) {
+              if (x.author !== subject) continue;
+              if (a.level === "banned" && listed(x.state))
+                x.state = { kind: "hidden", reason: { kind: "banned" } };
+              if (
+                a.level === "member" &&
+                x.state.kind === "hidden" &&
+                x.state.reason.kind === "banned"
+              ) {
+                x.state = { kind: "visible" };
+              }
+            }
+            value = a.level;
+            break;
+          }
+          case "restrict": {
+            // one record holds both dimensions: the one left out keeps its current value, as
+            // the engine merges (engine-api.md §3.5 `mod_action`)
+            const target = this.actorRec(subject);
+            const caps = a.capabilities ?? target.restricted ?? [];
+            const nullify = a.nullifyVotes ?? target.nullified === true;
+            if (caps.length > 0) target.restricted = [...caps];
+            else delete target.restricted;
+            if (nullify) target.nullified = true;
+            else delete target.nullified;
+            for (const x of [...this.s.posts.values(), ...this.s.comments.values()]) {
+              if (x.author !== subject || !listed(x.state)) continue;
+              const cap = this.s.posts.has(x.uri) ? "post" : "comment";
+              if (caps.includes(cap)) x.state = { kind: "hidden", reason: { kind: "restricted" } };
+            }
+            value = `restrict:${caps.join("+")},${nullify ? "nullify" : "unnullify"}`;
+            break;
+          }
+          case "tier":
+            if (!post) throw err("invalid_input", "Tier applies to posts.");
+            post.tier = a.tier;
+            value = a.tier;
+            break;
+          case "pin":
+            if (a.scope === "forum") {
+              const seq = this.s.sequences.get(subject);
+              if (post) post.pinned = a.pinned;
+              else if (seq) seq.pinned = a.pinned;
+              else throw err("invalid_input", "Forum pins apply to posts and sequences.");
+            } else {
+              if (!comment) throw err("invalid_input", "Thread pins apply to comments.");
+              comment.pinned = a.pinned;
+            }
+            value = a.pinned ? "pinned" : "unpinned";
+            break;
+          case "lock":
+            if (!post) throw err("invalid_input", "Locks apply to posts.");
+            post.locked = a.locked;
+            value = a.locked ? "locked" : "unlocked";
+            break;
+          case "tag": {
+            const slug = subject.replace(/^tag:/, "");
+            if (a.removed) this.tagMap(copy.forum).delete(slug);
+            value = a.removed ? "removed" : "head";
+            break;
+          }
+        }
+      } else {
+        actionKey = copy.actionKey;
+        value = "removed";
+        if (item && copy.actionKey === "hide") item.state = { kind: "visible" };
+        if (post && copy.actionKey === "pin:forum") post.pinned = false;
+        if (comment && copy.actionKey === "pin:thread") comment.pinned = false;
+        if (post && copy.actionKey === "lock") post.locked = false;
+        if (copy.actionKey === "restrict" && isDid(subject)) {
+          const target = this.actorRec(subject);
+          delete target.restricted;
+          delete target.nullified;
+        }
+        if (copy.actionKey === "access") {
+          for (const x of [...this.s.posts.values(), ...this.s.comments.values()]) {
+            if (
+              x.author === subject &&
+              x.state.kind === "hidden" &&
+              x.state.reason.kind === "banned"
+            ) {
+              x.state = { kind: "visible" };
+            }
+          }
+        }
+      }
+      const log = this.s.modLog.get(copy.forum) ?? [];
+      const entry: (typeof log)[number] = {
+        actor: me,
+        action: actionKey,
+        subject,
+        value,
+        atMs: t,
+        lapsed: false,
+      };
+      if (copy.kind === "assert" && copy.reason !== undefined) entry.reason = copy.reason;
+      log.push(entry);
+      this.s.modLog.set(copy.forum, log);
+      const uri = atUri(
+        me,
+        COLL.modAction,
+        `${this.fkOf(copy.forum)}-${b32hash(`modAction:${copy.scope}:${subject}:${actionKey}`, 16)}`,
+      );
+      const topics: Topic[] = [{ kind: "forum", uri: copy.forum }];
+      if (post) topics.push({ kind: "thread", uri: post.uri });
+      if (comment) topics.push({ kind: "thread", uri: comment.root });
+      if (!item && isDid(subject)) {
+        topics.push({ kind: "user", did: subject });
+        for (const p of this.s.posts.values()) topics.push({ kind: "thread", uri: p.uri });
+      }
+      return { uri, cid: fakeCid(`${uri}@${t}`), topics };
+    });
+  }
+
+  async modAdopt(forum: AtUri, formerMod: Did): Promise<WriteTicket> {
+    if (!this.isAuthority(forum)) throw err("blocked", "Only authorities can adopt assertions.");
+    const me = this.me();
+    return this.write(false, () => {
+      const t = this.tick();
+      const log = this.s.modLog.get(forum) ?? [];
+      // What is not adopted is the write's report (engine-api.md §3.2 `mod_adopt`)
+      const report: string[] = [];
+      for (const e of log) {
+        if (e.actor !== formerMod) continue;
+        const own = log.some(
+          (x) =>
+            x.actor === me &&
+            x.action === e.action &&
+            x.subject === e.subject &&
+            !x.lapsed &&
+            x.value !== "removed",
+        );
+        if (e.lapsed) report.push(`cannot adopt ${this.logEntryUri(forum, e)}: not in effect`);
+        else if (own) report.push(`kept own assertion for ${this.logEntryUri(forum, e)}`);
+        e.lapsed = true;
+      }
+      return {
+        report,
+        uri: atUri(
+          this.me(),
+          COLL.modAction,
+          `${this.fkOf(forum)}-${b32hash(`adopt:${formerMod}`, 16)}`,
+        ),
+        cid: fakeCid(`adopt:${formerMod}@${t}`),
+        topics: [{ kind: "forum", uri: forum }],
+      };
+    });
+  }
+
+  async wikiEdit(forum: AtUri, slug: Slug, draft: WikiDraft): Promise<WriteTicket> {
+    const me = this.me();
+    const tags = this.tagMap(forum);
+    if (draft.name.trim() === "") throw err("invalid_input", "A wiki page needs a name.");
+    // `base` (decision O-2, engine-api.md §3.5 `wiki_edit`): the head the author edited, refused
+    // before enqueueing when the page's head is another revision (or the page has none)
+    const base = draft.base;
+    if (this.wikiRace && base !== undefined && base === tags.get(slug)?.head) {
+      // another participant's edit of the page arrived since the editor loaded it
+      this.wikiRace = false;
+      const page = this.s.wiki.get(base);
+      const other = ACTOR_DID.carol === me ? ACTOR_DID.dan : ACTOR_DID.carol;
+      this.addWikiRevision(other ?? didFor("wiki-race"), forum, slug, base, {
+        name: page?.name ?? draft.name,
+        ...(page?.description !== undefined ? { description: page.description } : {}),
+        body: {
+          markdown: `${page?.body ?? ""}\n\nAn edit made elsewhere while this page was open.`,
+          media: [],
+        },
+        isTag: page?.isTag !== false,
+        parentTags: [...(page?.parentTags ?? [])],
+        summary: "A concurrent edit",
+      });
+      this.changed({ kind: "forum", uri: forum });
+    }
+    const head = tags.get(slug)?.head;
+    if (base !== undefined && base !== head) {
+      const e = err("conflict", "This page changed since you opened it.");
+      e.detail = { kind: "wikiHeadMoved", base, ...(head !== undefined ? { head } : {}) };
+      throw e;
+    }
+    const parent = base ?? head;
+    const d = clone(draft);
+    return this.write(false, () => {
+      const uri = this.addWikiRevision(me, forum, slug, parent, d);
+      return { uri, cid: this.s.wiki.get(uri)?.cid ?? "", topics: [{ kind: "forum", uri: forum }] };
+    });
+  }
+
+  /** Writes a wiki revision of `slug` on `parent` and makes it the page's head. */
+  private addWikiRevision(
+    author: Did,
+    forum: AtUri,
+    slug: Slug,
+    parent: AtUri | undefined,
+    d: WikiDraft,
+  ): AtUri {
+    const tags = this.tagMap(forum);
+    const t = this.tick();
+    const uri = atUri(
+      author,
+      COLL.wikiRevision,
+      `${this.fkOf(forum)}-${tid(t, this.s.nextId % 1024)}`,
+    );
+    const rev: WikiRevRec = {
+      uri,
+      cid: fakeCid(`${uri}#wiki`),
+      author,
+      forum,
+      slug,
+      parents: [],
+      name: d.name,
+      isTag: d.isTag,
+      parentTags: [...(d.parentTags ?? [])],
+      createdAtMs: t,
+    };
+    const parentRec = parent !== undefined ? this.s.wiki.get(parent) : undefined;
+    if (parentRec) rev.parents = [{ uri: parentRec.uri, cid: parentRec.cid }];
+    if (d.description !== undefined) rev.description = d.description;
+    if (d.body) rev.body = d.body.markdown;
+    if (d.summary !== undefined) rev.summary = d.summary;
+    this.s.wiki.set(uri, rev);
+    const prev = tags.get(slug);
+    const rec: TagRec = {
+      slug,
+      name: d.name,
+      unmergedEdits: prev?.unmergedEdits ?? 0,
+      head: uri,
+      isTag: d.isTag,
+    };
+    if (d.description !== undefined) rec.description = d.description;
+    if (d.body) rec.page = d.body.markdown;
+    tags.set(slug, rec);
+    return uri;
+  }
+
+  private seqRec(uri: AtUri): SequenceRec {
+    const s = this.s.sequences.get(uri);
+    if (!s) throw err("not_found", `No sequence ${uri}`);
+    if (s.author !== this.me()) throw err("blocked", "You can only edit your own sequences.");
+    return s;
+  }
+
+  private seqTopics(): Topic[] {
+    return [{ kind: "forum", uri: FORUM_URI }];
+  }
+
+  async seqCreate(draft: SequenceDraft): Promise<WriteTicket> {
+    const me = this.me();
+    this.forumRec(draft.forum);
+    return this.write(false, () => {
+      const t = this.tick();
+      const uri = atUri(
+        me,
+        COLL.sequence,
+        `${this.fkOf(draft.forum)}-${tid(t, this.s.nextId % 1024)}`,
+      );
+      const rec: SequenceRec = {
+        uri,
+        author: me,
+        title: draft.title,
+        chapters: draft.chapters.map((c) => {
+          const ch: SequenceRec["chapters"][number] = { posts: [...c.posts] };
+          if (c.title !== undefined) ch.title = c.title;
+          if (c.body) ch.body = c.body.markdown;
+          return ch;
+        }),
+        base: { score: 0, agreement: 0, unweighted: 0, earlier: 0, weighted: 0 },
+        pinned: false,
+        createdAtMs: t,
+      };
+      if (draft.body) rec.body = draft.body.markdown;
+      this.s.sequences.set(uri, rec);
+      return { uri, cid: fakeCid(uri), topics: this.seqTopics() };
+    });
+  }
+
+  async seqEdit(uri: AtUri, draft: SequenceDraft): Promise<WriteTicket> {
+    const s = this.seqRec(uri);
+    return this.write(false, () => {
+      s.title = draft.title;
+      // the draft replaces the editable content: no body removes it (organisation.rs `seq_edit`)
+      if (draft.body) s.body = draft.body.markdown;
+      else delete s.body;
+      s.chapters = draft.chapters.map((c) => {
+        const ch: SequenceRec["chapters"][number] = { posts: [...c.posts] };
+        if (c.title !== undefined) ch.title = c.title;
+        if (c.body) ch.body = c.body.markdown;
+        return ch;
+      });
+      return { uri, cid: fakeCid(`${uri}@${this.tick()}`), topics: this.seqTopics() };
+    });
+  }
+
+  async seqAdd(uri: AtUri, post: AtUri, at: SequencePosition): Promise<WriteTicket> {
+    const s = this.seqRec(uri);
+    if (splitAtUri(post)?.collection !== COLL.post)
+      throw err("invalid_input", `${post} is not a post`);
+    // refused before enqueueing, as organisation.rs `seq_add` does
+    const ch = s.chapters[at.chapter];
+    if (!ch) throw err("invalid_input", "No such chapter.");
+    if (at.index > ch.posts.length) throw err("invalid_input", "No such sequence position.");
+    return this.write(false, () => {
+      ch.posts.splice(Math.min(at.index, ch.posts.length), 0, post);
+      return { uri, cid: fakeCid(`${uri}@${this.tick()}`), topics: this.seqTopics() };
+    });
+  }
+
+  async seqRemove(uri: AtUri, post: AtUri): Promise<WriteTicket> {
+    const s = this.seqRec(uri);
+    return this.write(false, () => {
+      for (const ch of s.chapters) ch.posts = ch.posts.filter((p) => p !== post);
+      return { uri, cid: fakeCid(`${uri}@${this.tick()}`), topics: this.seqTopics() };
+    });
+  }
+
+  async seqMove(uri: AtUri, from: SequencePosition, to: SequencePosition): Promise<WriteTicket> {
+    const s = this.seqRec(uri);
+    // refused before enqueueing, as organisation.rs `seq_move` does; the destination index is
+    // read after the entry is removed
+    const src = s.chapters[from.chapter];
+    const dst = s.chapters[to.chapter];
+    const room = (dst?.posts.length ?? 0) - (from.chapter === to.chapter ? 1 : 0);
+    if (!src || !dst || from.index >= src.posts.length || to.index > room) {
+      throw err("invalid_input", "No such sequence position.");
+    }
+    return this.write(false, () => {
+      const [moved] = src.posts.splice(from.index, 1);
+      if (moved !== undefined) dst.posts.splice(to.index, 0, moved);
+      return { uri, cid: fakeCid(`${uri}@${this.tick()}`), topics: this.seqTopics() };
+    });
+  }
+
+  async redactRevision(uri: AtUri): Promise<WriteTicket> {
+    const p = this.postRec(uri);
+    if (p.author !== this.me()) throw err("blocked", "You can only redact your own history.");
+    return this.write(false, () => {
+      p.revisions = p.revisions.map((r) => ({ ...r, available: false }));
+      p.redacted = true;
+      return { uri, cid: p.cid, topics: this.threadTopics(uri) };
+    });
+  }
+
+  async prepareMedia(bytes: Uint8Array | MediaFile, hints: MediaInput = {}): Promise<MediaRef> {
+    // engine API v0 passed one MediaFile (`mime` is the declared type)
+    const file = bytes instanceof Uint8Array ? null : bytes;
+    const b = file ? file.bytes : (bytes as Uint8Array);
+    const input: MediaInput = file
+      ? {
+          ...(file.mime !== undefined ? { declaredMime: file.mime } : {}),
+          ...(file.name !== undefined ? { name: file.name } : {}),
+          ...(file.alt !== undefined ? { alt: file.alt } : {}),
+        }
+      : hints;
+    // the declared type is only a hint: the sniffed one wins (data-model.md §8.8)
+    let mime = input.declaredMime ?? "application/octet-stream";
+    if (b[0] === 0x89 && b[1] === 0x50) mime = "image/png";
+    else if (b[0] === 0xff && b[1] === 0xd8) mime = "image/jpeg";
+    let digest = `${b.length}:`;
+    for (let i = 0; i < b.length; i += Math.max(1, Math.floor(b.length / 64))) digest += b[i];
+    const ref: MediaRef = {
+      id: this.nextId("media"),
+      cid: fakeBlobCid(digest),
+      mime,
+      sizeBytes: b.length,
+    };
+    // a blank alt is no alt, and writers warn when it is missing (data-model.md §4)
+    if (input.alt !== undefined && input.alt.trim() !== "") ref.alt = input.alt;
+    else ref.notices = [{ code: "missingAlt", message: MISSING_ALT }];
+    if (input.name !== undefined) ref.name = input.name;
+    return ref;
+  }
+
+  async undo(writeId: string): Promise<WriteTicket> {
+    const rec = this.writeRecs.get(writeId);
+    if (!rec) throw err("not_found", `No write ${writeId}`);
+    if (!rec.undoable || rec.state.kind !== "pending") {
+      throw err("conflict", "The undo window for this write has passed.");
+    }
+    if (rec.timer !== undefined) clearTimeout(rec.timer);
+    rec.state = { kind: "undone" };
+    this.emit({ kind: "write", id: writeId, state: { kind: "undone" } });
+    this.changed({ kind: "outbox" });
+    return { id: writeId, state: { kind: "undone" } };
+  }
+
+  async retryWrite(writeId: string): Promise<WriteTicket> {
+    const rec = this.writeRecs.get(writeId);
+    if (!rec) throw err("not_found", `No write ${writeId}`);
+    if (rec.state.kind !== "failed") {
+      throw err("conflict", "Only a failed write can be retried.");
+    }
+    rec.state = { kind: "pending" };
+    this.emit({ kind: "write", id: writeId, state: { kind: "pending" } });
+    this.changed({ kind: "outbox" });
+    rec.timer = setTimeout(() => this.send(writeId), 0);
+    return { id: writeId, state: { kind: "pending" } };
+  }
+
+  async writeStatus(writeId: string): Promise<WriteTicket | null> {
+    const rec = this.writeRecs.get(writeId);
+    return rec ? { id: rec.id, state: clone(rec.state) } : null;
+  }
+
+  async writes(): Promise<WriteTicket[]> {
+    return [...this.writeRecs.values()].map((r) => ({ id: r.id, state: clone(r.state) }));
+  }
+
+  // =============================================================================== §3.6
+
+  async markRead(uri: AtUri): Promise<void> {
+    if (this.s.forums.has(uri)) {
+      this.changed({ kind: "forum", uri });
+      return;
+    }
+    const postUri = uri;
+    const times = [...this.s.comments.values()]
+      .filter((c) => c.root === postUri)
+      .map((c) => c.tRankMs);
+    this.s.lastVisited.set(postUri, Math.max(this.now(), ...times));
+    const me = this.s.active;
+    let touched = false;
+    if (me) {
+      for (const n of this.s.notifications.get(me) ?? []) {
+        const c = this.s.comments.get(n.subject);
+        if (!n.read && (n.subject === postUri || c?.root === postUri)) {
+          n.read = true;
+          touched = true;
+        }
+      }
+    }
+    const topics: Topic[] = [
+      { kind: "thread", uri: postUri },
+      { kind: "forum", uri: FORUM_URI },
+    ];
+    if (touched) topics.push({ kind: "notifications" });
+    this.changed(...topics);
+  }
+
+  async markNotificationsRead(ids: string[]): Promise<void> {
+    const me = this.s.active;
+    if (!me) return;
+    const wanted = new Set(ids);
+    let touched = false;
+    for (const n of this.s.notifications.get(me) ?? []) {
+      if (!n.read && wanted.has(n.id)) {
+        n.read = true;
+        touched = true;
+      }
+    }
+    if (touched) this.changed({ kind: "notifications" });
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    const me = this.s.active;
+    if (!me) return;
+    await this.markNotificationsRead((this.s.notifications.get(me) ?? []).map((n) => n.id));
+  }
+
+  async saveDraft(draft: Draft): Promise<string> {
+    let id = draft.id;
+    // A new draft never takes the id of an existing one (the fixture's drafts included).
+    while (id === undefined || (draft.id === undefined && this.s.drafts.has(id))) {
+      id = this.nextId("draft");
+    }
+    const entry: DraftEntry = { id, savedAtMs: this.tick(), draft: { ...clone(draft), id } };
+    this.s.drafts.set(id, entry);
+    this.changed({ kind: "drafts" });
+    return id;
+  }
+
+  async deleteDraft(id: string): Promise<void> {
+    this.s.drafts.delete(id);
+    this.changed({ kind: "drafts" });
+  }
+
+  async bookmark(uri: AtUri, on: boolean): Promise<void> {
+    if (on) this.s.bookmarks.set(uri, { uri, savedAtMs: this.tick() });
+    else this.s.bookmarks.delete(uri);
+    this.changed({ kind: "thread", uri });
+  }
+
+  async setSubscription(subscription: Subscription, on: boolean): Promise<void> {
+    const key = JSON.stringify(subscription);
+    this.s.subscriptions = this.s.subscriptions.filter(
+      (x) => JSON.stringify(x.subscription) !== key,
+    );
+    if (on) this.s.subscriptions.push({ subscription: clone(subscription), sinceMs: this.tick() });
+    this.changed({ kind: "notifications" });
+  }
+
+  async mute(did: Did, on: boolean): Promise<void> {
+    if (on) this.s.mutes.add(did);
+    else this.s.mutes.delete(did);
+    const topics: Topic[] = [
+      { kind: "forum", uri: FORUM_URI },
+      { kind: "user", did },
+    ];
+    for (const p of this.s.posts.values()) topics.push({ kind: "thread", uri: p.uri });
+    this.changed(...topics);
+  }
+
+  async acknowledgedPublicActions(): Promise<PublicActionKind[]> {
+    if (!this.s.active) return [];
+    const seen = new Set(this.s.settings.acknowledgedPublicActions);
+    return PUBLIC_ACTION_KINDS.filter((k) => seen.has(k));
+  }
+
+  async publicActionAcknowledged(kind: PublicActionKind): Promise<boolean> {
+    return (await this.acknowledgedPublicActions()).includes(kind);
+  }
+
+  async acknowledgePublicAction(kind: PublicActionKind): Promise<void> {
+    this.me();
+    if (!this.s.settings.acknowledgedPublicActions.includes(kind)) {
+      this.s.settings.acknowledgedPublicActions.push(kind);
+    }
+    this.changed({ kind: "accounts" });
+  }
+
+  async karmaNotifications(): Promise<KarmaCadence> {
+    return this.s.settings.karmaNotifications;
+  }
+
+  async setKarmaNotifications(cadence: KarmaCadence): Promise<void> {
+    this.s.settings.karmaNotifications = cadence;
+    this.changed({ kind: "notifications" });
+  }
+
+  async settings(): Promise<Settings> {
+    return clone(this.s.settings);
+  }
+
+  async setSetting<K extends SettingKey>(key: K, value: Settings[K]): Promise<void> {
+    this.s.settings[key] = clone(value);
+  }
+
+  async exportLocal(): Promise<Json> {
+    return {
+      format: "pandoras-forum-local/1",
+      followed: [...this.s.followed].map(([uri, alias]) =>
+        alias === undefined ? { uri } : { uri, alias },
+      ),
+      lastVisited: Object.fromEntries(this.s.lastVisited),
+      seqpos: clone(Object.fromEntries(this.s.seqpos)) as unknown as Json,
+      drafts: clone([...this.s.drafts.values()]) as unknown as Json,
+      bookmarks: clone([...this.s.bookmarks.values()]) as unknown as Json,
+      subscriptions: clone(this.s.subscriptions) as unknown as Json,
+      mutes: [...this.s.mutes],
+      settings: clone(this.s.settings) as unknown as Json,
+    };
+  }
+
+  /** `scope` (`"mine"`, the default, or `"everything"`, engine-api.md §3.6): the mock has one
+   * account's state, so both import the same. */
+  async importLocal(json: Json, _scope?: "mine" | "everything"): Promise<ImportReport> {
+    if (
+      typeof json !== "object" ||
+      json === null ||
+      Array.isArray(json) ||
+      json.format !== "pandoras-forum-local/1"
+    ) {
+      throw err("invalid_input", "Not a Pandora's Forum local-state export.");
+    }
+    const j = json as unknown as {
+      followed?: { uri: string; alias?: string }[];
+      lastVisited?: Record<string, number>;
+      seqpos?: Record<string, ReadingPosition>;
+      drafts?: DraftEntry[];
+      bookmarks?: BookmarkEntry[];
+      subscriptions?: SubscriptionEntry[];
+      mutes?: string[];
+      settings?: Settings;
+    };
+    if (j.followed) this.s.followed = new Map(j.followed.map((f) => [f.uri, f.alias]));
+    if (j.lastVisited) this.s.lastVisited = new Map(Object.entries(j.lastVisited));
+    if (j.seqpos) this.s.seqpos = new Map(Object.entries(j.seqpos));
+    if (j.drafts) this.s.drafts = new Map(j.drafts.map((d) => [d.id, d]));
+    if (j.bookmarks) this.s.bookmarks = new Map(j.bookmarks.map((b) => [b.uri, b]));
+    if (j.subscriptions) this.s.subscriptions = j.subscriptions;
+    if (j.mutes) this.s.mutes = new Set(j.mutes);
+    if (j.settings) this.s.settings = { ...this.s.settings, ...j.settings };
+    this.changed({ kind: "drafts" }, { kind: "notifications" }, { kind: "forum", uri: FORUM_URI });
+    return { imported: Object.keys(j).length, outOfScope: 0, undecodable: 0 };
+  }
+
+  // =============================================================================== §3.7
+
+  async render(markdown: string, media: MediaRef[], _opts: RenderOpts): Promise<RenderedBody> {
+    const body = renderMarkdown(markdown, [RENDER_NOTICE]).body;
+    const me = this.s.active ?? "did:plc:unknown";
+    body.media = media.map((m, index) => {
+      const v: RenderedBody["media"][number] = {
+        index,
+        cid: m.cid,
+        mime: m.mime,
+        author: me,
+        pds: "https://pds.example.test",
+        autoload: false,
+        sizeBytes: m.sizeBytes,
+      };
+      if (m.alt !== undefined) v.alt = m.alt;
+      if (m.name !== undefined) v.name = m.name;
+      return v;
+    });
+    return body;
+  }
+
+  async safeHref(raw: string, ctx: HrefContext): Promise<Href | null> {
+    return safeHref(raw, ctx);
+  }
+
+  async validateRecord(collection: string, json: Json): Promise<ValidationReport> {
+    if (typeof json !== "object" || json === null || Array.isArray(json)) {
+      return { valid: false, errors: ["G1"] };
+    }
+    if (json.$type !== collection) return { valid: false, errors: ["G1"] };
+    return { valid: true, errors: [] };
+  }
+
+  async deriveRkey(input: RkeyInput): Promise<string> {
+    switch (input.kind) {
+      case "membership":
+        return this.fkOf(input.forum);
+      case "post":
+        return `${this.fkOf(input.forum)}-${input.tid}`;
+      case "comment": {
+        const rkey = splitAtUri(input.root)?.rkey;
+        if (!rkey) throw err("invalid_input", "Invalid root.");
+        return `${rkey}-${input.tid}`;
+      }
+      case "opinion": {
+        const p = splitAtUri(input.subject);
+        const stid =
+          p?.collection === COLL.post
+            ? p.rkey.slice(13)
+            : p?.collection === COLL.comment
+              ? p.rkey.slice(13, 26)
+              : "~";
+        return `${this.fkOf(input.forum)}-${stid}-${b32hash(`opinion:${input.subject}`, 16)}`;
+      }
+      case "modAction":
+        return `${this.fkOf(input.forum)}-${b32hash(`modAction:${input.scope}:${input.subject}:${input.actionKey}`, 16)}`;
+      case "revision": {
+        const p = splitAtUri(input.subject);
+        if (!p) throw err("invalid_input", "Invalid subject.");
+        return `${p.collection === COLL.forum ? this.fkOf(input.subject) : p.rkey}-${input.tid}`;
+      }
+    }
+  }
+
+  async verify(uri: AtUri, _deep: boolean): Promise<VerifyReport> {
+    const exists = this.s.posts.has(uri) || this.s.comments.has(uri) || this.s.forums.has(uri);
+    const rev = tid(this.now(), 1);
+    const report: VerifyReport = {
+      dto: DTO_VERSION,
+      uri,
+      result: exists ? "proven" : "absent",
+      keySource: "plc (mock)",
+      checks: [
+        { name: "identity document", ok: true, detail: "resolved from the mock directory" },
+        { name: "commit signature", ok: exists },
+        { name: "MST path", ok: exists },
+        { name: "record CID", ok: exists },
+      ],
+    };
+    if (exists) {
+      report.rev = rev;
+      report.commitCid = fakeCid(`commit:${uri}`);
+    }
+    return report;
+  }
+
+  async runVector(kind: string, _json: Json): Promise<Json> {
+    throw err("unsupported", `The mock engine has no ${kind} vectors.`);
+  }
+
+  // =============================================================================== §3.8
+
+  subscribe(listener: EventListener): Unsubscribe {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+}
+
+/** Creates a mock engine with the default fixture. */
+export function createMockEngine(opts: MockEngineOptions = {}): MockEngine {
+  return new MockEngine(opts);
+}

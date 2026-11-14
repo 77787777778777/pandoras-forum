@@ -1,0 +1,1840 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! The durable outbox against the fake network (`data-model.md` §8, `sync.md` §7, ADR 0005).
+
+mod common;
+
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
+
+use common::block_on;
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_core::dto::{WriteState, WriteTicket};
+use pandoras_forum_core::engine::ErrorCode;
+use pandoras_forum_core::host::{KvOp, KvStore};
+use pandoras_forum_core::outbox::model::{self, OUTBOX_ROW_VERSION};
+use pandoras_forum_core::outbox::{
+    BudgetRow, ContentOpts, Counted, EditOpts, Intent, NewWrite, Op, OpinionStep, Outbox,
+    PendingWrite, Session, Step, WriteStage, records,
+};
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_core::store::row;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::{Action, HideAction, ModAction, Post};
+use pandoras_forum_testkit::fake_pds::{AccountHandle, Fault};
+use pandoras_forum_testkit::{FakeNet, MemHost};
+use serde_json::{Value, json};
+
+const APPLY: &str = "com.atproto.repo.applyWrites";
+const PUT: &str = "com.atproto.repo.putRecord";
+const CREATE: &str = "com.atproto.repo.createRecord";
+const DELETE: &str = "com.atproto.repo.deleteRecord";
+const HEAD: &str = "com.atproto.sync.getLatestCommit";
+
+struct World {
+    host: MemHost,
+    net: FakeNet,
+    alice: AccountHandle,
+    bob: AccountHandle,
+    session: Session,
+    ob: Outbox<MemHost>,
+}
+
+fn world() -> World {
+    let host = MemHost::new();
+    let net = FakeNet::on(&host);
+    let alice = net.add_account("alice.example.com");
+    let bob = net.add_account("bob.example.com");
+    let session = Session::parse(alice.did().as_str(), &alice.pds_base()).unwrap();
+    let ob = Outbox::new(Arc::new(host.clone()));
+    World {
+        host,
+        net,
+        alice,
+        bob,
+        session,
+        ob,
+    }
+}
+
+impl World {
+    fn forum(&self) -> AtUri {
+        AtUri::parse(&format!(
+            "at://{}/{}/rationality",
+            self.bob.did(),
+            nsid::FORUM
+        ))
+        .unwrap()
+    }
+
+    fn now(&self) -> Datetime {
+        Datetime::from_millis(self.host.now()).unwrap()
+    }
+
+    fn post(&self, title: &str) -> Post {
+        Post::article(self.forum(), title, "body", self.now())
+    }
+
+    fn fk(&self) -> String {
+        keys::fk(self.forum().as_str()).unwrap()
+    }
+
+    fn userpds(&self, nsid: &str) -> String {
+        format!("userpds://{}/xrpc/{nsid}", self.alice.did())
+    }
+
+    /// Bodies of the write requests to `nsid` this host sent.
+    fn bodies(&self, nsid: &str) -> Vec<Value> {
+        self.host
+            .requests_to(&self.userpds(nsid))
+            .into_iter()
+            .map(|r| serde_json::from_slice(r.body.as_deref().unwrap()).unwrap())
+            .collect()
+    }
+
+    fn run(&self) {
+        block_on(self.ob.run_until_idle(&self.session)).unwrap();
+    }
+
+    fn ticket(&self, t: &WriteTicket) -> WriteTicket {
+        block_on(self.ob.ticket(&t.id)).unwrap().unwrap()
+    }
+
+    /// Publishes a post and runs the outbox; `(uri, cid)`.
+    fn seed_post(&self, title: &str) -> (String, String) {
+        let t = block_on(self.ob.create_post(
+            &self.session,
+            &self.post(title),
+            ContentOpts::default(),
+        ))
+        .unwrap();
+        self.run();
+        done(&self.ticket(&t))
+    }
+
+    fn cached(&self, uri: &str) -> bool {
+        let u = AtUri::parse(uri).unwrap();
+        block_on(RecordStore::new(self.host.cache_kv()).get(&u))
+            .unwrap()
+            .is_some()
+    }
+}
+
+fn done(t: &WriteTicket) -> (String, String) {
+    match &t.state {
+        WriteState::Done { uri, cid, .. } => (uri.clone(), cid.clone().unwrap_or_default()),
+        other => panic!("write {} is {other:?}", t.id),
+    }
+}
+
+fn failed_code(t: &WriteTicket) -> ErrorCode {
+    match &t.state {
+        WriteState::Failed { error } => error.code,
+        other => panic!("write {} is {other:?}", t.id),
+    }
+}
+
+fn rkey_of(uri: &str) -> String {
+    uri.rsplit('/').next().unwrap().to_owned()
+}
+
+fn tid(ms_ago: u64, n: u64) -> String {
+    let micros = (pandoras_forum_testkit::memhost::DEFAULT_NOW_MS as u64 - ms_ago) * 1000 + n;
+    Tid::from_parts(micros, 7).unwrap().as_str().to_owned()
+}
+
+// ---------------------------------------------------------------------------------------------
+// Persistence, first content, crash safety
+
+#[test]
+fn first_content_includes_membership_only_when_absent() {
+    let w = world();
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    // persisted before any network call
+    assert_eq!(
+        t.state,
+        WriteState::Pending {
+            not_before_ms: None,
+            held: false,
+            throttled: false,
+            needs_login: false,
+            error: None,
+        }
+    );
+    assert_eq!(w.net.count(APPLY), 0);
+    let stored = block_on(w.ob.get(&t.id)).unwrap().unwrap();
+    assert_eq!(stored.intent, Intent::FirstContent);
+    assert_eq!(stored.state, WriteStage::Queued);
+
+    let heads_before = w.net.count(HEAD);
+    w.run();
+    let (uri, cid) = done(&w.ticket(&t));
+    assert_eq!(
+        w.alice.cid(nsid::POST, &rkey_of(&uri)).unwrap().to_string(),
+        cid
+    );
+    assert!(w.alice.get(nsid::MEMBERSHIP, &w.fk()).is_some());
+    let bodies = w.bodies(APPLY);
+    assert_eq!(bodies.len(), 1);
+    let writes = bodies[0]["writes"].as_array().unwrap();
+    assert_eq!(writes.len(), 2, "membership + post");
+    assert_eq!(writes[0]["collection"], nsid::MEMBERSHIP);
+    assert_eq!(writes[1]["collection"], nsid::POST);
+    assert!(bodies[0]["swapCommit"].is_string());
+    assert!(
+        w.net.count(HEAD) > heads_before,
+        "a fresh head per applyWrites"
+    );
+    // applied optimistically to the record store
+    assert!(w.cached(&uri));
+    let membership = format!("at://{}/{}/{}", w.alice.did(), nsid::MEMBERSHIP, w.fk());
+    assert!(w.cached(&membership));
+
+    // the store now shows the membership: a plain createRecord
+    let t2 =
+        block_on(w.ob.create_post(&w.session, &w.post("two"), ContentOpts::default())).unwrap();
+    w.run();
+    done(&w.ticket(&t2));
+    assert_eq!(w.net.count(CREATE), 1);
+    assert_eq!(w.net.count(APPLY), 1);
+}
+
+#[test]
+fn first_content_skips_a_membership_the_pds_has() {
+    let w = world();
+    // made on another device: the PDS has it, the local store does not
+    let m = records::membership(&w.forum(), None, &w.now()).unwrap();
+    w.alice.put(nsid::MEMBERSHIP, &m.rkey, &m.value);
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    let bodies = w.bodies(APPLY);
+    assert_eq!(bodies[0]["writes"].as_array().unwrap().len(), 1);
+    assert_eq!(bodies[0]["writes"][0]["collection"], nsid::POST);
+}
+
+#[test]
+fn first_content_500_retries_once_without_the_membership() {
+    let w = world();
+    let calls = Arc::new(AtomicU32::new(0));
+    {
+        let (net, alice, calls) = (w.net.clone(), w.alice.clone(), Arc::clone(&calls));
+        let m = records::membership(&w.forum(), None, &w.now()).unwrap();
+        w.host.on_post(&w.userpds(APPLY), move |req| {
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                // another device joined meanwhile: the batch's membership create fails the
+                // whole batch with a 500 (ADR 0005)
+                alice.put(nsid::MEMBERSHIP, &m.rkey, &m.value);
+                return Ok(pandoras_forum_testkit::resp::xrpc_error(
+                    500,
+                    "InternalServerError",
+                    "Internal Server Error",
+                ));
+            }
+            net.request(req, "default")
+        });
+    }
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    w.run();
+    let (uri, _) = done(&w.ticket(&t));
+    assert!(w.alice.get(nsid::POST, &rkey_of(&uri)).is_some());
+    let bodies = w.bodies(APPLY);
+    assert_eq!(bodies.len(), 2);
+    assert_eq!(bodies[0]["writes"].as_array().unwrap().len(), 2);
+    assert_eq!(bodies[1]["writes"].as_array().unwrap().len(), 1);
+    assert_eq!(bodies[1]["writes"][0]["collection"], nsid::POST);
+    assert_ne!(
+        bodies[0]["swapCommit"], bodies[1]["swapCommit"],
+        "re-read head"
+    );
+}
+
+#[test]
+fn ambiguous_500_backs_off_then_completes() {
+    let w = world();
+    w.net.inject(Fault::status(500).on_nsid(APPLY).once());
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    let r = block_on(w.ob.run_due(&w.session)).unwrap();
+    assert_eq!(r.throttled, 1);
+    let pending = w.ticket(&t);
+    let WriteState::Pending {
+        throttled: true,
+        not_before_ms: Some(at),
+        ..
+    } = pending.state
+    else {
+        panic!("{pending:?}")
+    };
+    assert!(at > w.host.now());
+    let stored = block_on(w.ob.get(&t.id)).unwrap().unwrap();
+    assert!(stored.sent);
+    assert!(stored.error.unwrap().retryable);
+    w.run();
+    done(&w.ticket(&t));
+    assert_eq!(w.net.count(APPLY), 2);
+}
+
+/// Runs the outbox until a route panics (a crash), returning the panic.
+fn crash(w: &World) {
+    let ob = w.ob.clone();
+    let s = w.session.clone();
+    let r = catch_unwind(AssertUnwindSafe(|| block_on(ob.run_until_idle(&s))));
+    assert!(r.is_err(), "the simulated crash did not happen");
+}
+
+/// A new process over the same stores, with the network routes back.
+fn restart(w: &World) -> Outbox<MemHost> {
+    w.host.clear_routes();
+    w.net.install(&w.host);
+    Outbox::new(Arc::new(w.host.clone()))
+}
+
+#[test]
+fn crash_after_send_resumes_without_resending() {
+    let w = world();
+    {
+        let net = w.net.clone();
+        w.host.on_post(&w.userpds(APPLY), move |req| {
+            let _ = net.request(req, "default");
+            panic!("simulated crash after the PDS applied the write");
+        });
+    }
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    crash(&w);
+    assert_eq!(w.net.count(APPLY), 1);
+    let stored = block_on(w.ob.get(&t.id)).unwrap().unwrap();
+    assert_eq!(
+        stored.state,
+        WriteStage::Sending,
+        "persisted before the send"
+    );
+    assert_eq!(stored.attempts, 1);
+
+    let ob = restart(&w);
+    block_on(ob.run_until_idle(&w.session)).unwrap();
+    let t = block_on(ob.ticket(&t.id)).unwrap().unwrap();
+    let (uri, cid) = done(&t);
+    assert_eq!(
+        w.net.count(APPLY),
+        1,
+        "recognised by its CID, not sent again"
+    );
+    assert_eq!(
+        w.alice.cid(nsid::POST, &rkey_of(&uri)).unwrap().to_string(),
+        cid
+    );
+    assert!(w.cached(&uri));
+}
+
+#[test]
+fn crash_before_send_resends_after_restart() {
+    let w = world();
+    w.host.on_post(&w.userpds(APPLY), move |_| {
+        panic!("simulated crash before the request left");
+    });
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    crash(&w);
+    assert_eq!(w.net.count(APPLY), 0);
+    let ob = restart(&w);
+    let r = block_on(ob.run_until_idle(&w.session)).unwrap();
+    assert_eq!(r.done, 1);
+    let t = block_on(ob.ticket(&t.id)).unwrap().unwrap();
+    let (uri, _) = done(&t);
+    assert_eq!(w.net.count(APPLY), 1);
+    assert!(w.alice.get(nsid::POST, &rkey_of(&uri)).is_some());
+}
+
+// ---------------------------------------------------------------------------------------------
+// Edit protocol
+
+#[test]
+fn edit_retries_invalid_swap_with_jitter() {
+    let w = world();
+    let (uri, base) = w.seed_post("one");
+    let old = w.alice.get(nsid::POST, &rkey_of(&uri)).unwrap();
+    w.host.clear_requests();
+    w.net.inject(
+        Fault::error(400, "InvalidSwap", "Commit was at bafyrei")
+            .on_nsid(APPLY)
+            .once(),
+    );
+    let mut new = old.clone();
+    new["title"] = json!("one, edited");
+    let sleeps = w.host.sleeps().len();
+    let heads = w.net.count(HEAD);
+    let t = block_on(w.ob.edit(
+        &w.session,
+        &uri,
+        &new,
+        &base,
+        EditOpts {
+            summary: Some("typo".into()),
+            ..EditOpts::default()
+        },
+    ))
+    .unwrap();
+    w.run();
+    let (_, cid) = done(&w.ticket(&t));
+    assert_eq!(
+        w.alice.cid(nsid::POST, &rkey_of(&uri)).unwrap().to_string(),
+        cid
+    );
+    assert_eq!(
+        w.alice.get(nsid::POST, &rkey_of(&uri)).unwrap()["title"],
+        "one, edited"
+    );
+    // two attempts, each after a fresh head, with one jittered wait between them
+    let bodies = w.bodies(APPLY);
+    assert_eq!(bodies.len(), 2);
+    assert!(w.net.count(HEAD) >= heads + 2);
+    let waits = &w.host.sleeps()[sleeps..];
+    assert_eq!(waits.len(), 1);
+    assert!((200..=800).contains(&waits[0]), "{waits:?}");
+    // the revision snapshots the old value verbatim
+    let writes = bodies[1]["writes"].as_array().unwrap();
+    assert_eq!(writes[0]["collection"], nsid::REVISION);
+    assert_eq!(writes[1]["$type"], "com.atproto.repo.applyWrites#update");
+    let rev_key = writes[0]["rkey"].as_str().unwrap();
+    let p = keys::revision_prefix(NS, &uri).unwrap();
+    assert!(rev_key.starts_with(&format!("{p}-")));
+    let rev = w.alice.get(nsid::REVISION, rev_key).unwrap();
+    assert_eq!(rev["subject"], json!({"uri": uri, "cid": base}));
+    assert_eq!(rev["op"], "update");
+    assert_eq!(rev["record"], old);
+    assert_eq!(rev["summary"], "typo");
+}
+
+#[test]
+fn edit_of_a_changed_record_is_a_conflict() {
+    let w = world();
+    let (uri, base) = w.seed_post("one");
+    let rkey = rkey_of(&uri);
+    let old = w.alice.get(nsid::POST, &rkey).unwrap();
+    // edited elsewhere before this edit is sent
+    let mut other = old.clone();
+    other["title"] = json!("edited elsewhere");
+    w.alice.put(nsid::POST, &rkey, &other);
+    let mut new = old.clone();
+    new["title"] = json!("mine");
+    let t = block_on(w.ob.edit(&w.session, &uri, &new, &base, EditOpts::default())).unwrap();
+    let applies = w.net.count(APPLY);
+    w.run();
+    let t = w.ticket(&t);
+    assert_eq!(failed_code(&t), ErrorCode::Conflict);
+    let WriteState::Failed { error } = &t.state else {
+        unreachable!()
+    };
+    assert_eq!(
+        error.detail.as_ref().unwrap()["currentCid"],
+        w.alice.cid(nsid::POST, &rkey).unwrap().to_string()
+    );
+    assert_eq!(w.net.count(APPLY), applies, "nothing sent");
+    assert_eq!(
+        w.alice.get(nsid::POST, &rkey).unwrap()["title"],
+        "edited elsewhere"
+    );
+}
+
+#[test]
+fn edit_racing_another_write_ends_in_conflict_not_overwrite() {
+    let w = world();
+    let (uri, base) = w.seed_post("one");
+    let rkey = rkey_of(&uri);
+    let old = w.alice.get(nsid::POST, &rkey).unwrap();
+    {
+        let (net, alice, rkey, old) = (w.net.clone(), w.alice.clone(), rkey.clone(), old.clone());
+        let calls = Arc::new(AtomicU32::new(0));
+        w.host.on_post(&w.userpds(APPLY), move |req| {
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                // another device edits between our head read and our applyWrites
+                let mut v = old.clone();
+                v["title"] = json!("raced");
+                alice.put(nsid::POST, &rkey, &v);
+            }
+            net.request(req, "default")
+        });
+    }
+    let mut new = old.clone();
+    new["title"] = json!("mine");
+    w.host.clear_requests();
+    let t = block_on(w.ob.edit(&w.session, &uri, &new, &base, EditOpts::default())).unwrap();
+    w.run();
+    assert_eq!(failed_code(&w.ticket(&t)), ErrorCode::Conflict);
+    assert_eq!(w.alice.get(nsid::POST, &rkey).unwrap()["title"], "raced");
+    assert_eq!(
+        w.bodies(APPLY).len(),
+        1,
+        "the swap failed; the re-read found the change"
+    );
+}
+
+#[test]
+fn no_history_edit_is_a_compare_and_swap_put() {
+    let w = world();
+    let (uri, base) = w.seed_post("one");
+    let rkey = rkey_of(&uri);
+    let mut new = w.alice.get(nsid::POST, &rkey).unwrap();
+    new["title"] = json!("quiet fix");
+    let opts = EditOpts {
+        history: false,
+        ..EditOpts::default()
+    };
+    let t = block_on(w.ob.edit(&w.session, &uri, &new, &base, opts.clone())).unwrap();
+    w.run();
+    let (_, cid) = done(&w.ticket(&t));
+    let puts = w.bodies(PUT);
+    assert_eq!(puts.len(), 1);
+    assert_eq!(puts[0]["swapRecord"], base);
+    assert!(w.alice.list(nsid::REVISION).is_empty());
+    // W5: an update sets updatedAt and keeps createdAt
+    let now = w.alice.get(nsid::POST, &rkey).unwrap();
+    assert!(now["updatedAt"].is_string());
+    assert_eq!(now["createdAt"], new["createdAt"]);
+    // a stale base is a conflict
+    new["title"] = json!("stale");
+    let t = block_on(w.ob.edit(&w.session, &uri, &new, &base, opts)).unwrap();
+    w.run();
+    assert_eq!(failed_code(&w.ticket(&t)), ErrorCode::Conflict);
+    assert_eq!(w.alice.cid(nsid::POST, &rkey).unwrap().to_string(), cid);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Opinions: hold, coalescing, undo, two devices
+
+fn subject(w: &World) -> (String, String) {
+    let rkey = format!("{}-{}", w.fk(), tid(60_000, 0));
+    let v = Post::article(w.forum(), "bob's", "hi", w.now());
+    let cid = w
+        .bob
+        .put(nsid::POST, &rkey, &serde_json::to_value(v).unwrap());
+    (w.bob.uri(nsid::POST, &rkey), cid.to_string())
+}
+
+fn karma(v: &str) -> OpinionStep {
+    OpinionStep::Karma {
+        value: Some(v.into()),
+    }
+}
+
+fn react(id: &str, remove: bool) -> OpinionStep {
+    OpinionStep::React {
+        id: id.into(),
+        stance: "for".into(),
+        quote: None,
+        remove,
+    }
+}
+
+fn opinion_rkey(w: &World, subject: &str) -> String {
+    records::opinion_rkey(w.forum().as_str(), subject).unwrap()
+}
+
+fn react_ids(v: &Value) -> Vec<String> {
+    v["reacts"]
+        .as_array()
+        .map(|a| {
+            a.iter()
+                .map(|r| r["react"].as_str().unwrap().to_owned())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+#[test]
+fn opinions_are_held_coalesced_and_written_once() {
+    let w = world();
+    let (s, scid) = subject(&w);
+    let f = w.forum();
+    let op = |step| block_on(w.ob.opinion(&w.session, f.as_str(), &s, &scid, step)).unwrap();
+    let t1 = op(react("funny", false));
+    let WriteState::Pending {
+        held: true,
+        not_before_ms: Some(until),
+        ..
+    } = t1.state
+    else {
+        panic!("{t1:?}")
+    };
+    assert_eq!(until, w.host.now() + 4_000);
+    // nothing is sent during the hold
+    assert_eq!(block_on(w.ob.run_due(&w.session)).unwrap().processed, 0);
+    w.host.advance_ms(1_000);
+    let t2 = op(react("wise", false));
+    let t3 = op(react("funny", true));
+    let t4 = op(karma("up"));
+    assert_eq!(t2.id, t1.id);
+    assert_eq!(t3.id, t1.id);
+    assert_eq!(t4.id, t1.id);
+    w.run();
+    done(&w.ticket(&t1));
+    assert_eq!(
+        w.net.count(PUT) + w.net.count(CREATE),
+        1,
+        "one write for four intents"
+    );
+    let v = w.alice.get(nsid::OPINION, &opinion_rkey(&w, &s)).unwrap();
+    assert_eq!(react_ids(&v), vec!["wise"]);
+    assert_eq!(v["karma"], "up");
+    assert_eq!(v["subject"]["cid"], scid);
+    // the hold ran from the last intent
+    assert!(w.host.now() >= until + 1_000);
+}
+
+#[test]
+fn undo_within_the_window_removes_the_write() {
+    let w = world();
+    let (s, scid) = subject(&w);
+    let f = w.forum();
+    let t = block_on(w.ob.opinion(&w.session, f.as_str(), &s, &scid, karma("up"))).unwrap();
+    let u = block_on(w.ob.undo(&w.session, &t.id)).unwrap();
+    assert_eq!(u.id, t.id);
+    assert_eq!(u.state, WriteState::Undone);
+    w.run();
+    assert_eq!(w.net.count(PUT) + w.net.count(CREATE), 0);
+    assert!(w.alice.get(nsid::OPINION, &opinion_rkey(&w, &s)).is_none());
+    // undoing again is idempotent
+    assert_eq!(
+        block_on(w.ob.undo(&w.session, &t.id)).unwrap().state,
+        WriteState::Undone
+    );
+}
+
+#[test]
+fn undo_after_sending_restores_the_prior_opinion() {
+    let w = world();
+    let (s, scid) = subject(&w);
+    let f = w.forum();
+    let op = |step| block_on(w.ob.opinion(&w.session, f.as_str(), &s, &scid, step)).unwrap();
+    let rkey = opinion_rkey(&w, &s);
+    // prior: a react
+    let t0 = op(react("funny", false));
+    w.run();
+    done(&w.ticket(&t0));
+    // karma up, sent
+    let t1 = op(karma("up"));
+    w.run();
+    done(&w.ticket(&t1));
+    assert_eq!(w.alice.get(nsid::OPINION, &rkey).unwrap()["karma"], "up");
+    // undo issues the inverse as a new write
+    let u = block_on(w.ob.undo(&w.session, &t1.id)).unwrap();
+    assert_ne!(u.id, t1.id);
+    let inv = block_on(w.ob.get(&u.id)).unwrap().unwrap();
+    assert_eq!(inv.undo_of.as_deref(), Some(t1.id.as_str()));
+    w.run();
+    done(&w.ticket(&u));
+    let v = w.alice.get(nsid::OPINION, &rkey).unwrap();
+    assert!(v.get("karma").is_none());
+    assert_eq!(react_ids(&v), vec!["funny"]);
+    // undoing the very first opinion empties it: the record is deleted
+    let u0 = block_on(w.ob.undo(&w.session, &t0.id)).unwrap();
+    w.run();
+    done(&w.ticket(&u0));
+    assert!(w.alice.get(nsid::OPINION, &rkey).is_none());
+    assert_eq!(w.net.count(DELETE), 1);
+    // a sent post cannot be undone
+    let (uri, _) = w.seed_post("p");
+    let posts = block_on(w.ob.writes(w.alice.did().as_str())).unwrap();
+    let id = posts
+        .iter()
+        .find(|p| p.primary_uri().as_deref() == Some(uri.as_str()))
+        .unwrap()
+        .id();
+    assert_eq!(
+        block_on(w.ob.undo(&w.session, &id)).unwrap_err().code,
+        ErrorCode::InvalidInput
+    );
+}
+
+#[test]
+fn opinions_from_two_devices_merge() {
+    let w = world();
+    let (s, scid) = subject(&w);
+    let f = w.forum();
+    // device B: its own host (stores, clock), same account and network
+    let hb = MemHost::new();
+    hb.set_now_ms(w.host.now());
+    hb.set_seed(9);
+    w.net.install_as(&hb, "b");
+    let ob_b = Outbox::new(Arc::new(hb.clone()));
+    let rkey = opinion_rkey(&w, &s);
+
+    let ta = block_on(w.ob.opinion(&w.session, f.as_str(), &s, &scid, karma("up"))).unwrap();
+    let tb =
+        block_on(ob_b.opinion(&w.session, f.as_str(), &s, &scid, react("funny", false))).unwrap();
+    w.run();
+    block_on(ob_b.run_until_idle(&w.session)).unwrap();
+    done(&w.ticket(&ta));
+    done(&block_on(ob_b.ticket(&tb.id)).unwrap().unwrap());
+    let v = w.alice.get(nsid::OPINION, &rkey).unwrap();
+    assert_eq!(v["karma"], "up");
+    assert_eq!(react_ids(&v), vec!["funny"]);
+
+    // a race: B writes between A's read and A's put; A's swap fails, A re-reads and re-applies
+    {
+        let (net, alice, rkey, prior) = (w.net.clone(), w.alice.clone(), rkey.clone(), v.clone());
+        let calls = Arc::new(AtomicU32::new(0));
+        w.host.on_post(&w.userpds(PUT), move |req| {
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                let mut b = prior.clone();
+                b["reacts"]
+                    .as_array_mut()
+                    .unwrap()
+                    .push(json!({"react": "wise", "stance": "for"}));
+                alice.put(nsid::OPINION, &rkey, &b);
+            }
+            net.request(req, "default")
+        });
+    }
+    let sleeps = w.host.sleeps().len();
+    w.host.clear_requests();
+    let ta = block_on(w.ob.opinion(
+        &w.session,
+        f.as_str(),
+        &s,
+        &scid,
+        react("insightful", false),
+    ))
+    .unwrap();
+    w.run();
+    done(&w.ticket(&ta));
+    let v = w.alice.get(nsid::OPINION, &rkey).unwrap();
+    assert_eq!(
+        react_ids(&v),
+        vec!["funny", "wise", "insightful"],
+        "deterministic order"
+    );
+    assert_eq!(v["karma"], "up");
+    assert_eq!(w.bodies(PUT).len(), 2);
+    assert!(
+        w.host.sleeps()[sleeps..]
+            .iter()
+            .any(|ms| (200..=800).contains(ms))
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Delete protocol
+
+#[test]
+fn delete_sends_the_target_first_in_chunks_of_200() {
+    let w = world();
+    let (uri, cid) = w.seed_post("doomed");
+    let (other, _) = w.seed_post("kept");
+    let p = keys::revision_prefix(NS, &uri).unwrap();
+    let rev = |subject: &str, n: u64| {
+        json!({
+            "$type": nsid::REVISION,
+            "subject": {"uri": subject, "cid": cid},
+            "op": "update",
+            "record": {"$type": nsid::POST, "n": n},
+            "createdAt": "2026-01-01T00:00:00.000Z",
+        })
+    };
+    let revs: Vec<String> = (0..450)
+        .map(|i| format!("{p}-{}", tid(3_600_000, i)))
+        .collect();
+    let spoof = format!("{p}-{}", tid(3_600_000, 999));
+    let nested = format!("{p}-{}-{}", tid(3_600_000, 1_000), tid(3_600_000, 1_001));
+    let comment = format!(
+        "at://{}/{}/{p}-{}",
+        w.alice.did(),
+        nsid::COMMENT,
+        tid(3_600_000, 1_002)
+    );
+    let of_comment = format!("{p}-{}-{}", tid(3_600_000, 1_002), tid(3_600_000, 1_003));
+    w.alice.batch(|wr| {
+        for (i, k) in revs.iter().enumerate() {
+            wr.put(nsid::REVISION, k, &rev(&uri, i as u64));
+        }
+        // same prefix, another subject: kept (§3.2)
+        wr.put(nsid::REVISION, &spoof, &rev(&other, 0));
+        // a comment's revision under the post's prefix: kept
+        wr.put(nsid::REVISION, &of_comment, &rev(&comment, 0));
+        // not exactly P + "-" + TID, but it names the target: invalid history, deleted (§8.7)
+        wr.put(nsid::REVISION, &nested, &rev(&uri, 1));
+    });
+    w.host.clear_requests();
+    let t = block_on(w.ob.delete(&w.session, &uri)).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    let bodies = w.bodies(APPLY);
+    let sizes: Vec<usize> = bodies
+        .iter()
+        .map(|b| b["writes"].as_array().unwrap().len())
+        .collect();
+    assert_eq!(sizes, vec![200, 200, 52]);
+    let first = &bodies[0]["writes"][0];
+    assert_eq!(first["$type"], "com.atproto.repo.applyWrites#delete");
+    assert_eq!(first["collection"], nsid::POST);
+    assert_eq!(first["rkey"], rkey_of(&uri));
+    assert!(bodies.iter().all(|b| b.get("swapCommit").is_none()));
+    assert!(w.alice.get(nsid::POST, &rkey_of(&uri)).is_none());
+    let left: Vec<String> = w
+        .alice
+        .list(nsid::REVISION)
+        .into_iter()
+        .map(|(k, _)| k)
+        .collect();
+    let mut want = vec![spoof, of_comment];
+    want.sort();
+    let mut left_sorted = left.clone();
+    left_sorted.sort();
+    assert_eq!(left_sorted, want);
+    assert!(!w.cached(&uri), "tombstoned in the store");
+}
+
+#[test]
+fn a_partial_delete_keeps_retrying_the_orphans() {
+    let w = world();
+    let (uri, cid) = w.seed_post("doomed");
+    let p = keys::revision_prefix(NS, &uri).unwrap();
+    w.alice.batch(|wr| {
+        for i in 0..250 {
+            wr.put(
+                nsid::REVISION,
+                &format!("{p}-{}", tid(3_600_000, i)),
+                &json!({
+                    "$type": nsid::REVISION,
+                    "subject": {"uri": uri, "cid": cid},
+                    "op": "update",
+                    "record": {"n": i},
+                    "createdAt": "2026-01-01T00:00:00.000Z",
+                }),
+            );
+        }
+    });
+    // the second chunk fails ambiguously
+    w.net
+        .inject(Fault::status(502).on_nsid(APPLY).after(1).once());
+    let t = block_on(w.ob.delete(&w.session, &uri)).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert!(w.alice.get(nsid::POST, &rkey_of(&uri)).is_none());
+    assert!(w.alice.list(nsid::REVISION).is_empty());
+}
+
+// ---------------------------------------------------------------------------------------------
+// Budget and rate limits
+
+#[test]
+fn a_429_throttles_until_retry_after() {
+    let w = world();
+    w.net.inject(Fault::rate_limited(30).on_nsid(APPLY).once());
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    let start = w.host.now();
+    let r = block_on(w.ob.run_due(&w.session)).unwrap();
+    assert_eq!(r.throttled, 1);
+    let WriteState::Pending {
+        throttled: true,
+        not_before_ms: Some(until),
+        ..
+    } = w.ticket(&t).state
+    else {
+        panic!()
+    };
+    assert!(until >= start + 30_000, "{until} vs {start}");
+    let budget = block_on(w.ob.budget(w.alice.did().as_str())).unwrap();
+    assert!(budget.blocked_until >= start + 30_000);
+    // nothing is sent before then
+    assert_eq!(block_on(w.ob.step(&w.session)).unwrap(), Step::Wait(until));
+    w.run();
+    done(&w.ticket(&t));
+    assert!(w.host.now() >= until);
+    assert_eq!(w.net.count(APPLY), 2);
+}
+
+#[test]
+fn the_write_budget_throttles_before_sending() {
+    let w = world();
+    let did = w.alice.did().as_str().to_owned();
+    let now = w.host.now();
+    let bucket = now - now.rem_euclid(pandoras_forum_core::outbox::budget::BUCKET_MS);
+    let row = BudgetRow {
+        spent: vec![(bucket, 4_998)],
+        ..BudgetRow::default()
+    };
+    block_on(w.host.state_kv().write(vec![KvOp::Put(
+        model::budget_key(&did),
+        row::encode(&row).unwrap(),
+    )]))
+    .unwrap();
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    assert!(matches!(
+        block_on(w.ob.step(&w.session)).unwrap(),
+        Step::Wait(_)
+    ));
+    let WriteState::Pending {
+        throttled: true,
+        not_before_ms: Some(until),
+        ..
+    } = w.ticket(&t).state
+    else {
+        panic!()
+    };
+    let hour = pandoras_forum_core::outbox::budget::HOUR_MS;
+    assert_eq!(
+        until,
+        bucket + pandoras_forum_core::outbox::budget::BUCKET_MS + hour
+    );
+    assert_eq!(w.net.count(APPLY), 0);
+    w.run();
+    done(&w.ticket(&t));
+    let b = block_on(w.ob.budget(&did)).unwrap();
+    assert_eq!(b.window_points(w.host.now(), hour), 6, "two creates");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Create-if-absent, blobs, moderation, W9
+
+#[test]
+fn join_falls_back_to_create_record_on_hosts_without_null_swap() {
+    let w = world();
+    w.net.inject(
+        Fault::error(400, "InvalidRequest", "swapRecord must be a cid")
+            .on_nsid(PUT)
+            .once(),
+    );
+    let t = block_on(w.ob.join(&w.session, &w.forum(), Some("hello"))).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert_eq!((w.net.count(PUT), w.net.count(CREATE)), (1, 1));
+    assert_eq!(
+        w.alice.get(nsid::MEMBERSHIP, &w.fk()).unwrap()["note"],
+        "hello"
+    );
+    // remembered for the host; an existing record (createRecord 500) is success
+    let t = block_on(w.ob.join(&w.session, &w.forum(), None)).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert_eq!((w.net.count(PUT), w.net.count(CREATE)), (1, 2));
+    // leave: deleteRecord with the stored CID as swapRecord
+    let cid = w.alice.cid(nsid::MEMBERSHIP, &w.fk()).unwrap().to_string();
+    let t = block_on(w.ob.leave(&w.session, &w.forum())).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert_eq!(w.bodies(DELETE)[0]["swapRecord"], cid);
+    assert!(w.alice.get(nsid::MEMBERSHIP, &w.fk()).is_none());
+}
+
+#[test]
+fn long_bodies_spill_to_markdown_blobs_uploaded_at_send() {
+    let w = world();
+    let body = "word ".repeat(14_000); // 70,000 bytes
+    let post = Post::article(w.forum(), "long", body.clone(), w.now());
+    let t = block_on(w.ob.create_post(
+        &w.session,
+        &post,
+        ContentOpts {
+            excerpt: Some("A long post.".into()),
+            ..ContentOpts::default()
+        },
+    ))
+    .unwrap();
+    let stored = block_on(w.ob.get(&t.id)).unwrap().unwrap();
+    assert_eq!(stored.blobs.len(), 1);
+    assert_eq!(stored.blobs[0].mime, "text/markdown");
+    assert_eq!(
+        w.net.count("com.atproto.repo.uploadBlob"),
+        0,
+        "uploaded only when sent"
+    );
+    w.run();
+    let (uri, _) = done(&w.ticket(&t));
+    assert_eq!(w.net.count("com.atproto.repo.uploadBlob"), 1);
+    let v = w.alice.get(nsid::POST, &rkey_of(&uri)).unwrap();
+    assert!(v["body"].get("text").is_none());
+    assert_eq!(v["body"]["textBlob"]["ref"]["$link"], stored.blobs[0].cid);
+    assert_eq!(v["body"]["textBlob"]["mimeType"], "text/markdown");
+    assert_eq!(v["excerpt"], "A long post.");
+    // the blob chunks are gone once done
+    let rows = block_on(w.host.state_kv().scan(
+        pandoras_forum_core::host::KeyRange::prefix(&pandoras_forum_core::key!(model::OUT_BLOB)),
+        pandoras_forum_core::host::Dir::Forward,
+        10,
+    ))
+    .unwrap();
+    assert!(rows.is_empty());
+}
+
+#[test]
+fn blobs_are_uploaded_again_after_a_long_wait() {
+    use pandoras_forum_core::outbox::BlobData;
+    use pandoras_forum_lexicon::records::Profile;
+
+    let w = world();
+    let png = BlobData::media(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR avatar".to_vec()).unwrap();
+    let profile = Profile {
+        display_name: Some("Alice".into()),
+        avatar: Some(serde_json::from_value(png.placeholder()).unwrap()),
+        ..Profile::default()
+    };
+    // the record write is rate limited for an hour, after the blob went up
+    w.net.inject(Fault::rate_limited(3_600).on_nsid(PUT).once());
+    let t = block_on(w.ob.put_profile(&w.session, &profile, None, vec![png.clone()])).unwrap();
+    assert_eq!(block_on(w.ob.run_due(&w.session)).unwrap().throttled, 1);
+    assert_eq!(w.net.count("com.atproto.repo.uploadBlob"), 1);
+    // meanwhile the PDS collects the unreferenced blob
+    assert_eq!(w.net.gc_blobs(), 1);
+    w.run();
+    done(&w.ticket(&t));
+    assert_eq!(
+        w.net.count("com.atproto.repo.uploadBlob"),
+        2,
+        "uploaded again"
+    );
+    let v = w.alice.get(nsid::PROFILE, "self").unwrap();
+    assert_eq!(v["avatar"]["ref"]["$link"], png.cid);
+    assert_eq!(v["displayName"], "Alice");
+}
+
+#[test]
+fn mod_assertions_continue_as_updates_and_removals_snapshot() {
+    let w = world();
+    let (target, tcid) = subject(&w);
+    let mk = |reason: &str| {
+        let mut m = ModAction::new(
+            w.forum(),
+            target.as_str(),
+            Action::Hide(HideAction::hide()),
+            w.now(),
+        );
+        m.subject_cid = Some(tcid.clone());
+        m.reason = Some(reason.into());
+        m
+    };
+    // an older assertion with the same key exists
+    let old = records::mod_action(&mk("old")).unwrap();
+    w.alice.put(nsid::MOD_ACTION, &old.rkey, &old.value);
+    let old_cid = w
+        .alice
+        .cid(nsid::MOD_ACTION, &old.rkey)
+        .unwrap()
+        .to_string();
+    w.host.advance_ms(60_000);
+    let t = block_on(w.ob.mod_assert(&w.session, &mk("new"))).unwrap();
+    w.run();
+    let (uri, _) = done(&w.ticket(&t));
+    assert_eq!(rkey_of(&uri), old.rkey);
+    let v = w.alice.get(nsid::MOD_ACTION, &old.rkey).unwrap();
+    assert_eq!(v["reason"], "new");
+    assert_eq!(v["createdAt"], old.value["createdAt"], "keeps createdAt");
+    assert!(v["updatedAt"].is_string());
+    let revs = w.alice.list(nsid::REVISION);
+    assert_eq!(revs.len(), 1);
+    let r = w.alice.get(nsid::REVISION, &revs[0].0).unwrap();
+    assert_eq!(r["subject"]["cid"], old_cid);
+    assert_eq!(r["op"], "update");
+    // removal: a delete revision and the delete, in one swapped batch
+    let t = block_on(w.ob.delete(&w.session, &uri)).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert!(w.alice.get(nsid::MOD_ACTION, &old.rkey).is_none());
+    let ops: Vec<String> = w
+        .alice
+        .list(nsid::REVISION)
+        .iter()
+        .map(|(k, _)| {
+            w.alice.get(nsid::REVISION, k).unwrap()["op"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(ops.len(), 2);
+    assert!(ops.contains(&"delete".to_owned()));
+    // a lock with more than 5,000 allowed comments is refused
+    let allowed: Vec<AtUri> = (0..5_001u64)
+        .map(|i| {
+            AtUri::parse(&format!(
+                "at://{}/{}/{}-{}-{}",
+                w.bob.did(),
+                nsid::COMMENT,
+                w.fk(),
+                tid(1, 0),
+                tid(1, i)
+            ))
+            .unwrap()
+        })
+        .collect();
+    let lock = ModAction::new(
+        w.forum(),
+        target.as_str(),
+        Action::Lock(pandoras_forum_lexicon::records::LockAction::new(allowed)),
+        w.now(),
+    );
+    let e = block_on(w.ob.mod_assert(&w.session, &lock)).unwrap_err();
+    assert_eq!(e.code, ErrorCode::InvalidInput);
+}
+
+#[test]
+fn mod_adopt_reissues_the_former_moderators_assertions() {
+    use pandoras_forum_lexicon::records::TierAction;
+    use pandoras_forum_lexicon::values::Tier;
+
+    let w = world();
+    let carol = w.net.add_account("carol.example.com");
+    let (target, tcid) = subject(&w);
+    let assertion = |action: Action, reason: &str| {
+        let mut m = ModAction::new(w.forum(), target.as_str(), action, w.now());
+        m.subject_cid = Some(tcid.clone());
+        m.reason = Some(reason.into());
+        records::mod_action(&m).unwrap()
+    };
+    let hide = assertion(Action::Hide(HideAction::hide()), "spam");
+    let curated = assertion(Action::Tier(TierAction::new(Tier::Curated)), "great");
+    carol.put(nsid::MOD_ACTION, &hide.rkey, &hide.value);
+    carol.put(nsid::MOD_ACTION, &curated.rkey, &curated.value);
+    let adopt = || {
+        // carol, an admin, may curate; the adopting moderator may not
+        let t = block_on(w.ob.mod_adopt(
+            &w.session,
+            &w.forum(),
+            carol.did(),
+            &carol.pds_base(),
+            "moderator",
+            counted(&carol, &[&hide.rkey, &curated.rkey], &[(&carol, "admin")]),
+        ))
+        .unwrap();
+        w.run();
+        done(&w.ticket(&t));
+        block_on(w.ob.get(&t.id)).unwrap().unwrap()
+    };
+    w.host.advance_ms(60_000);
+    let first = adopt();
+    let mine = w.alice.get(nsid::MOD_ACTION, &hide.rkey).unwrap();
+    assert_eq!(
+        mine["adopts"],
+        json!({
+            "uri": carol.uri(nsid::MOD_ACTION, &hide.rkey),
+            "cid": carol.cid(nsid::MOD_ACTION, &hide.rkey).unwrap().to_string(),
+        })
+    );
+    assert_eq!(mine["reason"], "spam");
+    assert_ne!(
+        mine["createdAt"], hide.value["createdAt"],
+        "createdAt = now"
+    );
+    assert!(mine.get("updatedAt").is_none());
+    // a moderator may not issue a curated tier
+    assert!(w.alice.get(nsid::MOD_ACTION, &curated.rkey).is_none());
+    let Intent::Adopt { report, .. } = first.intent else {
+        panic!("{:?}", first.intent)
+    };
+    assert_eq!(report.len(), 1);
+    assert!(report[0].starts_with("cannot adopt"), "{report:?}");
+
+    // the original changes: the adopted copy is updated with a revision snapshot
+    let mut changed = hide.value.clone();
+    changed["reason"] = json!("spam, really");
+    carol.put(nsid::MOD_ACTION, &hide.rkey, &changed);
+    w.host.advance_ms(60_000);
+    adopt();
+    let mine2 = w.alice.get(nsid::MOD_ACTION, &hide.rkey).unwrap();
+    assert_eq!(mine2["reason"], "spam, really");
+    assert_eq!(mine2["createdAt"], mine["createdAt"]);
+    assert!(mine2["updatedAt"].is_string());
+    let revs = w.alice.list(nsid::REVISION);
+    assert_eq!(revs.len(), 1);
+    let r = w.alice.get(nsid::REVISION, &revs[0].0).unwrap();
+    assert_eq!(r["op"], "update");
+    assert_eq!(r["record"], mine);
+
+    // nothing new: nothing is sent
+    let applies = w.net.count(APPLY);
+    adopt();
+    assert_eq!(w.net.count(APPLY), applies);
+}
+
+/// What the engine passes `mod_adopt`: the former's `rkeys` as counted (with their current
+/// CIDs), under `roles`.
+fn counted(former: &AccountHandle, rkeys: &[&str], roles: &[(&AccountHandle, &str)]) -> Counted {
+    Counted {
+        originals: rkeys
+            .iter()
+            .map(|k| {
+                let cid = former.cid(nsid::MOD_ACTION, k).unwrap();
+                ((*k).to_owned(), cid.to_string())
+            })
+            .collect(),
+        roles: roles
+            .iter()
+            .map(|(a, r)| (a.did().to_string(), (*r).to_owned()))
+            .collect(),
+    }
+}
+
+/// `social.md` §4.10: only originals that counted for the former are re-issued. One that was
+/// not in effect, one that changed since, and one the former's rank never allowed (a
+/// moderator's ban of the owner) are reported; the report keeps 100 lines.
+#[test]
+fn mod_adopt_reissues_only_what_counted() {
+    use pandoras_forum_lexicon::records::AccessAction;
+    use pandoras_forum_lexicon::values::AccessLevel;
+
+    let w = world();
+    let carol = w.net.add_account("carol.example.com");
+    let hide_of = |i: u64| {
+        let s = w
+            .alice
+            .uri(nsid::POST, &format!("{}-{}", w.fk(), tid(60_000, i)));
+        let b = records::mod_action(&ModAction::new(
+            w.forum(),
+            s,
+            Action::Hide(HideAction::hide()),
+            w.now(),
+        ))
+        .unwrap();
+        carol.put(nsid::MOD_ACTION, &b.rkey, &b.value);
+        b.rkey
+    };
+    let (kept, never, changed) = (hide_of(0), hide_of(1), hide_of(2));
+    let ban = records::mod_action(&ModAction::new(
+        w.forum(),
+        w.bob.did().as_str(),
+        Action::Access(AccessAction::new(AccessLevel::Banned)),
+        w.now(),
+    ))
+    .unwrap();
+    carol.put(nsid::MOD_ACTION, &ban.rkey, &ban.value);
+    // bob owns the forum; carol is a moderator
+    let mut c = counted(
+        &carol,
+        &[&kept, &changed, &ban.rkey],
+        &[(&w.bob, "owner"), (&carol, "moderator")],
+    );
+    c.originals.insert(changed.clone(), "bafyreiother".into());
+    w.host.advance_ms(60_000);
+    let adopt = |c: Counted| {
+        let t = block_on(w.ob.mod_adopt(
+            &w.session,
+            &w.forum(),
+            carol.did(),
+            &carol.pds_base(),
+            "owner",
+            c,
+        ))
+        .unwrap();
+        w.run();
+        done(&w.ticket(&t));
+        let Intent::Adopt { report, .. } = block_on(w.ob.get(&t.id)).unwrap().unwrap().intent
+        else {
+            panic!()
+        };
+        report
+    };
+    let report = adopt(c.clone());
+    assert!(w.alice.get(nsid::MOD_ACTION, &kept).is_some());
+    for k in [&never, &changed, &ban.rkey] {
+        assert!(w.alice.get(nsid::MOD_ACTION, k).is_none(), "{k}");
+    }
+    let line = |k: &str| {
+        report
+            .iter()
+            .find(|l| l.contains(k))
+            .unwrap_or_else(|| panic!("{k}: {report:?}"))
+            .clone()
+    };
+    assert!(line(&never).contains("never counted"), "{report:?}");
+    assert!(line(&changed).contains("changed since"), "{report:?}");
+    assert!(line(&ban.rkey).contains("not allowed"), "{report:?}");
+    assert_eq!(report.len(), 3, "{report:?}");
+
+    // the report keeps 100 lines and counts the rest
+    for i in 0..105 {
+        hide_of(100 + i);
+    }
+    w.host.advance_ms(60_000);
+    let report = adopt(c);
+    assert_eq!(report.len(), 101, "{report:?}");
+    assert_eq!(report[100], "… and 8 more");
+}
+
+#[test]
+fn writes_are_never_sent_for_another_account() {
+    let w = world();
+    let bobs = w.bob.uri(nsid::POST, &format!("{}-{}", w.fk(), tid(1, 0)));
+    let e = block_on(w.ob.delete(&w.session, &bobs)).unwrap_err();
+    assert_eq!(e.code, ErrorCode::InvalidInput);
+    let e = block_on(w.ob.undo(&w.session, &format!("{}/1", w.bob.did()))).unwrap_err();
+    assert_eq!(e.code, ErrorCode::InvalidInput);
+    // a row under this account stamped with another one is failed, not sent
+    let did = w.alice.did().as_str();
+    let stamped = PendingWrite {
+        v: OUTBOX_ROW_VERSION,
+        account: w.bob.did().as_str().to_owned(),
+        seq: 1,
+        intent: Intent::DeleteRecord,
+        ops: vec![Op::delete(nsid::MEMBERSHIP, &w.fk())],
+        blobs: Vec::new(),
+        state: WriteStage::Queued,
+        attempts: 0,
+        created_at: 0,
+        updated_at: 0,
+        not_before: None,
+        needs_login: false,
+        sent: false,
+        results: Vec::new(),
+        error: None,
+        undo_of: None,
+        after: None,
+    };
+    block_on(w.host.state_kv().write(vec![KvOp::Put(
+        model::write_key(did, 1),
+        row::encode(&stamped).unwrap(),
+    )]))
+    .unwrap();
+    let r = block_on(w.ob.run_until_idle(&w.session)).unwrap();
+    assert_eq!(r.failed, 1);
+    assert_eq!(w.net.count(DELETE), 0);
+    let row = block_on(w.ob.get(&format!("{did}/1"))).unwrap().unwrap();
+    assert_eq!(row.state, WriteStage::Failed);
+    assert!(row.error.unwrap().message.contains("W9"));
+    // a generic write with an invalid value is refused before it is persisted
+    let bad = NewWrite::new(
+        Intent::Create,
+        vec![Op::create(
+            nsid::POST,
+            "not-a-key",
+            &json!({"$type": nsid::POST}),
+        )],
+    );
+    assert_eq!(
+        block_on(w.ob.enqueue(&w.session, bad)).unwrap_err().code,
+        ErrorCode::InvalidInput
+    );
+    assert_eq!(block_on(w.ob.writes(did)).unwrap().len(), 1);
+}
+
+#[test]
+fn retry_requeues_a_failed_write_and_events_are_reported() {
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct Rec(Mutex<Vec<WriteTicket>>, Mutex<Vec<String>>);
+    impl pandoras_forum_core::outbox::OutboxListener for Rec {
+        fn on_write(&self, t: &WriteTicket) {
+            self.0.lock().unwrap().push(t.clone());
+        }
+        fn on_applied(
+            &self,
+            a: &pandoras_forum_core::outbox::AppliedWrite,
+            _: &pandoras_forum_core::outbox::ApplyReport,
+        ) {
+            self.1.lock().unwrap().push(a.rev.clone());
+        }
+    }
+    let w = world();
+    let rec = Arc::new(Rec::default());
+    let ob = Outbox::with_listener(Arc::new(w.host.clone()), rec.clone());
+    w.net.inject(
+        Fault::error(400, "InvalidRequest", "nope")
+            .on_nsid(APPLY)
+            .once(),
+    );
+    let t = block_on(ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    block_on(ob.run_until_idle(&w.session)).unwrap();
+    let failed = block_on(ob.ticket(&t.id)).unwrap().unwrap();
+    assert_eq!(failed_code(&failed), ErrorCode::InvalidInput);
+    let again = block_on(ob.retry(&w.session, &t.id)).unwrap();
+    assert!(matches!(again.state, WriteState::Pending { .. }));
+    block_on(ob.run_until_idle(&w.session)).unwrap();
+    done(&block_on(ob.ticket(&t.id)).unwrap().unwrap());
+    let kinds: Vec<&'static str> = rec
+        .0
+        .lock()
+        .unwrap()
+        .iter()
+        .map(|t| match t.state {
+            WriteState::Pending { .. } => "pending",
+            WriteState::Sending => "sending",
+            WriteState::Done { .. } => "done",
+            WriteState::Failed { .. } => "failed",
+            WriteState::Undone => "undone",
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        vec!["pending", "sending", "failed", "pending", "sending", "done"]
+    );
+    let revs = rec.1.lock().unwrap().clone();
+    assert_eq!(revs.len(), 1);
+    assert!(!revs[0].is_empty());
+    // done writes can be pruned
+    let n = block_on(ob.prune(w.alice.did().as_str(), w.host.now() + 1)).unwrap();
+    assert_eq!(n, 1);
+    assert!(block_on(ob.get(&t.id)).unwrap().is_none());
+}
+
+#[test]
+fn the_long_lived_pump_drains_and_stops() {
+    use std::sync::OnceLock;
+
+    struct StopWhenDone(OnceLock<Outbox<MemHost>>);
+    impl pandoras_forum_core::outbox::OutboxListener for StopWhenDone {
+        fn on_write(&self, t: &WriteTicket) {
+            if matches!(t.state, WriteState::Done { .. })
+                && let Some(ob) = self.0.get()
+            {
+                ob.stop();
+            }
+        }
+    }
+    let w = world();
+    let l = Arc::new(StopWhenDone(OnceLock::new()));
+    let ob = Outbox::with_listener(Arc::new(w.host.clone()), l.clone());
+    assert!(l.0.set(ob.clone()).is_ok());
+    let t = block_on(ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    block_on(ob.pump(&w.session));
+    done(&block_on(ob.ticket(&t.id)).unwrap().unwrap());
+}
+
+#[test]
+fn a_lost_response_is_recognised_by_its_cid_and_cached() {
+    let w = world();
+    // the membership is known locally: a plain createRecord
+    let (first, _) = w.seed_post("one");
+    assert!(w.cached(&first));
+    {
+        let net = w.net.clone();
+        let calls = Arc::new(AtomicU32::new(0));
+        w.host.on_post(&w.userpds(CREATE), move |req| {
+            let r = net.request(req, "default");
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                // applied, but the answer is lost
+                return Ok(pandoras_forum_testkit::resp::xrpc_error(
+                    502,
+                    "UpstreamFailure",
+                    "Bad Gateway",
+                ));
+            }
+            r
+        });
+    }
+    let t = block_on(w.ob.create_post(&w.session, &w.post("two"), ContentOpts::default())).unwrap();
+    w.run();
+    let (uri, cid) = done(&w.ticket(&t));
+    // (the seed was first content: an applyWrites)
+    assert_eq!(w.net.count(CREATE), 1, "sent once, never resent");
+    assert_eq!(
+        w.alice.cid(nsid::POST, &rkey_of(&uri)).unwrap().to_string(),
+        cid
+    );
+    assert!(w.cached(&uri), "the re-read value is applied to the store");
+}
+
+#[test]
+fn with_a_syncer_own_writes_queue_the_own_repo() {
+    use pandoras_forum_core::engine::EngineConfig;
+    use pandoras_forum_core::sync::{Priority, Reason, SyncConfig, Syncer};
+
+    let w = world();
+    let sy = Syncer::new(
+        Arc::new(w.host.clone()),
+        SyncConfig::from_engine(&EngineConfig::default()),
+    );
+    let ob = Outbox::new(Arc::new(w.host.clone())).with_syncer(sy.clone());
+    let t = block_on(ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    block_on(ob.run_until_idle(&w.session)).unwrap();
+    let (uri, _) = done(&block_on(ob.ticket(&t.id)).unwrap().unwrap());
+    assert!(w.cached(&uri));
+    let membership = format!("at://{}/{}/{}", w.alice.did(), nsid::MEMBERSHIP, w.fk());
+    assert!(w.cached(&membership));
+    let q = sy.queue_snapshot();
+    let item = q.get(w.alice.did().as_str()).expect("own repo queued");
+    assert!(item.reasons.contains(&Reason::OwnWrite));
+    assert_eq!(item.priority, Priority::P1);
+    assert!(item.min_rev.is_some());
+    let repo = block_on(RecordStore::new(w.host.cache_kv()).repo(w.alice.did().as_str()))
+        .unwrap()
+        .unwrap();
+    assert!(repo.head_seen.is_some(), "headSeen follows the commit");
+}
+
+/// The outbox's futures are `Send` on native targets (the engine runs them on any executor).
+#[allow(dead_code)]
+fn futures_are_send(ob: &Outbox<MemHost>, s: &Session, p: &Post) {
+    fn send<T: Send>(_: T) {}
+    send(ob.pump(s));
+    send(ob.step(s));
+    send(ob.run_until_idle(s));
+    send(ob.create_post(s, p, ContentOpts::default()));
+    send(ob.opinion(s, "", "", "", karma("up")));
+    send(ob.undo(s, ""));
+    send(ob.edit(s, "", &Value::Null, "", EditOpts::default()));
+}
+
+// ---------------------------------------------------------------------------------------------
+// M2 review regressions
+
+/// A route that applies the write on the fake network, then crashes the process.
+fn crash_after_apply(w: &World) {
+    let net = w.net.clone();
+    w.host.on_post(&w.userpds(APPLY), move |req| {
+        let _ = net.request(req, "default");
+        panic!("simulated crash after the PDS applied the write");
+    });
+}
+
+fn exhaust_budget(w: &World) {
+    let did = w.alice.did().as_str().to_owned();
+    let now = w.host.now();
+    let bucket = now - now.rem_euclid(pandoras_forum_core::outbox::budget::BUCKET_MS);
+    let row = BudgetRow {
+        spent: vec![(bucket, 5_000)],
+        ..BudgetRow::default()
+    };
+    block_on(w.host.state_kv().write(vec![KvOp::Put(
+        model::budget_key(&did),
+        row::encode(&row).unwrap(),
+    )]))
+    .unwrap();
+}
+
+/// 1: a row left `sending` by a crash keeps its "may have been sent" mark through a budget
+/// wait, so undo refuses to "remove" a write that is live.
+#[test]
+fn a_crash_then_a_budget_wait_keeps_the_sent_mark() {
+    let w = world();
+    crash_after_apply(&w);
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    crash(&w);
+    assert_eq!(w.alice.list(nsid::POST).len(), 1, "the post landed");
+    let ob = restart(&w);
+    exhaust_budget(&w);
+    assert!(matches!(
+        block_on(ob.step(&w.session)).unwrap(),
+        Step::Wait(_)
+    ));
+    let row = block_on(ob.get(&t.id)).unwrap().unwrap();
+    assert_eq!(row.state, WriteStage::Throttled);
+    assert!(row.sent, "the mark survives the wait");
+    assert!(block_on(ob.undo(&w.session, &t.id)).is_err());
+    assert_eq!(w.alice.list(nsid::POST).len(), 1);
+}
+
+/// 1 (variant): a recovery check that fails (offline restart) keeps the mark too; once the
+/// network is back the write is recognised by its CID and never sent again.
+#[test]
+fn a_crash_then_an_offline_restart_keeps_the_sent_mark() {
+    let w = world();
+    crash_after_apply(&w);
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    crash(&w);
+    let ob = restart(&w);
+    w.net.inject(
+        Fault::disconnect()
+            .on_nsid("com.atproto.repo.getRecord")
+            .times(20),
+    );
+    block_on(ob.run_due(&w.session)).unwrap();
+    let row = block_on(ob.get(&t.id)).unwrap().unwrap();
+    assert_eq!(row.state, WriteStage::Throttled);
+    assert!(row.sent);
+    assert!(block_on(ob.undo(&w.session, &t.id)).is_err());
+    w.net.clear_faults();
+    block_on(ob.run_until_idle(&w.session)).unwrap();
+    done(&block_on(ob.ticket(&t.id)).unwrap().unwrap());
+    assert_eq!(w.net.count(APPLY), 1, "never sent again");
+}
+
+/// 2: a 429 whose reset is already past still waits (at least the default rate-limit wait,
+/// growing with consecutive 429s) instead of retrying every millisecond.
+#[test]
+fn a_429_with_a_past_reset_waits() {
+    let w = world();
+    let past = (w.host.now() / 1000 - 120).to_string();
+    let resp = pandoras_forum_core::host::HttpResponse {
+        status: 429,
+        headers: vec![
+            ("ratelimit-limit".into(), "5000".into()),
+            ("ratelimit-remaining".into(), "0".into()),
+            ("ratelimit-reset".into(), past),
+        ],
+        body: br#"{"error":"RateLimitExceeded","message":"Rate Limit Exceeded"}"#.to_vec(),
+    };
+    w.net.inject(Fault::respond(resp).on_nsid(APPLY).times(3));
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    let start = w.host.now();
+    w.run();
+    done(&w.ticket(&t));
+    assert_eq!(w.net.count(APPLY), 4);
+    let wait = pandoras_forum_core::outbox::budget::DEFAULT_RATE_LIMIT_WAIT_MS;
+    assert!(w.host.now() - start >= 3 * wait, "{}", w.host.now() - start);
+}
+
+/// 3: `stop` ends the running pumps only; a pump started afterwards runs.
+#[test]
+fn a_pump_started_after_stop_runs() {
+    use std::sync::OnceLock;
+
+    struct StopWhenDone(OnceLock<Outbox<MemHost>>);
+    impl pandoras_forum_core::outbox::OutboxListener for StopWhenDone {
+        fn on_write(&self, t: &WriteTicket) {
+            if matches!(t.state, WriteState::Done { .. })
+                && let Some(ob) = self.0.get()
+            {
+                ob.stop();
+            }
+        }
+    }
+    let w = world();
+    let l = Arc::new(StopWhenDone(OnceLock::new()));
+    let ob = Outbox::with_listener(Arc::new(w.host.clone()), l.clone());
+    assert!(l.0.set(ob.clone()).is_ok());
+    ob.stop();
+    let t = block_on(ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    block_on(ob.pump(&w.session));
+    done(&block_on(ob.ticket(&t.id)).unwrap().unwrap());
+    // and again after that stop
+    let t = block_on(ob.create_post(&w.session, &w.post("two"), ContentOpts::default())).unwrap();
+    block_on(ob.pump(&w.session));
+    done(&block_on(ob.ticket(&t.id)).unwrap().unwrap());
+}
+
+/// 4: the delete protocol lists the own revision range with the sync listing, whose
+/// oversized-page retry handles large revisions.
+#[test]
+fn a_post_with_large_revisions_can_be_deleted() {
+    let w = world();
+    let (uri, cid) = w.seed_post("one");
+    let rkey = rkey_of(&uri);
+    let pad = "x".repeat(60_000);
+    for i in 0..75 {
+        let rk = format!("{rkey}-{}", tid(10_000, 100 + i));
+        let v = json!({
+            "$type": nsid::REVISION,
+            "subject": {"uri": uri, "cid": cid},
+            "op": "update",
+            "record": {"$type": nsid::POST, "pad": pad},
+            "createdAt": w.now().as_str(),
+        });
+        w.alice.put(nsid::REVISION, &rk, &v);
+    }
+    let d = block_on(w.ob.delete(&w.session, &uri)).unwrap();
+    w.run();
+    done(&w.ticket(&d));
+    assert!(w.alice.get(nsid::POST, &rkey).is_none());
+    assert!(w.alice.list(nsid::REVISION).is_empty(), "revisions deleted");
+}
+
+/// 8: a listing that does not complete (a cursor that never advances) fails the delete instead
+/// of reporting it done with revisions left.
+#[test]
+fn a_delete_never_works_from_an_incomplete_listing() {
+    let w = world();
+    let (uri, cid) = w.seed_post("one");
+    let rkey = rkey_of(&uri);
+    for i in 0..150 {
+        let rk = format!("{rkey}-{}", tid(10_000, 100 + i));
+        let v = json!({
+            "$type": nsid::REVISION,
+            "subject": {"uri": uri, "cid": cid},
+            "op": "update",
+            "record": {"$type": nsid::POST, "n": i},
+            "createdAt": w.now().as_str(),
+        });
+        w.alice.put(nsid::REVISION, &rk, &v);
+    }
+    w.alice
+        .set_cursor_mode(Some(pandoras_forum_testkit::fake_pds::CursorMode::Stuck));
+    let d = block_on(w.ob.delete(&w.session, &uri)).unwrap();
+    w.run();
+    let _ = failed_code(&w.ticket(&d));
+    assert!(w.alice.get(nsid::POST, &rkey).is_some(), "nothing deleted");
+}
+
+/// 5: adopt batches are cut by body size (≤ 900,000 bytes) as well as by op count.
+#[test]
+fn adopt_batches_respect_the_body_size_limit() {
+    let w = world();
+    let carol = w.net.add_account("carol.example.com");
+    let reason: String = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}\u{200D}\u{1F466}".repeat(790);
+    assert!(reason.len() <= 20_000);
+    let mut rkeys = Vec::new();
+    for i in 0..50 {
+        let subject = format!(
+            "at://{}/{}/{}-{}",
+            w.bob.did(),
+            nsid::POST,
+            w.fk(),
+            tid(10_000, i)
+        );
+        let mut m = ModAction::new(
+            w.forum(),
+            &subject,
+            Action::Hide(HideAction::hide()),
+            w.now(),
+        );
+        m.reason = Some(reason.clone());
+        let b = records::mod_action(&m).unwrap();
+        carol.put(nsid::MOD_ACTION, &b.rkey, &b.value);
+        rkeys.push(b.rkey);
+    }
+    w.host.advance_ms(60_000);
+    let rkeys: Vec<&str> = rkeys.iter().map(String::as_str).collect();
+    let t = block_on(w.ob.mod_adopt(
+        &w.session,
+        &w.forum(),
+        carol.did(),
+        &carol.pds_base(),
+        "owner",
+        counted(&carol, &rkeys, &[(&carol, "moderator")]),
+    ))
+    .unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert!(w.net.count(APPLY) >= 2, "split by size");
+    for r in w.host.requests_to(&w.userpds(APPLY)) {
+        assert!(r.body.as_deref().unwrap().len() <= 900_000);
+    }
+    assert_eq!(w.alice.list(nsid::MOD_ACTION).len(), 50);
+}
+
+/// 6: a 400 that says nothing about null swaps (a media error) never marks the host, and a
+/// generic 400 marks it only once `createRecord` succeeds with the same value.
+#[test]
+fn only_a_working_fallback_marks_a_host_without_null_swap() {
+    let w = world();
+    let caps = |w: &World| {
+        block_on(RecordStore::new(w.host.cache_kv()).host_caps(&w.session.origin()))
+            .unwrap()
+            .and_then(|h| h.null_swap)
+    };
+    w.net.inject(
+        Fault::error(
+            400,
+            "InvalidMimeType",
+            "Referenced Mimetype does not match stored blob",
+        )
+        .times(2),
+    );
+    let p = pandoras_forum_lexicon::records::Profile {
+        display_name: Some("Alice".into()),
+        ..Default::default()
+    };
+    let t = block_on(w.ob.put_profile(&w.session, &p, None, Vec::new())).unwrap();
+    w.run();
+    let _ = failed_code(&w.ticket(&t));
+    assert_eq!(caps(&w), None);
+    // a 400 to both the null-swap put and createRecord: about the record, not the host
+    w.net.clear_faults();
+    w.net
+        .inject(Fault::error(400, "InvalidRequest", "bad record").times(2));
+    let t = block_on(w.ob.put_profile(&w.session, &p, None, Vec::new())).unwrap();
+    w.run();
+    let _ = failed_code(&w.ticket(&t));
+    assert_eq!(caps(&w), None);
+    // a host that works: the null swap is recorded as supported
+    w.net.clear_faults();
+    let t = block_on(w.ob.join(&w.session, &w.forum(), None)).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert_eq!(caps(&w), Some(true));
+}
+
+/// 9: an edit (with or without history) that changes nothing but `updatedAt` is a no-op.
+#[test]
+fn an_unchanged_edit_writes_nothing() {
+    let w = world();
+    let (uri, cid) = w.seed_post("one");
+    let value = w.alice.get(nsid::POST, &rkey_of(&uri)).unwrap();
+    let (apply, put) = (w.net.count(APPLY), w.net.count(PUT));
+    let t = block_on(w.ob.edit(&w.session, &uri, &value, &cid, EditOpts::default())).unwrap();
+    w.run();
+    assert_eq!(done(&w.ticket(&t)).1, cid);
+    let opts = EditOpts {
+        history: false,
+        ..EditOpts::default()
+    };
+    let t = block_on(w.ob.edit(&w.session, &uri, &value, &cid, opts)).unwrap();
+    w.run();
+    assert_eq!(done(&w.ticket(&t)).1, cid);
+    assert_eq!((w.net.count(APPLY), w.net.count(PUT)), (apply, put));
+    assert!(w.alice.list(nsid::REVISION).is_empty(), "no revision");
+}
+
+/// 10: a record recognised by a re-read is keyed by a head read afterwards: stored, but not
+/// as exact.
+#[test]
+fn a_record_found_by_a_re_read_is_not_exact() {
+    let w = world();
+    w.seed_post("seed");
+    {
+        let net = w.net.clone();
+        let calls = Arc::new(AtomicU32::new(0));
+        w.host.on_post(&w.userpds(CREATE), move |req| {
+            let r = net.request(req, "default");
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                return Ok(pandoras_forum_testkit::resp::xrpc_error(
+                    502,
+                    "UpstreamFailure",
+                    "Bad Gateway",
+                ));
+            }
+            r
+        });
+    }
+    let t = block_on(w.ob.create_post(&w.session, &w.post("two"), ContentOpts::default())).unwrap();
+    w.run();
+    let (uri, _) = done(&w.ticket(&t));
+    let row = block_on(RecordStore::new(w.host.cache_kv()).get(&AtUri::parse(&uri).unwrap()))
+        .unwrap()
+        .unwrap();
+    assert!(!row.exact);
+}
+
+/// 7 (mitigation): a run adds its spent points to the budget row as stored when it saves,
+/// instead of writing back the copy it loaded (another pump's points are kept).
+#[test]
+fn a_run_keeps_points_another_pump_spent() {
+    use futures::FutureExt;
+    let w = world();
+    let did = w.alice.did().as_str().to_owned();
+    let other_bucket = {
+        let now = w.host.now() - 10 * 60_000;
+        now - now.rem_euclid(pandoras_forum_core::outbox::budget::BUCKET_MS)
+    };
+    {
+        let net = w.net.clone();
+        let host = w.host.clone();
+        let key = model::budget_key(&did);
+        w.host.on_post(&w.userpds(APPLY), move |req| {
+            // another process charges 100 points while this write is in flight
+            let row = BudgetRow {
+                spent: vec![(other_bucket, 100)],
+                ..BudgetRow::default()
+            };
+            host.state_kv()
+                .write(vec![KvOp::Put(key.clone(), row::encode(&row).unwrap())])
+                .now_or_never()
+                .unwrap()
+                .unwrap();
+            net.request(req, "default")
+        });
+    }
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    let b = block_on(w.ob.budget(&did)).unwrap();
+    let hour = pandoras_forum_core::outbox::budget::HOUR_MS;
+    assert!(
+        b.spent.iter().any(|(k, p)| *k == other_bucket && *p == 100),
+        "{b:?}"
+    );
+    assert!(b.window_points(w.host.now(), hour) > 100);
+}
+
+/// Minor: reads that fail before anything is sent (offline) never make a write fail, however
+/// long it lasts.
+#[test]
+fn an_offline_device_keeps_its_writes_pending() {
+    let w = world();
+    w.net.inject(Fault::disconnect().on_nsid(HEAD).times(30));
+    let t = block_on(w.ob.create_post(&w.session, &w.post("one"), ContentOpts::default())).unwrap();
+    w.run();
+    done(&w.ticket(&t));
+    assert!(w.net.count(HEAD) >= 12, "{} head reads", w.net.count(HEAD));
+}

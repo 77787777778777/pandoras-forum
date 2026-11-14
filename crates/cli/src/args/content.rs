@@ -1,0 +1,595 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Arguments of the M2 forum and content commands (`docs/design/synthesis-v1.md` §6.10).
+//!
+//! References (`REF`): `3` (from the last `ls` in this terminal), `c12` (a comment label from
+//! the last `read`), an at-uri, an SPA link, or `<handle>/<rkey>` (a post of the current
+//! forum). Forum references (`FORUM`): `<handle|did>/<slug>`, an at-uri, an SPA link, an alias
+//! or a slug of a followed forum, or a number from the last `forum ls`.
+
+use std::path::PathBuf;
+
+use clap::{Args, Subcommand, ValueEnum};
+use pandoras_forum_core::dto::{CommentSort, DefaultTier, MembershipMode, PostKind, PostSort};
+
+/// `--sort` of `ls`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum PostSortArg {
+    /// Score with time decay (the M3 default, `engine-api.md` §3.4).
+    #[default]
+    Magic,
+    /// Highest score first.
+    Top,
+    /// Newest first.
+    New,
+    /// Oldest first.
+    Old,
+    /// Most recent comment first.
+    RecentComments,
+}
+
+impl From<PostSortArg> for PostSort {
+    fn from(s: PostSortArg) -> Self {
+        match s {
+            PostSortArg::New => PostSort::New,
+            PostSortArg::Old => PostSort::Old,
+            PostSortArg::Top => PostSort::Top,
+            PostSortArg::Magic => PostSort::Magic,
+            PostSortArg::RecentComments => PostSort::RecentComments,
+        }
+    }
+}
+
+/// `--sort` of `read` (comments).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum CommentSortArg {
+    /// Score with time decay.
+    #[default]
+    Magic,
+    /// Highest score first.
+    Top,
+    /// Newest first.
+    New,
+    /// Oldest first.
+    Old,
+    /// Most recent reply first.
+    LatestReply,
+}
+
+impl From<CommentSortArg> for CommentSort {
+    fn from(s: CommentSortArg) -> Self {
+        match s {
+            CommentSortArg::Magic => CommentSort::Magic,
+            CommentSortArg::Top => CommentSort::Top,
+            CommentSortArg::New => CommentSort::New,
+            CommentSortArg::Old => CommentSort::Old,
+            CommentSortArg::LatestReply => CommentSort::LatestReply,
+        }
+    }
+}
+
+/// `--kind` of a post.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum PostKindArg {
+    /// An article (the default).
+    Article,
+    /// A link post (needs `--link`).
+    Link,
+    /// A question.
+    Question,
+    /// A quick take (no title needed).
+    QuickTake,
+}
+
+impl From<PostKindArg> for PostKind {
+    fn from(k: PostKindArg) -> Self {
+        match k {
+            PostKindArg::Article => PostKind::Article,
+            PostKindArg::Link => PostKind::Link,
+            PostKindArg::Question => PostKind::Question,
+            PostKindArg::QuickTake => PostKind::QuickTake,
+        }
+    }
+}
+
+/// `--mode` of `forum create`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]
+pub enum ModeArg {
+    /// Members need a grant from the owner or an admin (`approve`).
+    #[default]
+    Approval,
+    /// Anyone who joins is a member. Open mode relies on Bluesky relay, Jetstream and
+    /// Constellation (or an indexer) to find new members; approval mode needs no third party.
+    Open,
+}
+
+impl From<ModeArg> for MembershipMode {
+    fn from(m: ModeArg) -> Self {
+        match m {
+            ModeArg::Approval => MembershipMode::Approval,
+            ModeArg::Open => MembershipMode::Open,
+        }
+    }
+}
+
+/// `read`.
+#[derive(Debug, Args)]
+pub struct ReadArgs {
+    /// The post or comment.
+    #[arg(value_name = "REF")]
+    pub reference: String,
+    /// Comment order.
+    #[arg(long, value_enum, default_value_t = CommentSortArg::Magic)]
+    pub sort: CommentSortArg,
+    /// Only the post.
+    #[arg(long)]
+    pub no_comments: bool,
+    /// The stored record with its validity and moderation annotations (RawView).
+    #[arg(long, conflicts_with = "no_comments")]
+    pub raw: bool,
+    /// Print directly instead of through `less -R`.
+    #[arg(long)]
+    pub no_pager: bool,
+    /// Read the post as part of this sequence: its next and previous posts are this sequence's,
+    /// and it becomes the sequence's continue-reading position on this device (default: the
+    /// sequence of `sequence read` for a number it listed, and of the last `read` for `next`
+    /// and `prev`).
+    #[arg(long, value_name = "SEQUENCE", conflicts_with = "raw")]
+    pub sequence: Option<String>,
+}
+
+/// `ls`.
+#[derive(Debug, Args)]
+pub struct LsArgs {
+    /// The forum (default: --forum, then the current forum).
+    #[arg(value_name = "FORUM")]
+    pub forum: Option<String>,
+    /// Post order.
+    #[arg(long, value_enum, default_value_t = PostSortArg::Magic)]
+    pub sort: PostSortArg,
+    /// Every listed post, of any tier and kind.
+    #[arg(long, conflicts_with_all = ["frontpage", "curated"])]
+    pub all: bool,
+    /// Frontpage posts only (the default, `social.md` §12.3).
+    #[arg(long, conflicts_with = "curated")]
+    pub frontpage: bool,
+    /// Curated posts only.
+    #[arg(long)]
+    pub curated: bool,
+    /// Only posts of this kind.
+    #[arg(long, value_enum)]
+    pub kind: Option<PostKindArg>,
+    /// Only posts with this tag.
+    #[arg(long, value_name = "TAG")]
+    pub tag: Option<String>,
+    /// Only posts by this author (handle or DID).
+    #[arg(long, value_name = "ACTOR")]
+    pub author: Option<String>,
+    /// At most this many posts (1–500).
+    #[arg(long, short = 'n', default_value_t = 30, value_parser = clap::value_parser!(u32).range(1..=500))]
+    pub limit: u32,
+}
+
+/// `post`.
+#[derive(Debug, Args)]
+pub struct PostArgs {
+    /// A markdown file (with optional YAML frontmatter), or `-` for standard input. Without
+    /// one, $EDITOR opens a new draft.
+    #[arg(value_name = "FILE")]
+    pub file: Option<PathBuf>,
+    /// The title.
+    #[arg(long)]
+    pub title: Option<String>,
+    /// The kind of post.
+    #[arg(long, value_enum)]
+    pub kind: Option<PostKindArg>,
+    /// The URL of a link post.
+    #[arg(long, value_name = "URL")]
+    pub link: Option<String>,
+    /// A tag (repeatable).
+    #[arg(long = "tag", value_name = "TAG")]
+    pub tags: Vec<String>,
+    /// Save as a draft instead of publishing.
+    #[arg(long)]
+    pub draft: bool,
+    /// Publish without asking.
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+/// `comment`.
+#[derive(Debug, Args)]
+pub struct CommentArgs {
+    /// The post (a top-level comment) or the comment replied to.
+    #[arg(value_name = "REF")]
+    pub reference: String,
+    /// A markdown file, or `-` for standard input. Without one (or -m), $EDITOR opens.
+    #[arg(value_name = "FILE", conflicts_with = "message")]
+    pub file: Option<PathBuf>,
+    /// The comment text.
+    #[arg(long, short = 'm', value_name = "TEXT")]
+    pub message: Option<String>,
+    /// Do not ask: confirms uploading the local images of a file under the drafts directory
+    /// (a file elsewhere is confirmed on a terminal, even with --yes).
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+/// `edit`.
+#[derive(Debug, Args)]
+pub struct EditArgs {
+    /// Your post or comment.
+    #[arg(value_name = "REF")]
+    pub reference: String,
+    /// The new text: a markdown file (a post's may have frontmatter), or `-` for standard
+    /// input. Without one (or -m), $EDITOR opens on the current text.
+    #[arg(value_name = "FILE", conflicts_with = "message")]
+    pub file: Option<PathBuf>,
+    /// The new text.
+    #[arg(long, short = 'm', value_name = "TEXT")]
+    pub message: Option<String>,
+    /// A new title (posts).
+    #[arg(long)]
+    pub title: Option<String>,
+    /// An edit summary, kept with the old version.
+    #[arg(long, value_name = "TEXT")]
+    pub summary: Option<String>,
+    /// Do not keep the old version as a revision.
+    #[arg(long)]
+    pub no_history: bool,
+    /// Drop the post's link card (its title, description and image) and keep the link (alone,
+    /// without new text, the text stays as it is; in the editor or a file's frontmatter,
+    /// `dropLinkCard: true` does the same); an edit otherwise keeps the card while the link
+    /// stays the same.
+    #[arg(long)]
+    pub drop_link_card: bool,
+    /// Do not ask for confirmation when the edit suspends a keep, a frontpage or curated tier
+    /// or a pin of the item, nor before uploading the local images of a file under the drafts
+    /// directory (needed then when not running interactively; a file elsewhere is confirmed on
+    /// a terminal, even with --yes).
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+/// `delete`.
+#[derive(Debug, Args)]
+pub struct DeleteArgs {
+    /// Your post or comment.
+    #[arg(value_name = "REF")]
+    pub reference: String,
+    /// Do not ask for confirmation (needed when not running interactively).
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+/// Commands that take one reference.
+#[derive(Debug, Args)]
+pub struct RefArgs {
+    /// The post or comment.
+    #[arg(value_name = "REF")]
+    pub reference: String,
+}
+
+/// `sync`.
+#[derive(Debug, Args)]
+pub struct SyncArgs {
+    /// The forum (default: --forum, then the current forum, else every followed forum).
+    #[arg(value_name = "FORUM")]
+    pub forum: Option<String>,
+    /// Re-list every repository instead of checking heads.
+    #[arg(long, conflicts_with = "audit")]
+    pub full: bool,
+    /// Cross-check one consented indexer against PDS heads and local recomputation (A1–A5).
+    #[arg(long)]
+    pub audit: bool,
+}
+
+/// `join`.
+#[derive(Debug, Args)]
+pub struct JoinArgs {
+    /// The forum.
+    #[arg(value_name = "FORUM")]
+    pub forum: String,
+    /// A note for the moderators (approval-mode forums).
+    #[arg(long, value_name = "TEXT")]
+    pub note: Option<String>,
+    /// A short local name for the forum.
+    #[arg(long, value_name = "ALIAS")]
+    pub alias: Option<String>,
+    /// Confirm the public membership without asking (the first join needs it when not running
+    /// interactively).
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+/// `leave`.
+#[derive(Debug, Args)]
+pub struct LeaveArgs {
+    /// The forum (default: --forum, then the current forum).
+    #[arg(value_name = "FORUM")]
+    pub forum: Option<String>,
+}
+
+/// `forum`.
+#[derive(Debug, Args)]
+pub struct ForumArgs {
+    /// What to do.
+    #[command(subcommand)]
+    pub action: ForumAction,
+}
+
+/// `forum …`.
+#[derive(Debug, Subcommand)]
+pub enum ForumAction {
+    /// List the followed forums, numbered.
+    Ls,
+    /// Show a forum's header: owner, mode, moderators, your role.
+    Show {
+        /// The forum (default: --forum, then the current forum).
+        #[arg(value_name = "FORUM")]
+        forum: Option<String>,
+    },
+    /// Follow a forum (local).
+    Follow {
+        /// The forum.
+        #[arg(value_name = "FORUM")]
+        forum: String,
+        /// A short local name for it.
+        #[arg(long, value_name = "ALIAS")]
+        alias: Option<String>,
+    },
+    /// Stop following a forum (local).
+    Unfollow {
+        /// The forum (default: --forum, then the current forum).
+        #[arg(value_name = "FORUM")]
+        forum: Option<String>,
+    },
+    /// Make a forum the current one.
+    Use {
+        /// The forum.
+        #[arg(value_name = "FORUM")]
+        forum: String,
+    },
+    /// Create a forum owned by your account (the membership mode is always written).
+    Create {
+        /// The forum's slug (its record key, fixed).
+        slug: String,
+        /// Who may take part.
+        #[arg(long, value_enum, default_value_t = ModeArg::Approval)]
+        mode: ModeArg,
+        /// The display name (default: the slug).
+        #[arg(long)]
+        name: Option<String>,
+        /// A one-line description.
+        #[arg(long, value_name = "TEXT")]
+        description: Option<String>,
+        /// The about text (markdown).
+        #[arg(long, value_name = "MARKDOWN")]
+        about: Option<String>,
+        /// New posts start on the frontpage (default: personal).
+        #[arg(long)]
+        frontpage: bool,
+    },
+    /// Change a forum you own (the old version is kept as a revision); what is not given
+    /// stays as it is. Moderators change with `mods`.
+    Edit(ForumEditArgs),
+}
+
+/// `forum edit`.
+#[derive(Debug, Args)]
+pub struct ForumEditArgs {
+    /// The forum (default: --forum, then the current forum).
+    #[arg(value_name = "FORUM")]
+    pub forum: Option<String>,
+    /// The display name.
+    #[arg(long)]
+    pub name: Option<String>,
+    /// A one-line description (empty removes it).
+    #[arg(long, value_name = "TEXT")]
+    pub description: Option<String>,
+    /// The about text (markdown; empty removes it).
+    #[arg(long, value_name = "MARKDOWN")]
+    pub about: Option<String>,
+    /// Who may take part (to archive an open forum, switch it to approval).
+    #[arg(long, value_enum)]
+    pub mode: Option<ModeArg>,
+    /// Where new posts start.
+    #[arg(long, value_enum)]
+    pub default_tier: Option<DefaultTierArg>,
+    /// A featured tag (repeatable; replaces the list).
+    #[arg(long = "featured-tag", value_name = "TAG")]
+    pub featured_tags: Vec<String>,
+    /// Remove every featured tag.
+    #[arg(long, conflicts_with = "featured_tags")]
+    pub no_featured_tags: bool,
+    /// Where to report problems, a URI such as `mailto:…` or `https://…` (empty removes it).
+    #[arg(long, value_name = "URI")]
+    pub report_contact: Option<String>,
+}
+
+/// `--default-tier` of `forum edit`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+pub enum DefaultTierArg {
+    /// New posts start on the author's personal tier.
+    Personal,
+    /// New posts start on the frontpage.
+    Frontpage,
+}
+
+impl From<DefaultTierArg> for DefaultTier {
+    fn from(t: DefaultTierArg) -> Self {
+        match t {
+            DefaultTierArg::Personal => DefaultTier::Personal,
+            DefaultTierArg::Frontpage => DefaultTier::Frontpage,
+        }
+    }
+}
+
+/// `members`.
+#[derive(Debug, Args)]
+pub struct MembersArgs {
+    /// The forum (default: --forum, then the current forum).
+    #[arg(value_name = "FORUM")]
+    pub forum: Option<String>,
+    /// Applicants only (a membership and no grant).
+    #[arg(long)]
+    pub pending: bool,
+    /// Instead of listing: change a membership.
+    #[command(subcommand)]
+    pub action: Option<MembersAction>,
+}
+
+/// `members …`.
+#[derive(Debug, Subcommand)]
+pub enum MembersAction {
+    /// Remove your grant of membership (in --forum, else the current forum); in approval
+    /// mode the actor becomes an applicant again.
+    Revoke {
+        /// Handles or DIDs.
+        #[arg(value_name = "ACTOR", required = true, num_args = 1..)]
+        actors: Vec<String>,
+        /// Confirm the public mod action without asking (the first mod action needs it when
+        /// not running interactively).
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+}
+
+/// `approve`.
+#[derive(Debug, Args)]
+pub struct ApproveArgs {
+    /// Handles or DIDs (in --forum, else the current forum).
+    #[arg(value_name = "ACTOR", required = true, num_args = 1..)]
+    pub actors: Vec<String>,
+    /// Confirm the public grant without asking (the first mod action needs it when not running
+    /// interactively).
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+/// `reject`.
+#[derive(Debug, Args)]
+pub struct RejectArgs {
+    /// Handles or DIDs (in --forum, else the current forum).
+    #[arg(value_name = "ACTOR", required = true, num_args = 1..)]
+    pub actors: Vec<String>,
+}
+
+/// `draft`.
+#[derive(Debug, Args)]
+pub struct DraftArgs {
+    /// What to do (default: list).
+    #[command(subcommand)]
+    pub action: Option<DraftAction>,
+}
+
+/// `draft …`.
+#[derive(Debug, Subcommand)]
+pub enum DraftAction {
+    /// List the drafts.
+    Ls,
+    /// Edit a draft in $EDITOR.
+    Edit {
+        /// The draft id.
+        id: String,
+    },
+    /// Delete a draft.
+    Rm {
+        /// The draft id.
+        id: String,
+    },
+    /// Publish a draft.
+    Publish {
+        /// The draft id.
+        id: String,
+        /// Publish without asking.
+        #[arg(long, short = 'y')]
+        yes: bool,
+    },
+}
+
+/// `media`.
+#[derive(Debug, Args)]
+pub struct MediaArgs {
+    /// What to do.
+    #[command(subcommand)]
+    pub action: MediaAction,
+}
+
+/// `media …` (`lfm-1.md` §6.2 numbers a body's media items 1…N).
+#[derive(Debug, Subcommand)]
+pub enum MediaAction {
+    /// Prepare a file (metadata stripped, CID computed) and print the `![…](cid:…)` to put in a
+    /// post; it is uploaded when the post is published from this device. A post can also name
+    /// the file itself: `![alt](./chart.png)`.
+    Add {
+        /// An image, video, audio file or PDF.
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+        /// The accessible description (shown to readers who cannot see the image).
+        #[arg(long, value_name = "TEXT")]
+        alt: Option<String>,
+    },
+    /// Save a media item of a post or comment as `<cid>.<ext>` (the bytes are checked against
+    /// the CID).
+    Get {
+        /// The post or comment.
+        #[arg(value_name = "REF")]
+        reference: String,
+        /// Which item (`[image 2: …]` is 2).
+        #[arg(long, value_name = "N", value_parser = clap::value_parser!(u16).range(1..))]
+        index: u16,
+        /// Where to save it: a file, or a directory for `<cid>.<ext>` (default: here).
+        #[arg(long, short = 'o', value_name = "PATH")]
+        out: Option<PathBuf>,
+    },
+    /// Open a media item of a post or comment with the system's viewer.
+    Open {
+        /// The post or comment.
+        #[arg(value_name = "REF")]
+        reference: String,
+        /// Which item (`[image 2: …]` is 2).
+        #[arg(long, value_name = "N", value_parser = clap::value_parser!(u16).range(1..))]
+        index: u16,
+    },
+}
+
+/// `outbox`.
+#[derive(Debug, Args)]
+pub struct OutboxArgs {
+    /// What to do (default: list).
+    #[command(subcommand)]
+    pub action: Option<OutboxAction>,
+}
+
+/// `outbox …`.
+#[derive(Debug, Subcommand)]
+pub enum OutboxAction {
+    /// List the queued and recent writes.
+    Ls,
+    /// Send the queued writes of the account now.
+    Flush,
+    /// Queue a failed write again and send it.
+    Retry {
+        /// The write id.
+        id: String,
+    },
+    /// Remove a write that was not sent yet.
+    Undo {
+        /// The write id.
+        id: String,
+    },
+}
+
+/// `redact`: delete an item's version history (`engine-api.md` §3.6 `redact_revision`, M4).
+///
+/// Deleting revision records cannot be undone, so `--yes` is required rather than assumed: a
+/// command that destroys history should not be one flag away from a typo.
+#[derive(Debug, Args)]
+pub struct RedactArgs {
+    /// The post or comment whose history goes.
+    #[arg(value_name = "REF")]
+    pub reference: String,
+    /// Confirm the deletion (without it the command only reports what it would delete).
+    #[arg(long)]
+    pub yes: bool,
+}

@@ -1,0 +1,1138 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+//! Writing: `post`, `comment`, `edit`, `delete`, `retract` (synthesis §6.10), and how every
+//! writing command finishes ([`drive`], [`report`]).
+//!
+//! A write is first persisted in the durable outbox (`engine-api.md` §3.5), then this process
+//! sends the account's queued writes in order (one in flight, `sync.md` §7.1) until the new one
+//! is finished or [`WRITE_WAIT_MS`] has passed. A write that is still queued then (offline, a
+//! rate limit, a back-off) stays in the outbox and is sent by the next writing command,
+//! `outbox flush` or `sync`; nothing is lost if the process is killed, and a write interrupted
+//! while it was being sent is checked against the PDS before it is sent again.
+//!
+//! `--json` prints the `WriteTicket` with `"dto": 1`; a failed write prints its ticket and
+//! exits with the error's code (`conflict` 5, …).
+
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::dto::{
+    AspectRatio, BodyDraft, CommentDraft, Draft, EditOpts, ExternalLinkDraft, MediaRef, PostDraft,
+    TextQuote, WriteState, WriteTicket,
+};
+use pandoras_forum_core::engine::{Engine, EngineError, ErrorCode};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::outbox::Step;
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_native::host::NativeHost;
+use serde_json::Value;
+
+use crate::args::{CommentArgs, DeleteArgs, EditArgs, PostArgs, RedactArgs, RefArgs};
+use crate::cmd::draft::{self, Doc, Drafts, PostSource, kind_str, parse_kind};
+use crate::cmd::{media, read, refs};
+use crate::ctx::{CliError, Ctx, Writer};
+use crate::out::{Style, cat, dto, lit, tt};
+use crate::prompt;
+use crate::render;
+
+/// How long a writing command keeps sending before it leaves the write queued.
+pub const WRITE_WAIT_MS: i64 = 60_000;
+
+fn finished(s: &WriteState) -> bool {
+    matches!(
+        s,
+        WriteState::Done { .. } | WriteState::Failed { .. } | WriteState::Undone
+    )
+}
+
+/// Sends the account's queued writes, in order, until write `ticket` is finished, nothing is
+/// due, or [`WRITE_WAIT_MS`] has passed; returns the write's latest ticket. With `--offline`
+/// nothing is sent.
+pub async fn drive(ctx: &Ctx, w: &Writer, ticket: WriteTicket) -> Result<WriteTicket, CliError> {
+    if ctx.offline() || finished(&ticket.state) {
+        return Ok(ticket);
+    }
+    let host = w.engine.host();
+    let deadline = host.now_ms().saturating_add(WRITE_WAIT_MS);
+    loop {
+        match w.engine.outbox().step(&w.session).await? {
+            Step::Processed(t) if t.id == ticket.id && finished(&t.state) => return Ok(t),
+            Step::Processed(_) => {}
+            Step::Idle | Step::NeedsLogin(_) => break,
+            Step::Wait(at) => {
+                let now = host.now_ms();
+                if at >= deadline || now >= deadline {
+                    break;
+                }
+                host.sleep(u64::try_from(at.saturating_sub(now).max(1)).unwrap_or(1))
+                    .await;
+            }
+        }
+    }
+    Ok(w.engine.write_status(&ticket.id).await?.unwrap_or(ticket))
+}
+
+/// Sends every queued write of the account (the same limits as [`drive`]); returns the final
+/// ticket of each write that was run, in the order they were first run.
+pub async fn drive_all(ctx: &Ctx, w: &Writer) -> Result<Vec<WriteTicket>, CliError> {
+    let mut run: Vec<WriteTicket> = Vec::new();
+    if ctx.offline() {
+        return Ok(run);
+    }
+    let host = w.engine.host();
+    let deadline = host.now_ms().saturating_add(WRITE_WAIT_MS);
+    loop {
+        match w.engine.outbox().step(&w.session).await? {
+            Step::Processed(t) => match run.iter_mut().find(|x| x.id == t.id) {
+                Some(x) => *x = t,
+                None => run.push(t),
+            },
+            Step::Idle => return Ok(run),
+            Step::NeedsLogin(t) => {
+                match run.iter_mut().find(|x| x.id == t.id) {
+                    Some(x) => *x = t,
+                    None => run.push(t),
+                }
+                return Ok(run);
+            }
+            Step::Wait(at) => {
+                let now = host.now_ms();
+                if at >= deadline || now >= deadline {
+                    return Ok(run);
+                }
+                host.sleep(u64::try_from(at.saturating_sub(now).max(1)).unwrap_or(1))
+                    .await;
+            }
+        }
+    }
+}
+
+/// The error of the first write in `run` that failed, or waits for a new login.
+pub fn first_failure(run: &[WriteTicket]) -> Option<EngineError> {
+    run.iter().find_map(|t| match &t.state {
+        WriteState::Failed { error } => Some(error.clone()),
+        _ => needs_login_error(t),
+    })
+}
+
+/// The error a write that waits for a new login is reported as (exit code 3).
+pub fn needs_login_error(t: &WriteTicket) -> Option<EngineError> {
+    let WriteState::Pending {
+        needs_login: true,
+        error,
+        ..
+    } = &t.state
+    else {
+        return None;
+    };
+    let why = error
+        .as_ref()
+        .map(|e| pandoras_forum_native::auth::redact::redact_secrets(&e.message))
+        .unwrap_or_default();
+    let account = t.id.rsplit_once('/').map_or("", |(a, _)| a);
+    let mut e = EngineError::new(
+        ErrorCode::AuthRequired,
+        format!(
+            "the session of {account} was refused{}; run `pandoras-forum login` again. Write {} \
+             stays queued and is sent after the login",
+            if why.is_empty() {
+                String::new()
+            } else {
+                format!(" ({why})")
+            },
+            t.id
+        ),
+    )
+    .with_detail("kind", "sessionExpired")
+    .with_detail("write", t.id.as_str());
+    e.retryable = true;
+    Some(e)
+}
+
+/// Why a pending write waits, for humans: ` (offline)`, ` (waiting until 12:09 UTC: <cause>)`.
+pub fn waiting_reason(ctx: &Ctx, state: &WriteState) -> crate::out::TermText {
+    let WriteState::Pending {
+        not_before_ms,
+        held,
+        error,
+        ..
+    } = state
+    else {
+        return lit("");
+    };
+    if ctx.offline() {
+        return lit(" (offline)");
+    }
+    let cause = error.as_ref().map(|e| {
+        cat([
+            lit(": "),
+            tt(e.code.as_str()),
+            lit(", "),
+            tt(&pandoras_forum_native::auth::redact::redact_secrets(
+                &e.message,
+            )),
+        ])
+    });
+    match (not_before_ms, cause) {
+        (Some(at), cause) => cat([
+            lit(if *held {
+                " (undo window until "
+            } else {
+                " (waiting until "
+            }),
+            tt(&render::time(*at)),
+            cause.unwrap_or_else(|| lit("")),
+            lit(")"),
+        ]),
+        (None, Some(cause)) => cat([lit(" (waiting"), cause, lit(")")]),
+        (None, None) => lit(""),
+    }
+}
+
+/// Prints a write's outcome; a failed write is returned as its error (the exit code), and so
+/// is a write that waits for a new login (`auth_required`, exit 3).
+pub fn report(ctx: &Ctx, t: &WriteTicket, done: &'static str) -> Result<(), CliError> {
+    if ctx.out.is_json() {
+        ctx.out.json(&dto(t));
+    }
+    if let Some(e) = needs_login_error(t) {
+        return Err(CliError::Engine(e));
+    }
+    match &t.state {
+        WriteState::Failed { error } => return Err(CliError::Engine(error.clone())),
+        _ if ctx.out.is_json() => {}
+        WriteState::Done { uri, .. } => ctx.out.line(&[
+            (lit(done), Style::Good),
+            (lit(": "), Style::Plain),
+            (tt(uri), Style::Bold),
+        ]),
+        WriteState::Undone => ctx.out.line(&[(lit("Undone."), Style::Plain)]),
+        WriteState::Sending | WriteState::Pending { .. } => {
+            let why = waiting_reason(ctx, &t.state);
+            ctx.out.line(&[
+                (lit("Queued"), Style::Warn),
+                (why, Style::Plain),
+                (lit(": write "), Style::Plain),
+                (tt(&t.id), Style::Bold),
+            ]);
+            ctx.out.note(&[(
+                lit("It is sent by the next command that writes, `pandoras-forum sync` or `pandoras-forum outbox flush`."),
+                Style::Dim,
+            )]);
+        }
+    }
+    Ok(())
+}
+
+/// The cached `(cid, value)` of a record (`not_found` if it is not cached).
+pub async fn cached(engine: &Engine<NativeHost>, uri: &str) -> Result<(String, Value), CliError> {
+    let u = AtUri::parse(uri).map_err(|e| EngineError::invalid_ref(format!("{uri:?}: {e}")))?;
+    let row = RecordStore::new(engine.host().cache())
+        .get(&u)
+        .await
+        .map_err(|e| EngineError::internal(e.to_string()))?
+        .ok_or_else(|| EngineError::not_found(format!("{uri} is not available")))?;
+    let v = row
+        .value_json()
+        .map_err(|e| EngineError::internal(format!("{uri}: {e}")))?;
+    Ok((row.cid.to_string(), v))
+}
+
+/// The DID whose repository holds `uri`.
+pub fn owner_of(uri: &str) -> Result<String, CliError> {
+    let u = AtUri::parse(uri).map_err(|e| EngineError::invalid_ref(format!("{uri:?}: {e}")))?;
+    Ok(u.did().to_string())
+}
+
+/// The text of a body from `-m`, a file or standard input; `None` when none is given.
+fn text_arg(
+    message: Option<String>,
+    file: Option<&std::path::Path>,
+) -> Result<Option<String>, CliError> {
+    match (message, file) {
+        (Some(m), _) => Ok(Some(m)),
+        (None, Some(f)) => Ok(Some(draft::read_file(f)?)),
+        (None, None) => Ok(None),
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// post
+
+/// `pandoras-forum post [file.md]`.
+pub async fn post(ctx: &Ctx, args: PostArgs) -> Result<(), CliError> {
+    let drafts = Drafts::new(ctx);
+    let (mut doc, from_editor) = match &args.file {
+        Some(f) => {
+            let text = draft::read_file(f)?;
+            let doc = Doc::parse(&text)
+                .map_err(|e| EngineError::invalid_input(format!("{}: {e}", f.display())))?;
+            (doc, false)
+        }
+        None => (
+            Doc {
+                fields: vec![("type".into(), draft::Value::Str("post".into()))],
+                body: String::new(),
+            },
+            true,
+        ),
+    };
+    // flags override the frontmatter
+    if let Some(f) = &ctx.g.forum {
+        doc.set("forum", draft::Value::Str(f.clone()));
+    }
+    if let Some(t) = &args.title {
+        doc.set("title", draft::Value::Str(t.clone()));
+    }
+    if let Some(k) = args.kind {
+        doc.set("kind", draft::Value::Str(kind_str(k.into()).into()));
+    }
+    if let Some(l) = &args.link {
+        doc.set("link", draft::Value::Str(l.clone()));
+        if doc.get("kind").is_none() {
+            doc.set("kind", draft::Value::Str("link".into()));
+        }
+    }
+    if !args.tags.is_empty() {
+        doc.set("tags", draft::Value::List(args.tags.clone()));
+    }
+    let mut draft_id = None;
+    if from_editor {
+        // a new draft: name the forum and the title fields so the editor shows them
+        if doc.get("forum").is_none()
+            && let Some(f) = ctx.state.current_forum()
+        {
+            doc.set("forum", draft::Value::Str(f));
+        }
+        for k in ["title", "kind", "tags"] {
+            if !doc.fields.iter().any(|(key, _)| key == k) {
+                let v = match k {
+                    "kind" => draft::Value::Str("article".into()),
+                    "tags" => draft::Value::List(Vec::new()),
+                    _ => draft::Value::Str(String::new()),
+                };
+                doc.set(k, v);
+            }
+        }
+        let id = drafts.new_id(ctx.engine()?.host());
+        let path = drafts.save(&id, &doc, &[])?;
+        if !args.draft {
+            edit_draft_file(ctx, &drafts, &id, &path)?;
+            doc = drafts.load(&id)?;
+        }
+        draft_id = Some(id);
+    }
+    if args.draft {
+        let id = match draft_id {
+            Some(id) => id,
+            None => {
+                let id = drafts.new_id(ctx.engine()?.host());
+                drafts.save(&id, &doc, &[])?;
+                id
+            }
+        };
+        if ctx.out.is_json() {
+            ctx.out.json(&serde_json::json!({
+                "dto": 1,
+                "id": id,
+                "path": drafts.path(&id).display().to_string(),
+            }));
+        } else {
+            ctx.out.line(&[
+                (lit("Saved draft "), Style::Plain),
+                (tt(&id), Style::Bold),
+                (lit(" ("), Style::Plain),
+                (tt(&drafts.path(&id).display().to_string()), Style::Dim),
+                (lit(")"), Style::Plain),
+            ]);
+        }
+        return Ok(());
+    }
+    if from_editor && doc.body_is_empty() && doc.get("title").is_none() {
+        if let Some(id) = &draft_id {
+            drafts.remove(id)?;
+        }
+        return Err(CliError::usage("the draft is empty; nothing was published"));
+    }
+    let src = match args.file.as_deref() {
+        Some(f) if !from_editor => PostSource::from_file(ctx, doc, f),
+        _ => PostSource::draft(ctx, doc, draft_id),
+    };
+    draft::publish_post(ctx, src, args.yes).await
+}
+
+// ---------------------------------------------------------------------------------------------
+// comment
+
+/// The root and parent of a comment on `uri` (a post, or a comment replied to).
+async fn thread_of(
+    engine: &Engine<NativeHost>,
+    uri: &str,
+    is_comment: bool,
+) -> Result<(String, Option<String>), CliError> {
+    if !is_comment {
+        return Ok((uri.to_owned(), None));
+    }
+    let (_, v) = cached(engine, uri).await?;
+    let root = v
+        .get("root")
+        .and_then(|r| r.get("uri"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| EngineError::invalid_input(format!("{uri} names no thread")))?;
+    Ok((root.to_owned(), Some(uri.to_owned())))
+}
+
+async fn send_comment(ctx: &Ctx, w: &Writer, d: &CommentDraft) -> Result<(), CliError> {
+    let ticket = w.engine.comment(d).await?;
+    let t = drive(ctx, w, ticket).await?;
+    report(ctx, &t, "Commented")
+}
+
+/// Attaches the media of a comment's or an edit's `body` (`media::attach`: its draft-local
+/// images, read from `dir`, become `cid:` media) and confirms the files of this machine it
+/// uploads (FILE-2, `media::confirm_uploads`). A draft `id` the text came from is kept, and the
+/// note says so, when that fails.
+async fn attach_media(
+    ctx: &Ctx,
+    w: &Writer,
+    body: &mut BodyDraft,
+    dir: Option<&std::path::Path>,
+    foreign: bool,
+    yes: bool,
+    id: Option<&str>,
+) -> Result<(), CliError> {
+    let attached = media::attach(ctx, &w.engine, body, dir)
+        .await
+        .and_then(|a| media::confirm_uploads(ctx, &a, foreign, yes));
+    if let (Err(_), Some(id)) = (&attached, id) {
+        kept_note(ctx, id);
+    }
+    attached
+}
+
+/// Where the text of a comment or an edit comes from: `-m` and standard input have no
+/// directory for image paths; a file has its own (foreign unless it is under the drafts
+/// directory, `threat-model.md` FILE-2).
+fn text_dir(
+    ctx: &Ctx,
+    message: Option<&String>,
+    file: Option<&std::path::Path>,
+) -> (Option<std::path::PathBuf>, bool) {
+    match (message, file) {
+        (None, Some(f)) => draft::file_dir(ctx, f),
+        _ => (None, true),
+    }
+}
+
+/// Queues the write `queue` makes from draft `id`, and removes the draft as soon as the write
+/// is in the outbox: the outbox sends it from then on (also after Ctrl-C or `kill -9` during
+/// the send), so the draft must not be published a second time. A write that could not be
+/// queued keeps the draft, and says so.
+async fn queue_from_draft<F>(
+    ctx: &Ctx,
+    w: &Writer,
+    id: &str,
+    queue: F,
+    done: &'static str,
+) -> Result<(), CliError>
+where
+    F: std::future::Future<Output = Result<WriteTicket, EngineError>>,
+{
+    let ticket = match queue.await {
+        Ok(t) => t,
+        Err(e) => {
+            kept_note(ctx, id);
+            return Err(e.into());
+        }
+    };
+    Drafts::new(ctx).remove(id)?;
+    let t = drive(ctx, w, ticket).await?;
+    report(ctx, &t, done)
+}
+
+fn kept_note(ctx: &Ctx, id: &str) {
+    ctx.out.note(&[(
+        cat([
+            lit("The text is kept as draft "),
+            tt(id),
+            lit(" (`pandoras-forum draft edit "),
+            tt(id),
+            lit("`)."),
+        ]),
+        Style::Dim,
+    )]);
+}
+
+/// Runs the editor on the new draft `id`. If the editor fails, a draft it did not change is
+/// removed (an aborted editor leaves no empty draft behind); a changed one is kept, and the
+/// note names it.
+fn edit_draft_file(
+    ctx: &Ctx,
+    drafts: &Drafts,
+    id: &str,
+    path: &std::path::Path,
+) -> Result<(), CliError> {
+    let before = drafts.load(id)?;
+    let Err(e) = draft::edit_file(path) else {
+        return Ok(());
+    };
+    match drafts.load(id) {
+        Ok(doc) if doc == before => drafts.remove(id)?,
+        _ => kept_note(ctx, id),
+    }
+    Err(e)
+}
+
+/// `pandoras-forum comment <ref> [file|-] [-m text] [--yes]` (`--yes` confirms the uploads of a
+/// file of the drafts directory, as `post --yes` does: FILE-2).
+pub async fn comment(ctx: &Ctx, args: CommentArgs) -> Result<(), CliError> {
+    let w = ctx.writer().await?;
+    let (uri, is_comment) = refs::post_or_comment(ctx, &w.engine, &args.reference).await?;
+    read::sync_thread_quietly(ctx, &w.engine, &uri).await;
+    let (root, parent) = thread_of(&w.engine, &uri, is_comment).await?;
+    let (dir, foreign) = text_dir(ctx, args.message.as_ref(), args.file.as_deref());
+    let text = text_arg(args.message, args.file.as_deref())?;
+    let text = match text {
+        Some(t) => t,
+        None => {
+            let drafts = Drafts::new(ctx);
+            let mut doc = Doc {
+                fields: vec![
+                    ("type".into(), draft::Value::Str("comment".into())),
+                    ("root".into(), draft::Value::Str(root.clone())),
+                ],
+                body: String::new(),
+            };
+            doc.set_opt("parent", parent.as_deref());
+            let id = drafts.new_id(w.engine.host());
+            let path = drafts.save(&id, &doc, &[])?;
+            edit_draft_file(ctx, &drafts, &id, &path)?;
+            let doc = drafts.load(&id)?;
+            if doc.body_is_empty() {
+                drafts.remove(&id)?;
+                return Err(CliError::usage("the comment is empty; nothing was posted"));
+            }
+            let mut d = CommentDraft::new(root, parent, doc.body_text());
+            let dir = ctx.paths.drafts_dir();
+            attach_media(ctx, &w, &mut d.body, Some(&dir), false, args.yes, Some(&id)).await?;
+            return queue_from_draft(ctx, &w, &id, w.engine.comment(&d), "Commented").await;
+        }
+    };
+    if text.trim().is_empty() {
+        return Err(CliError::usage("the comment is empty; nothing was posted"));
+    }
+    let mut d = CommentDraft::new(root, parent, text);
+    attach_media(
+        ctx,
+        &w,
+        &mut d.body,
+        dir.as_deref(),
+        foreign,
+        args.yes,
+        None,
+    )
+    .await?;
+    send_comment(ctx, &w, &d).await
+}
+
+/// `draft publish` of a comment draft (`yes`: `--yes`, which confirms its local files).
+pub async fn publish_comment_draft(
+    ctx: &Ctx,
+    id: &str,
+    doc: Doc,
+    yes: bool,
+) -> Result<(), CliError> {
+    let w = ctx.writer().await?;
+    let root = doc
+        .get("root")
+        .ok_or_else(|| EngineError::invalid_input(format!("draft {id} has no `root`")))?
+        .to_owned();
+    if doc.body_is_empty() {
+        return Err(EngineError::invalid_input(format!("draft {id} is empty")).into());
+    }
+    read::sync_thread_quietly(ctx, &w.engine, doc.get("parent").unwrap_or(&root)).await;
+    let mut d = CommentDraft::new(root, doc.get("parent").map(str::to_owned), doc.body_text());
+    let dir = ctx.paths.drafts_dir();
+    attach_media(ctx, &w, &mut d.body, Some(&dir), false, yes, Some(id)).await?;
+    queue_from_draft(ctx, &w, id, w.engine.comment(&d), "Commented").await
+}
+
+// ---------------------------------------------------------------------------------------------
+// edit
+
+/// The editable fields of a cached record.
+struct Current {
+    is_post: bool,
+    forum: String,
+    markdown: String,
+    /// The body's media items: an edit keeps them (the engine keeps their blob objects,
+    /// `data-model.md` §8.8), so a `cid:` image of the text still resolves.
+    media: Vec<MediaRef>,
+    title: Option<String>,
+    kind: String,
+    link: Option<String>,
+    /// The link card's title and description: an edit that keeps the uri keeps them too (the
+    /// engine writes `link` from the draft, `data-model.md` §8.3).
+    link_title: Option<String>,
+    link_description: Option<String>,
+    tags: Vec<String>,
+    labels: Vec<String>,
+    root: Option<String>,
+    parent: Option<String>,
+    quote: Option<TextQuote>,
+}
+
+fn strs(v: Option<&Value>) -> Vec<String> {
+    v.and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The media items of a cached body as the references an edit sends again. An item that does
+/// not read as `defs#media` refuses the edit: leaving it out would delete it.
+fn media_of(uri: &str, body: Option<&Value>) -> Result<Vec<MediaRef>, CliError> {
+    let Some(items) = body.and_then(|b| b.get("media")) else {
+        return Ok(Vec::new());
+    };
+    let items = items.as_array().ok_or_else(|| {
+        EngineError::invalid_input(format!("{uri}: the body's media is not a list"))
+    })?;
+    let mut out = Vec::with_capacity(items.len());
+    for (i, item) in items.iter().enumerate() {
+        let m = serde_json::from_value::<pandoras_forum_lexicon::records::Media>(item.clone())
+            .map_err(|e| {
+                EngineError::invalid_input(format!(
+                    "{uri}: media item {} cannot be read ({e}); an edit would drop it",
+                    i + 1
+                ))
+            })?;
+        let cid = m.blob.r#ref.link.clone();
+        out.push(MediaRef {
+            id: cid.clone(),
+            cid,
+            mime: m.blob.mime_type.clone(),
+            size_bytes: u64::try_from(m.blob.size).unwrap_or(0),
+            alt: m.alt.clone(),
+            aspect_ratio: m.aspect_ratio.as_ref().and_then(|a| {
+                Some(AspectRatio {
+                    width: u32::try_from(a.width).ok()?,
+                    height: u32::try_from(a.height).ok()?,
+                })
+            }),
+            duration_ms: m.duration_ms.and_then(|d| u64::try_from(d).ok()),
+            name: m.name.clone(),
+            notices: Vec::new(),
+        });
+    }
+    Ok(out)
+}
+
+/// The markdown of a spilled body (`textBlob`, `lfm-1.md` §1.3) of the writer's own item `uri`:
+/// fetched from the writer's PDS, CID-checked by the host, at most `BLOB_TEXT_MAX_BYTES`, and
+/// decoded as the engine decodes it (UTF-8, one leading U+FEFF stripped).
+async fn spilled_markdown(w: &Writer, uri: &str, blob: &Value) -> Result<String, CliError> {
+    let unreadable = |why: String| EngineError::invalid_input(format!("{uri}: the body {why}"));
+    let cid = blob
+        .get("ref")
+        .and_then(|r| r.get("$link"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| unreadable("blob has no CID".into()))?;
+    let pds = url::Url::parse(&w.account.pds)
+        .map_err(|e| EngineError::internal(format!("the PDS {}: {e}", w.account.pds)))?;
+    let did = pandoras_forum_atp::syntax::Did::parse(&w.account.did)
+        .map_err(|e| EngineError::internal(e.to_string()))?;
+    let h = w
+        .engine
+        .host()
+        .fetch_blob(
+            pds,
+            did,
+            cid.to_owned(),
+            pandoras_forum_core::limits::BLOB_TEXT_MAX_BYTES,
+        )
+        .await
+        .map_err(EngineError::from)?;
+    let bytes = std::fs::read(&h.locator)
+        .map_err(|e| EngineError::internal(format!("{}: {e}", h.locator)))?;
+    let text = String::from_utf8(bytes).map_err(|_| unreadable("blob is not UTF-8".into()))?;
+    Ok(match text.strip_prefix('\u{feff}') {
+        Some(t) => t.to_owned(),
+        None => text,
+    })
+}
+
+/// The markdown source of `md`, an `md` field of the writer's own record `uri`, as an edit
+/// starts from it: its inline `text`, or its spilled `textBlob` fetched ([`spilled_markdown`];
+/// the outbox spills the new text again if it must, `data-model.md` §5.3).
+async fn body_markdown(w: &Writer, uri: &str, md: &Value) -> Result<String, CliError> {
+    if let Some(t) = md.get("text").and_then(Value::as_str) {
+        return Ok(t.to_owned());
+    }
+    match md.get("textBlob") {
+        Some(blob) => spilled_markdown(w, uri, blob).await,
+        None => Err(EngineError::new(
+            ErrorCode::Unsupported,
+            format!("{uri}: this body has neither text nor a text blob to edit"),
+        )
+        .into()),
+    }
+}
+
+/// An `md` field of the writer's own record `uri` as the draft that keeps it: its markdown
+/// ([`body_markdown`]) and its media, sent again as references (`data-model.md` §8.8).
+pub async fn kept_body(w: &Writer, uri: &str, md: &Value) -> Result<BodyDraft, CliError> {
+    Ok(BodyDraft {
+        markdown: body_markdown(w, uri, md).await?,
+        media: media_of(uri, Some(md))?,
+    })
+}
+
+async fn current(w: &Writer, uri: &str) -> Result<Current, CliError> {
+    let u = AtUri::parse(uri).map_err(|e| EngineError::invalid_ref(format!("{uri:?}: {e}")))?;
+    let coll = u.collection().as_str();
+    let is_post = coll == nsid::POST;
+    if !is_post && coll != nsid::COMMENT {
+        return Err(EngineError::invalid_ref(format!("{uri} is not a post or a comment")).into());
+    }
+    let (_, v) = cached(&w.engine, uri).await?;
+    let body = v.get("body");
+    let markdown = match body {
+        Some(b) => body_markdown(w, uri, b).await?,
+        None => String::new(),
+    };
+    let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
+    let link = |k: &str| {
+        v.get("link")
+            .and_then(|l| l.get(k))
+            .and_then(Value::as_str)
+            .map(str::to_owned)
+    };
+    Ok(Current {
+        is_post,
+        forum: s("forum").unwrap_or_default(),
+        media: media_of(uri, body)?,
+        markdown,
+        title: s("title"),
+        kind: s("kind").unwrap_or_else(|| "article".into()),
+        link: link("uri"),
+        link_title: link("title"),
+        link_description: link("description"),
+        tags: strs(v.get("tags")),
+        labels: v
+            .get("labels")
+            .and_then(|l| l.get("values"))
+            .and_then(Value::as_array)
+            .map(|a| {
+                a.iter()
+                    .filter_map(|x| x.get("val").and_then(Value::as_str).map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default(),
+        root: v
+            .get("root")
+            .and_then(|r| r.get("uri"))
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        parent: v
+            .get("parent")
+            .and_then(|r| r.get("uri"))
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        quote: v
+            .get("quote")
+            .and_then(|q| serde_json::from_value::<TextQuote>(q.clone()).ok()),
+    })
+}
+
+/// The edit draft of a record: its post fields (posts) and its current markdown.
+fn edit_doc(uri: &str, c: &Current) -> Doc {
+    let mut doc = Doc {
+        fields: vec![
+            ("type".into(), draft::Value::Str("edit".into())),
+            ("target".into(), draft::Value::Str(uri.to_owned())),
+        ],
+        body: c.markdown.clone(),
+    };
+    if c.is_post {
+        doc.set(
+            "title",
+            draft::Value::Str(c.title.clone().unwrap_or_default()),
+        );
+        doc.set("kind", draft::Value::Str(c.kind.clone()));
+        doc.set_opt("link", c.link.as_deref());
+        if c.link.is_some() {
+            // the author sets it to `true` to drop the card, as `--drop-link-card` does
+            doc.set(DROP_LINK_CARD, draft::Value::Str("false".into()));
+        }
+        doc.set("tags", draft::Value::List(c.tags.clone()));
+    }
+    doc.set("summary", draft::Value::Str(String::new()));
+    doc
+}
+
+/// The engine draft of an edit: `doc`'s fields over the current ones, and the current media.
+fn edit_draft(c: &Current, doc: &Doc, body: Option<String>) -> Result<Draft, CliError> {
+    let markdown = body.unwrap_or_else(|| c.markdown.clone());
+    let body = BodyDraft {
+        markdown,
+        media: c.media.clone(),
+    };
+    if c.is_post {
+        let kind = match doc.get("kind") {
+            Some(k) => parse_kind(k).map_err(EngineError::invalid_input)?,
+            None => parse_kind(&c.kind).unwrap_or(pandoras_forum_core::dto::PostKind::Article),
+        };
+        let has = |k: &str| doc.fields.iter().any(|(key, _)| key == k);
+        let link = if has("link") {
+            doc.get("link").map(str::to_owned)
+        } else {
+            c.link.clone()
+        };
+        Ok(Draft::Post {
+            id: None,
+            post: PostDraft {
+                forum: c.forum.clone(),
+                kind,
+                title: if has("title") {
+                    doc.get("title").map(str::to_owned)
+                } else {
+                    c.title.clone()
+                },
+                body,
+                link: link.map(|uri| {
+                    // the card's title and description describe the uri they came with
+                    let same = c.link.as_deref() == Some(uri.as_str());
+                    ExternalLinkDraft {
+                        uri,
+                        title: c.link_title.clone().filter(|_| same),
+                        description: c.link_description.clone().filter(|_| same),
+                    }
+                }),
+                tags: if has("tags") {
+                    doc.list("tags")
+                } else {
+                    c.tags.clone()
+                },
+                labels: c.labels.clone(),
+            },
+        })
+    } else {
+        Ok(Draft::Comment {
+            id: None,
+            comment: CommentDraft {
+                root: c.root.clone().unwrap_or_default(),
+                parent: c.parent.clone(),
+                body,
+                quote: c.quote.clone(),
+            },
+        })
+    }
+}
+
+/// The edit draft field (frontmatter) that does what `edit --drop-link-card` does: the
+/// `$EDITOR` template of a post with a link has it (`false`), and an edit file or a kept edit
+/// draft that sets it to `true` drops the card when it is published.
+const DROP_LINK_CARD: &str = "dropLinkCard";
+
+/// `--drop-link-card` (`EditOpts.dropLinkCard`, `engine-api.md` §3.5 `edit`): the post's link
+/// is sent as the uri alone, which the engine then writes as it is, without the card (title,
+/// description, image) it otherwise keeps for the same uri.
+fn drop_link_card(d: &mut Draft, drop: bool) -> Result<(), CliError> {
+    if !drop {
+        return Ok(());
+    }
+    match d {
+        Draft::Post { post, .. } => match &mut post.link {
+            Some(link) => {
+                link.title = None;
+                link.description = None;
+                Ok(())
+            }
+            None => Err(CliError::usage("--drop-link-card: the post has no link")),
+        },
+        Draft::Comment { .. } => Err(CliError::usage(
+            "--drop-link-card applies to posts only (a comment has no link card)",
+        )),
+    }
+}
+
+/// The body of an edit draft.
+fn body_mut(d: &mut Draft) -> &mut BodyDraft {
+    match d {
+        Draft::Post { post, .. } => &mut post.body,
+        Draft::Comment { comment, .. } => &mut comment.body,
+    }
+}
+
+/// Before an edit of an item that carries positive assertions (`social.md` §4.5,
+/// `threat-model.md` SOC-3): says what the edit suspends (the engine's `edit_preflight`, in
+/// the view [`read::sync_for_read`] brought up to date, as `read` shows it), then asks on a
+/// terminal; headless use needs `--yes` (`yes`). An item with none asks nothing. A preflight
+/// that cannot run does not refuse the edit: the user is told what could not be checked and
+/// why, and asked the same (sec-7).
+async fn confirm_suspension(
+    ctx: &Ctx,
+    engine: &Engine<NativeHost>,
+    uri: &str,
+    yes: bool,
+) -> Result<(), CliError> {
+    let (notices, unchecked) = match engine.edit_preflight(uri).await {
+        Ok(n) => (n, None),
+        Err(e) => (Vec::new(), Some(e.message)),
+    };
+    if notices.is_empty() && unchecked.is_none() {
+        return Ok(());
+    }
+    for n in &notices {
+        ctx.out.warn(cat([tt(uri), lit(": "), tt(&n.message)]));
+    }
+    if let Some(why) = &unchecked {
+        ctx.out.warn(cat([
+            lit("what editing "),
+            tt(uri),
+            lit(" would suspend could not be checked: "),
+            tt(why),
+        ]));
+    }
+    if yes {
+        return Ok(());
+    }
+    if prompt::stdin_is_tty() && !ctx.out.is_json() {
+        if prompt::confirm("edit it anyway?") {
+            return Ok(());
+        }
+        return Err(CliError::Reported(1));
+    }
+    let said = match unchecked {
+        Some(why) => format!("what it would suspend could not be checked ({why})"),
+        None => notices
+            .iter()
+            .map(|n| n.message.as_str())
+            .collect::<Vec<_>>()
+            .join("; "),
+    };
+    Err(CliError::usage(format!(
+        "editing {uri}: {said}; add --yes to edit it when not running interactively"
+    )))
+}
+
+async fn send_edit(
+    ctx: &Ctx,
+    w: &Writer,
+    uri: &str,
+    d: &Draft,
+    opts: &EditOpts,
+) -> Result<(), CliError> {
+    let ticket = w.engine.edit(uri, d, opts).await?;
+    let t = drive(ctx, w, ticket).await?;
+    report(ctx, &t, "Edited")
+}
+
+/// `pandoras-forum edit <ref> [file|-] [-m text] [--title t] [--summary s] [--no-history]
+/// [--drop-link-card] [--yes]` (`--yes` confirms what the edit suspends and the uploads of a
+/// file of the drafts directory).
+pub async fn edit(ctx: &Ctx, args: EditArgs) -> Result<(), CliError> {
+    let reader = ctx.reader().await?;
+    let (uri, _) = refs::post_or_comment(ctx, &reader, &args.reference).await?;
+    let w = ctx.writer_for(&owner_of(&uri)?).await?;
+    // the thread, and the forum's assertions unless synced lately
+    read::sync_for_read(ctx, &w.engine, &uri).await;
+    let c = current(&w, &uri).await?;
+    confirm_suspension(ctx, &w.engine, &uri, args.yes).await?;
+    let mut opts = EditOpts {
+        history: !args.no_history,
+        summary: args.summary.clone(),
+        drop_link_card: args.drop_link_card,
+    };
+    let (dir, foreign) = text_dir(ctx, args.message.as_ref(), args.file.as_deref());
+    let given = text_arg(args.message, args.file.as_deref())?;
+    let (doc, body) = match given {
+        Some(text) => {
+            // a file may carry post fields in frontmatter
+            let doc = Doc::parse(&text).map_err(EngineError::invalid_input)?;
+            opts.drop_link_card |= doc.get(DROP_LINK_CARD) == Some("true");
+            let body = doc.body_text();
+            (doc, Some(body))
+        }
+        // a new title, or dropping the link card, alone leaves the text as it is
+        None if args.title.is_some() || args.drop_link_card => (Doc::default(), None),
+        None => {
+            let drafts = Drafts::new(ctx);
+            let id = drafts.new_id(w.engine.host());
+            let path = drafts.save(&id, &edit_doc(&uri, &c), &[])?;
+            edit_draft_file(ctx, &drafts, &id, &path)?;
+            let doc = drafts.load(&id)?;
+            if opts.summary.is_none() {
+                opts.summary = doc.get("summary").map(str::to_owned);
+            }
+            opts.drop_link_card = doc.get(DROP_LINK_CARD) == Some("true");
+            let body = doc.body_text();
+            let mut d = match edit_draft(&c, &doc, Some(body))
+                .and_then(|mut d| drop_link_card(&mut d, opts.drop_link_card).map(|()| d))
+            {
+                Ok(d) => d,
+                Err(e) => {
+                    kept_note(ctx, &id);
+                    return Err(e);
+                }
+            };
+            if let (Some(t), Draft::Post { post, .. }) = (&args.title, &mut d) {
+                post.title = Some(t.clone());
+            }
+            let dir = ctx.paths.drafts_dir();
+            attach_media(
+                ctx,
+                &w,
+                body_mut(&mut d),
+                Some(&dir),
+                false,
+                args.yes,
+                Some(&id),
+            )
+            .await?;
+            return queue_from_draft(ctx, &w, &id, w.engine.edit(&uri, &d, &opts), "Edited").await;
+        }
+    };
+    let body_given = body.is_some();
+    let mut d = edit_draft(&c, &doc, body)?;
+    if let Some(t) = &args.title {
+        match &mut d {
+            Draft::Post { post, .. } => post.title = Some(t.clone()),
+            Draft::Comment { .. } => {
+                return Err(CliError::usage("--title applies to posts only"));
+            }
+        }
+    }
+    drop_link_card(&mut d, opts.drop_link_card)?;
+    // a new title alone leaves the text as it is
+    if body_given {
+        attach_media(
+            ctx,
+            &w,
+            body_mut(&mut d),
+            dir.as_deref(),
+            foreign,
+            args.yes,
+            None,
+        )
+        .await?;
+    }
+    send_edit(ctx, &w, &uri, &d, &opts).await
+}
+
+/// `draft publish` of an edit draft (`yes`: `--yes`, which confirms its local files and what
+/// the edit suspends).
+pub async fn publish_edit_draft(ctx: &Ctx, id: &str, doc: Doc, yes: bool) -> Result<(), CliError> {
+    let uri = doc
+        .get("target")
+        .ok_or_else(|| EngineError::invalid_input(format!("draft {id} has no `target`")))?
+        .to_owned();
+    let w = ctx.writer_for(&owner_of(&uri)?).await?;
+    read::sync_for_read(ctx, &w.engine, &uri).await;
+    let c = current(&w, &uri).await?;
+    confirm_suspension(ctx, &w.engine, &uri, yes).await?;
+    let mut d = edit_draft(&c, &doc, Some(doc.body_text()))?;
+    let drop = doc.get(DROP_LINK_CARD) == Some("true");
+    drop_link_card(&mut d, drop)?;
+    let dir = ctx.paths.drafts_dir();
+    attach_media(ctx, &w, body_mut(&mut d), Some(&dir), false, yes, Some(id)).await?;
+    let opts = EditOpts {
+        history: doc.get("history") != Some("false"),
+        summary: doc.get("summary").map(str::to_owned),
+        drop_link_card: drop,
+    };
+    queue_from_draft(ctx, &w, id, w.engine.edit(&uri, &d, &opts), "Edited").await
+}
+
+// ---------------------------------------------------------------------------------------------
+// delete, retract
+
+/// `pandoras-forum delete <ref> [--yes]`.
+pub async fn delete(ctx: &Ctx, args: DeleteArgs) -> Result<(), CliError> {
+    let reader = ctx.reader().await?;
+    let (uri, _) = refs::post_or_comment(ctx, &reader, &args.reference).await?;
+    let w = ctx.writer_for(&owner_of(&uri)?).await?;
+    if !args.yes {
+        if !prompt::stdin_is_tty() {
+            return Err(CliError::usage(
+                "delete removes the record and its revisions; add --yes when not running \
+                 interactively",
+            ));
+        }
+        ctx.out
+            .err_line(&[(lit("Delete "), Style::Plain), (tt(&uri), Style::Bold)]);
+        if !prompt::confirm("and its revisions?") {
+            return Err(CliError::Reported(1));
+        }
+    }
+    let ticket = w.engine.delete(&uri).await?;
+    let t = drive(ctx, &w, ticket).await?;
+    report(ctx, &t, "Deleted")
+}
+
+/// `pandoras-forum retract <ref>`.
+pub async fn retract(ctx: &Ctx, args: RefArgs) -> Result<(), CliError> {
+    let reader = ctx.reader().await?;
+    let (uri, is_comment) = refs::post_or_comment(ctx, &reader, &args.reference).await?;
+    if !is_comment {
+        return Err(EngineError::invalid_input(
+            "only comments are retracted; edit or delete a post instead",
+        )
+        .into());
+    }
+    let w = ctx.writer_for(&owner_of(&uri)?).await?;
+    read::sync_thread_quietly(ctx, &w.engine, &uri).await;
+    let ticket = w.engine.retract(&uri).await?;
+    let t = drive(ctx, &w, ticket).await?;
+    report(ctx, &t, "Retracted")
+}
+
+/// `redact`: delete an item's version history (`engine-api.md` §3.6, M4).
+///
+/// Only the author may do it (the outbox enforces that the uri is in their repo, W9), and the
+/// deletion cannot be undone, so `--yes` is required. Without it the command reports what this
+/// device's view holds, which also makes it the way to check before redacting. With it the
+/// redaction is always sent, whatever that view shows (decision O-10): the engine lists the
+/// author's PDS when the write is sent and deletes every revision that names the item, also
+/// those a failed sync or an invalid key keeps out of the view.
+pub async fn redact(ctx: &Ctx, args: RedactArgs) -> Result<(), CliError> {
+    let reader = ctx.reader().await?;
+    let (uri, _) = refs::post_or_comment(ctx, &reader, &args.reference).await?;
+    let w = ctx.writer_for(&owner_of(&uri)?).await?;
+    read::sync_thread_quietly(ctx, &w.engine, &uri).await;
+
+    if !args.yes {
+        // an item this device has not cached has no history in its view
+        let shown = w.engine.history(&uri).await.map_or(0, |h| h.versions.len());
+        if shown == 0 {
+            ctx.out.line(&[
+                (lit("no revisions of "), Style::Plain),
+                (tt(&uri), Style::Dim),
+                (lit(" in this device's view"), Style::Plain),
+            ]);
+        } else {
+            ctx.out.line(&[
+                (lit("would delete "), Style::Plain),
+                (tt(&shown.to_string()), Style::Bold),
+                (lit(" revision(s) of "), Style::Plain),
+                (tt(&uri), Style::Dim),
+            ]);
+        }
+        ctx.out.line(&[(
+            lit(
+                "pass --yes to delete every revision your PDS lists for it (this cannot be \
+                 undone)",
+            ),
+            Style::Dim,
+        )]);
+        return Ok(());
+    }
+    let tickets = w.engine.redact_revision(&uri).await?;
+    for t in tickets {
+        let done = drive(ctx, &w, t).await?;
+        report(ctx, &done, "Redacted")?;
+    }
+    Ok(())
+}

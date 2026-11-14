@@ -1,0 +1,50 @@
+[package]
+name = "pandoras-forum-markdown"
+description = "LFM/1 markdown: one renderer for HTML+MathML, terminal styled text and plain-text projection"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+default = ["math"]
+# MathML output through math-core (lfm-1.md §7.2). Without it the renderer emits the documented
+# Temml-mode `<span data-tex>` fallback (§7.5).
+math = ["dep:math-core"]
+# Defence-in-depth equality check with ammonia (native only; large in wasm).
+ammonia = ["dep:ammonia"]
+
+[dependencies]
+pandoras-forum-atp.workspace = true
+pulldown-cmark.workspace = true
+math-core = { workspace = true, optional = true }
+ammonia = { workspace = true, optional = true }
+serde.workspace = true
+thiserror.workspace = true
+# Unicode data is part of the frozen `lfm/1` semantics (P, slugs, anchors, excerpts) and of the
+# terminal layout, so these are exact pins: an upgrade changes the vectors and is reviewed as such.
+unicode-segmentation = "=1.13.3"
+unicode-normalization = "=0.1.25"
+unicode-width = "=0.2.2"
+# Footnote label matching must agree with pulldown-cmark, which uses `UniCase` (lfm-1.md §4.6).
+unicase.workspace = true
+# General_Category for heading slugs, anchors and the host test (lfm-1.md §2 "Unicode data").
+unicode-general-category.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+serde_json.workspace = true
+
+# The vector runner and the property tests also run on wasm32 under node (`cargo xtask test-wasm`).
+# proptest's default `fork`/`timeout` features spawn processes, so the wasm32 build takes it without
+# them; its seed comes from `getrandom` 0.4 (`crypto.getRandomValues` through `wasm_js`).
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+proptest.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+proptest = { version = "1", default-features = false, features = ["std", "bit-set"] }
+getrandom = { version = "0.4", features = ["wasm_js"] }
+wasm-bindgen-test.workspace = true
+# the timing tests read node's clock (`Date.now()`): wasm32-unknown-unknown has no `Instant`
+js-sys.workspace = true

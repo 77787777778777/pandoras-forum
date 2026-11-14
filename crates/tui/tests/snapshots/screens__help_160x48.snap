@@ -1,0 +1,52 @@
+---
+source: crates/tui/tests/screens.rs
+expression: help
+---
+ Pandora's Forum › Meta › Welcome                                                                                                            @carol.example.com
+ Meta · synced
+▌ Welcome
+▌ @alice.example.com · 2025-10-09 08:54 UTC · 1 ┌ Keys ────────────────────────────────────────────────────────┐
+▌                                               │Navigation                                                    │
+▌ Hello everyone, and welcome to the forum.     │  j k  Down Up    next / previous                             │
+▌                                               │  g G             first / last                                │
+▌ ## Rules                                      │  Ctrl-d Ctrl-u   half a page down / up                       │
+▌                                               │  Enter l         open                                        │
+▌ • Be kind.                                    │  h Esc q         back (q on the home screen quits)           │
+▌ • Stay on topic; see the guide ⟨example.com⟩. │Threads                                                       │
+▌                                               │  Space           collapse / expand replies                   │
+▌ pandoras-forum tui                            │  p               parent comment                              │
+                                                │  r               reply in $EDITOR                            │
+  1 comment                                     │  c               comment on the post in $EDITOR              │
+                                                │  s               comment sort (magic, top, new, old, latest) │
+  @bob.example.com · 2025-10-09 08:57 UTC · 1 po│  [ ]             previous / next post of its sequence        │
+    Thanks for the forum!                       │  i               load the item's images (their host sees you)│
+                                                │Forums                                                        │
+    It looks great.                             │  s               sort: magic, top, new, old, recent comments │
+                                                │  f               filter: frontpage, all, curated             │
+                                                │  Tab             posts / activity                            │
+                                                │  P               new post in $EDITOR                         │
+                                                │  R               sync and show new items                     │
+                                                │Opinions                                                      │
+                                                │  u U             upvote / strong upvote                      │
+                                                │  d D             downvote / strong downvote                  │
+                                                │  a A             agree / strongly agree                      │
+                                                │  z Z             disagree / strongly disagree                │
+                                                │  0               clear your votes on the item                │
+                                                │  x               react palette (Tab: for/against)            │
+                                                │  Backspace       undo the pending write (4 s window)         │
+                                                │Other                                                         │
+                                                │  m               mod menu (queue, log, actions)              │
+                                                │  :               command line (any M3 verb; : help)          │
+                                                │  /               search the synced cache                     │
+                                                │  n N             next / previous hit (search results)        │
+                                                │  E               versions of the selected item               │
+                                                │  N               notifications                               │
+                                                │  M               mark all notifications read                 │
+                                                │  ?               this help                                   │
+                                                │  Ctrl-c          quit                                        │
+                                                │                                                              │
+                                                │Any key closes this help.                                     │
+                                                └──────────────────────────────────────────────────────────────┘
+
+
+ r reply · c comment · Space fold · p parent · R sync · ? help · h back

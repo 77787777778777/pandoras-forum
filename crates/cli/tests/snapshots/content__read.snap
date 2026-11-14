@@ -1,0 +1,18 @@
+---
+source: crates/cli/tests/content.rs
+expression: "redact(&users, &alice.ok(&[\"read\", \"1\"]))"
+---
+Hello, world
+@alice.test · <time> · 2 comments · 1 point · #intro
+tags: #intro relevance 1
+at://<alice>/forum.pandoras.temp.post/62kyx7hhvwrb-<tid>
+
+First post, see the docs ⟨example.com⟩.
+
+2 comments
+
+c1  @alice.test · <time> · 1 point
+    A first comment.
+
+  c2  @alice.test · <time> · 1 point
+      A reply to the comment.

@@ -1,0 +1,262 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// The mock engine's in-memory state. It stores roughly what the fold would produce (states,
+// base scores, tallies) plus the viewer's own opinions, and derives DTOs from it on demand.
+
+import type {
+  ActorView,
+  Anchor,
+  AtUri,
+  AuthKind,
+  Badges,
+  Banner,
+  BookmarkEntry,
+  Did,
+  DraftEntry,
+  ExternalLinkView,
+  ForumRole,
+  ForumSummary,
+  ItemState,
+  KarmaView,
+  MediaRef,
+  MembershipMode,
+  ModeratorView,
+  ModLogEntry,
+  ModQueueItem,
+  MyOpinion,
+  NotificationReason,
+  PostKind,
+  ReadingPosition,
+  RenderedBody,
+  Settings,
+  Slug,
+  Stance,
+  SubscriptionEntry,
+  TagVoteValue,
+  TextQuote,
+  Tier,
+  VersionEntry,
+  VersionRef,
+} from "../types.ts";
+
+export interface ActorRec {
+  view: ActorView;
+  pds: string;
+  bio?: string;
+  links: { uri: string; label?: string }[];
+  karma: KarmaView;
+  status: ForumRole;
+  joinedAtMs: number;
+  granted: boolean;
+  membershipNote?: string;
+  pinned: AtUri[];
+  /** The resolved moderation of the fixture forum (`MemberView.banned/nullified/restricted`). */
+  banned?: boolean;
+  nullified?: boolean;
+  restricted?: string[];
+}
+
+export interface BaseScore {
+  score: number;
+  agreement: number;
+  unweighted: number;
+  earlier: number;
+  /** M of "N of M votes were cast on an earlier version" (`ScoreView.weightedVotes`; 0 omits
+   * it, as the wire DTO does). */
+  weighted: number;
+}
+
+export interface BaseReact {
+  react: string;
+  for: number;
+  against: number;
+  quote?: TextQuote;
+  anchor?: Anchor;
+  creator?: Did;
+}
+
+export interface PostRec {
+  uri: AtUri;
+  cid: string;
+  forum: AtUri;
+  author: Did;
+  kind: PostKind;
+  title?: string;
+  markdown: string;
+  body: RenderedBody;
+  media: MediaRef[];
+  tags: Slug[];
+  tier: Tier;
+  pinned: boolean;
+  locked: boolean;
+  createdAtMs: number;
+  tRankMs: number;
+  base: BaseScore;
+  reacts: BaseReact[];
+  /** The fold state before the lens and the thread pass. */
+  state: ItemState;
+  badges: Badges;
+  link?: ExternalLinkView;
+  labels: string[];
+  /** Earlier versions, oldest first (the current version is not included). */
+  revisions: VersionEntry[];
+  redacted: boolean;
+}
+
+export interface CommentRec {
+  uri: AtUri;
+  cid: string;
+  forum: AtUri;
+  root: AtUri;
+  /** The record's parent pointer (may name a missing comment). */
+  parent?: AtUri;
+  author: Did;
+  markdown: string;
+  body: RenderedBody;
+  media: MediaRef[];
+  quote?: TextQuote;
+  quoteAnchor?: Anchor;
+  createdAtMs: number;
+  tRankMs: number;
+  base: BaseScore;
+  reacts: BaseReact[];
+  state: ItemState;
+  badges: Badges;
+  retracted: boolean;
+  moderatorHat: boolean;
+  version?: VersionRef;
+  /** Re-attached to the root by the cycle rule (social.md §11 step 3). */
+  orphaned: boolean;
+  pinned: boolean;
+}
+
+export interface MyReact {
+  react: string;
+  stance: Stance;
+  quote?: TextQuote;
+}
+
+export interface MyOpinionRec extends MyOpinion {
+  reacts: MyReact[];
+  /** The `#tagVote` entries, by slug (social.md §13.3). */
+  tags?: Record<Slug, TagVoteValue>;
+}
+
+export interface TagRec {
+  slug: Slug;
+  name: string;
+  description?: string;
+  page?: string;
+  head?: AtUri;
+  unmergedEdits: number;
+  /** The canonical revision's `isTag` (absent: true); a page that is not a tag never applies. */
+  isTag?: boolean;
+}
+
+/** A wiki revision record (data-model.md §6.8): immutable; `parents` as written. */
+export interface WikiRevRec {
+  uri: AtUri;
+  cid: string;
+  author: Did;
+  forum: AtUri;
+  slug: Slug;
+  parents: { uri: AtUri; cid: string }[];
+  name: string;
+  description?: string;
+  /** The body's markdown (inline). */
+  body?: string;
+  isTag?: boolean;
+  parentTags: Slug[];
+  summary?: string;
+  createdAtMs: number;
+}
+
+export interface SequenceRec {
+  uri: AtUri;
+  author: Did;
+  title: string;
+  body?: string;
+  chapters: { title?: string; body?: string; posts: AtUri[] }[];
+  base: BaseScore;
+  pinned: boolean;
+  createdAtMs: number;
+}
+
+export interface NotificationRec {
+  id: string;
+  reason: NotificationReason;
+  atMs: number;
+  subject: AtUri;
+  actor?: Did;
+  read: boolean;
+  preview?: string;
+}
+
+export interface ForumRec {
+  summary: Omit<ForumSummary, "followed" | "member" | "owner"> & { owner: Did };
+  about?: string;
+  moderators: (Omit<ModeratorView, "actor"> & { did: Did })[];
+  policy: PolicyRec;
+  banners: Banner[];
+  featuredTags: Slug[];
+  defaultTier: "personal" | "frontpage";
+  membership: MembershipMode;
+  reportContact?: string;
+}
+
+/** The forum's policy with every default filled in (data-model.md §6.1 `#policy`). */
+export interface PolicyRec {
+  moderation: string;
+  karma: { algorithm: string; pairCap: number; establish: number; establishSeeds: number };
+  ranking: {
+    algorithm: string;
+    offsetHours: number;
+    exponentMilli: number;
+    curatedBonus: number;
+    frontpageBonus: number;
+    cutoffDays: number;
+  };
+  voting: "karmaOnly" | "twoAxis" | "reacts";
+  reactPalette: string;
+  gates: Record<string, number>;
+  display: { collapseBelow: number; newUsers: "show" | "collapse" | "hide" };
+  authorModeration: boolean;
+  tagCreation: "open" | "moderators";
+}
+
+export interface AccountRec {
+  did: Did;
+  pds: string;
+  auth: AuthKind;
+}
+
+export interface MockState {
+  actors: Map<Did, ActorRec>;
+  forums: Map<AtUri, ForumRec>;
+  posts: Map<AtUri, PostRec>;
+  comments: Map<AtUri, CommentRec>;
+  tags: Map<AtUri, Map<Slug, TagRec>>;
+  /** Every wiki revision, by uri (a page's head is `TagRec.head`). */
+  wiki: Map<AtUri, WikiRevRec>;
+  sequences: Map<AtUri, SequenceRec>;
+  /** opinions[account][subject] */
+  opinions: Map<Did, Map<AtUri, MyOpinionRec>>;
+  notifications: Map<Did, NotificationRec[]>;
+  modLog: Map<AtUri, ModLogEntryRec[]>;
+  modQueue: Map<AtUri, ModQueueItem[]>;
+  accounts: AccountRec[];
+  active: Did | null;
+  // local state
+  followed: Map<AtUri, string | undefined>;
+  lastVisited: Map<AtUri, number>;
+  /** "Continue reading" (social.md §14, §16): by sequence, the post last opened from it. */
+  seqpos: Map<AtUri, ReadingPosition>;
+  drafts: Map<string, DraftEntry>;
+  bookmarks: Map<AtUri, BookmarkEntry>;
+  subscriptions: SubscriptionEntry[];
+  mutes: Set<Did>;
+  settings: Settings;
+  nextId: number;
+}
+
+/** A mod-log entry as the mock stores it; `uri` and `status` are derived when served. */
+export type ModLogEntryRec = Omit<ModLogEntry, "actor" | "uri" | "status"> & { actor: Did };

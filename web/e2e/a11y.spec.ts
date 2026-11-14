@@ -1,0 +1,392 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Accessibility: axe (WCAG 2.1 A/AA, colour contrast included) in light and dark mode on the
+// main pages and their interactive states, keyboard behaviour that axe cannot see, and the
+// small-screen layout (no horizontal page scroll at 360 px).
+
+import AxeBuilder from "@axe-core/playwright";
+import { expect, type Page, test } from "@playwright/test";
+import { buildFixture } from "../../packages/engine/src/mock/fixture.ts";
+import { FORUM_PATH, WELCOME, WELCOME_PATH, watch } from "./helpers.ts";
+
+const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"];
+const sequenceParts = buildFixture().sequenceUri.split("/");
+const SEQUENCE_PATH = `/s/${sequenceParts[2]}/${sequenceParts[4]}`;
+
+interface AxeScore {
+  label: string;
+  /** Rule-level axe score: passed applicable rules / (passed + violated rules). */
+  score: number;
+  passedRules: number;
+  violatedRules: number;
+  incompleteRules: number;
+  violations: { id: string; impact: string | null; nodes: number; targets: string[] }[];
+}
+
+async function axe(page: Page, label: string, scores?: AxeScore[]): Promise<string[]> {
+  const result = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+  const applicable = result.passes.length + result.violations.length;
+  scores?.push({
+    label,
+    score: applicable === 0 ? 100 : (100 * result.passes.length) / applicable,
+    passedRules: result.passes.length,
+    violatedRules: result.violations.length,
+    incompleteRules: result.incomplete.length,
+    violations: result.violations.map((v) => ({
+      id: v.id,
+      impact: v.impact ?? null,
+      nodes: v.nodes.length,
+      targets: v.nodes.map((n) => n.target.join(" ")),
+    })),
+  });
+  return result.violations.map(
+    (v) =>
+      `${label}: ${v.id} (${v.nodes.length}) ${v.nodes
+        .slice(0, 3)
+        .map((n) => n.target.join(" "))
+        .join(" | ")}`,
+  );
+}
+
+async function open(page: Page, path: string, ready: () => Promise<void>): Promise<void> {
+  await page.goto(`/?mock#${path}`);
+  await ready();
+}
+
+for (const scheme of ["light", "dark"] as const) {
+  test.describe(`axe, ${scheme} mode`, () => {
+    test.use({ colorScheme: scheme });
+
+    test("pages", async ({ page }, info) => {
+      const w = await watch(page);
+      const found: string[] = [];
+      const scores: AxeScore[] = [];
+      const pages: [string, string][] = [
+        ["/", "Your forums"],
+        [FORUM_PATH, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/members`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/mod`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/settings`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/new`, "Pandora's Test Forum"],
+        [WELCOME_PATH, WELCOME],
+        ["/notifications", "Notifications"],
+        ["/drafts", "Drafts"],
+        ["/settings", "Settings"],
+        ["/search?q=vote", "Search"],
+        [`${FORUM_PATH}/tags`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/t/decision-theory`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/seqs`, "Pandora's Test Forum"],
+        [SEQUENCE_PATH, "Map and Territory"],
+        ["/u/ada.test", "Ada Lovelace"],
+      ];
+      for (const [path, h1] of pages) {
+        await open(page, path, () =>
+          expect(page.getByRole("heading", { level: 1, name: h1 })).toBeVisible(),
+        );
+        // Let queries settle (lists, threads) before scanning.
+        await page.waitForLoadState("networkidle");
+        found.push(...(await axe(page, path, scores)));
+      }
+      const m5 = scores.filter((s) =>
+        [
+          "/search?q=vote",
+          `${FORUM_PATH}/tags`,
+          `${FORUM_PATH}/t/decision-theory`,
+          `${FORUM_PATH}/seqs`,
+          SEQUENCE_PATH,
+          "/u/ada.test",
+        ].includes(s.label),
+      );
+      expect(m5, "all six M5 routes were scanned").toHaveLength(6);
+      for (const s of m5)
+        expect(s.score, `${s.label}: ${JSON.stringify(s)}`).toBeGreaterThanOrEqual(90);
+      await info.attach(`axe-scores-${scheme}`, {
+        body: JSON.stringify(
+          { formula: "100 * passed / (passed + violated), incomplete excluded", scores },
+          null,
+          2,
+        ),
+        contentType: "application/json",
+      });
+      console.log(`axe ${scheme}: ${JSON.stringify(scores)}`);
+      expect(found).toEqual([]);
+      expect(w.errors).toEqual([]);
+    });
+
+    test("wiki and sequence editors", async ({ page }) => {
+      const w = await watch(page);
+      const found: string[] = [];
+      for (const path of [
+        `${FORUM_PATH}/t/decision-theory/edit`,
+        // a new address, with the note about pages that are not tags
+        `${FORUM_PATH}/t/calibration/edit`,
+        `${FORUM_PATH}/t/decision-theory/history`,
+        `${FORUM_PATH}/seqs/new`,
+      ]) {
+        await open(page, path, () =>
+          expect(
+            page.getByRole("heading", { level: 1, name: "Pandora's Test Forum" }),
+          ).toBeVisible(),
+        );
+        await page.waitForLoadState("networkidle");
+        found.push(...(await axe(page, path)));
+      }
+      // a save that meets a newer head (`?wikirace`), then the reload with the author's text
+      await page.goto(`/?mock&wikirace#${FORUM_PATH}/t/decision-theory/edit`);
+      await page.getByRole("textbox", { name: /^Page/ }).fill("My edit.");
+      await page.getByRole("group", { name: "Parent tags" }).getByText("Rationality").click();
+      await page.getByRole("button", { name: "Save page" }).click();
+      const alert = page.getByRole("alert");
+      await expect(alert).toContainText("This page changed since you opened it.");
+      found.push(...(await axe(page, "wiki head moved")));
+      await alert.getByRole("button", { name: "Reload the page" }).click();
+      await expect(page.getByRole("region", { name: "Your unsaved edit" })).toContainText(
+        "Your parent tags: Rationality",
+      );
+      found.push(...(await axe(page, "wiki reloaded with the unsaved edit")));
+      expect(found).toEqual([]);
+      expect(w.errors).toEqual([]);
+    });
+
+    test("a post in a sequence, and the sequence's continue reading", async ({ page }) => {
+      const w = await watch(page);
+      const found: string[] = [];
+      await open(page, SEQUENCE_PATH, () =>
+        expect(page.getByRole("heading", { level: 1, name: "Map and Territory" })).toBeVisible(),
+      );
+      await page.getByRole("link", { name: "Map and Territory, part 1: models" }).click();
+      await expect(
+        page.getByRole("navigation", { name: "Sequence: Map and Territory" }),
+      ).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      found.push(...(await axe(page, "post opened from a sequence")));
+      await page
+        .getByRole("navigation", { name: "Sequence: Map and Territory" })
+        .getByRole("link", { name: "Map and Territory" })
+        .click();
+      await expect(page.getByTestId("continue-reading")).toBeVisible();
+      found.push(...(await axe(page, "sequence with continue reading")));
+      expect(found).toEqual([]);
+      expect(w.errors).toEqual([]);
+    });
+
+    test("the post editor's link card control", async ({ page }) => {
+      const w = await watch(page);
+      const { postUri } = buildFixture();
+      const [, , did, , rkey] = (postUri.fdt ?? "").split("/");
+      // carol's link post has a card
+      await page.goto("/?mock#/login");
+      await page.getByLabel("Your handle or DID").fill("carol.test");
+      await page.getByRole("button", { name: "Continue" }).click();
+      await page.getByRole("button", { name: "Sign in", exact: true }).click();
+      await expect(page.getByRole("heading", { level: 1, name: "Your forums" })).toBeVisible();
+      await page.evaluate((hash) => {
+        location.hash = hash;
+      }, `#/p/${did}/${rkey}`);
+      await page.getByRole("link", { name: "Edit", exact: true }).click();
+      await page.getByRole("checkbox", { name: "Remove the link card" }).check();
+      await page.waitForLoadState("networkidle");
+      expect(await axe(page, "post editor, remove the link card")).toEqual([]);
+      expect(w.errors).toEqual([]);
+    });
+
+    test("the forum directory's owner headings", async ({ page }) => {
+      const w = await watch(page);
+      await open(page, "/", () =>
+        expect(page.getByRole("heading", { level: 1, name: "Your forums" })).toBeVisible(),
+      );
+      await page
+        .getByRole("article", { name: "Pandora's Test Forum" })
+        .getByRole("button", { name: "Unfollow" })
+        .click();
+      await expect(page.getByRole("heading", { level: 3, name: /^Forums by / })).toBeVisible();
+      expect(await axe(page, "directory with owner headings")).toEqual([]);
+      expect(w.errors).toEqual([]);
+    });
+
+    test("mod queue banners of an approval forum (O-8)", async ({ page }) => {
+      const w = await watch(page);
+      const found: string[] = [];
+      // an approval forum's mod queue with its applicant notice, then the direct-sources warning
+      await page.goto(`/?mock#/`);
+      await page.getByRole("button", { name: "Create a forum" }).click();
+      const form = page.getByRole("region", { name: "Create a forum" });
+      await form.getByLabel("Address").fill("by-approval");
+      await form.getByLabel("Name").fill("By approval");
+      await form.getByRole("button", { name: "Create the forum" }).click();
+      await page.getByRole("link", { name: "Moderation" }).click();
+      await expect(page.locator('[data-banner="applicantsViaHints"]')).toBeVisible();
+      found.push(...(await axe(page, "mod queue, applicants via hints")));
+      await page.getByRole("button", { name: /You \(mock account\)/ }).click();
+      await page.getByRole("menuitem", { name: "Settings" }).click();
+      const direct = page.getByRole("radio", { name: /^Direct/ });
+      await direct.click();
+      await expect(direct).toBeChecked();
+      await page.goBack();
+      await expect(page.locator('[data-banner="applicantsNotDiscovered"]')).toBeVisible();
+      found.push(...(await axe(page, "mod queue, applicants not discovered")));
+      expect(found).toEqual([]);
+      expect(w.errors).toEqual([]);
+    });
+
+    test("interactive states: dialogs, palette, composer, toasts, forms", async ({ page }) => {
+      const w = await watch(page);
+      const found: string[] = [];
+      await open(page, WELCOME_PATH, () =>
+        expect(page.getByRole("heading", { level: 1, name: WELCOME })).toBeVisible(),
+      );
+      const post = page.getByRole("article", { name: WELCOME });
+
+      await post
+        .getByRole("group", { name: "Karma vote" })
+        .getByRole("button", { name: "Upvote" })
+        .click();
+      await expect(page.getByRole("dialog", { name: "Votes are public" })).toBeVisible();
+      found.push(...(await axe(page, "vote interstitial")));
+      await page.getByRole("button", { name: "I understand, continue" }).click();
+      await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
+      found.push(...(await axe(page, "undo toast")));
+
+      await post.getByRole("button", { name: "Add react" }).click();
+      await expect(page.getByRole("dialog", { name: "Add a react" })).toBeVisible();
+      found.push(...(await axe(page, "react palette")));
+      await page.keyboard.press("Escape");
+
+      await post.getByRole("button", { name: "Vote on tags" }).click();
+      await expect(page.getByRole("region", { name: "Tag votes" })).toBeVisible();
+      found.push(...(await axe(page, "tag votes")));
+
+      const editor = page.getByRole("textbox", { name: "New comment" });
+      await editor.click();
+      await page.keyboard.type("Some **bold** text with $x^2$ math.");
+      await expect(page.getByRole("region", { name: "Preview" }).locator("strong")).toHaveText(
+        "bold",
+      );
+      found.push(...(await axe(page, "composer with preview")));
+
+      await open(page, "/", () =>
+        expect(page.getByRole("heading", { level: 1, name: "Your forums" })).toBeVisible(),
+      );
+      await page.getByRole("button", { name: "Create a forum" }).click();
+      await page.getByRole("button", { name: "Create the forum" }).click();
+      await expect(page.getByRole("alert")).toBeVisible();
+      found.push(...(await axe(page, "forum form with errors")));
+
+      expect(found).toEqual([]);
+      expect(w.errors).toEqual([]);
+    });
+  });
+}
+
+test.describe("keyboard", () => {
+  test("changing a sort or a filter keeps focus on the control", async ({ page }) => {
+    await open(page, FORUM_PATH, () =>
+      expect(page.getByRole("heading", { level: 1, name: "Pandora's Test Forum" })).toBeVisible(),
+    );
+    const sort = page.getByLabel("Sort");
+    await sort.focus();
+    await page.keyboard.press("ArrowDown");
+    await expect(page).toHaveURL(/sort=/);
+    await expect(sort).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    await expect(sort).toBeFocused();
+    const all = page.getByRole("button", { name: "All posts" });
+    await all.focus();
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/filter=all/);
+    await expect(all).toBeFocused();
+    // A new page still moves focus to its heading.
+    await page.getByRole("link", { name: WELCOME }).click();
+    await expect(page.getByRole("heading", { level: 1, name: WELCOME })).toBeFocused();
+  });
+
+  test("footnote references and back-links are reachable with Tab and work with Enter", async ({
+    page,
+  }) => {
+    await open(page, WELCOME_PATH, () =>
+      expect(page.getByRole("heading", { level: 1, name: WELCOME })).toBeVisible(),
+    );
+    const body = page.locator("[data-rendered-root]").first();
+    const ref = body.locator('sup a[data-anchor="md-fn-2"]');
+    await expect(ref).toHaveAttribute("tabindex", "0");
+    await expect(ref).toHaveAttribute("role", "link");
+    // Tab from the link just before it lands on it.
+    await body.locator('sup a[data-anchor="md-fn-1"]').focus();
+    await page.keyboard.press("Tab");
+    await expect(ref).toBeFocused();
+    await page.keyboard.press("Enter");
+    // Focus follows to the footnote (or its sidenote copy on wide screens).
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const a = document.activeElement;
+          return a?.id === "md-fn-2" || a?.getAttribute("data-sidenote") === "2";
+        }),
+      )
+      .toBe(true);
+  });
+
+  test("visually hidden inputs in chips and the file picker show keyboard focus", async ({
+    page,
+  }) => {
+    const outlineOfFocusedParent = () =>
+      page.evaluate(() => {
+        const label = document.activeElement?.closest("label");
+        return label ? getComputedStyle(label).outlineStyle : "no label";
+      });
+    await open(page, `${FORUM_PATH}/new`, () =>
+      expect(page.getByRole("radio", { name: "Article" })).toBeVisible(),
+    );
+    await page.getByRole("radio", { name: "Article" }).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByRole("radio", { name: "Question" })).toBeFocused();
+    expect(await outlineOfFocusedParent()).toBe("solid");
+    await open(page, "/settings", () =>
+      expect(page.getByRole("button", { name: "Export local state" })).toBeVisible(),
+    );
+    await page.getByRole("button", { name: "Export local state" }).focus();
+    await page.keyboard.press("Tab");
+    await expect(page.locator('input[type="file"]')).toBeFocused();
+    expect(await outlineOfFocusedParent()).toBe("solid");
+  });
+
+  test("the markdown editor has an accessible name", async ({ page }) => {
+    await open(page, WELCOME_PATH, () =>
+      expect(page.getByRole("heading", { level: 1, name: WELCOME })).toBeVisible(),
+    );
+    await expect(page.getByRole("textbox", { name: "New comment" })).toHaveCount(1);
+    await expect(page.getByTestId("composer-editor").first()).toMatchAriaSnapshot(
+      '- textbox "New comment"',
+    );
+  });
+});
+
+test.describe("small screens", () => {
+  test.use({ viewport: { width: 360, height: 740 }, hasTouch: true, isMobile: true });
+
+  test("no page scrolls horizontally at 360 px", async ({ page }) => {
+    const paths = [
+      "/",
+      FORUM_PATH,
+      `${FORUM_PATH}/mod`,
+      `${FORUM_PATH}/members`,
+      `${FORUM_PATH}/settings`,
+      WELCOME_PATH,
+      "/settings",
+      "/notifications",
+      // An unknown comment: the error view shows a long at-uri.
+      "/at/did:plc:5qdku4cwkqmf5f7vo5owwvbz/forum.pandoras.temp.comment/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    ];
+    const wide: string[] = [];
+    for (const path of paths) {
+      await page.goto(`/?mock#${path}`);
+      await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+      await page.waitForLoadState("networkidle");
+      const { sw, cw } = await page.evaluate(() => ({
+        sw: document.documentElement.scrollWidth,
+        cw: document.documentElement.clientWidth,
+      }));
+      if (sw > cw) wide.push(`${path}: ${sw} > ${cw}`);
+    }
+    expect(wide).toEqual([]);
+  });
+});
