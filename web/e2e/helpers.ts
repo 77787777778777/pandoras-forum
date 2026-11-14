@@ -8,7 +8,7 @@ export const FORUM = "Pandora's Test Forum";
 export const WELCOME = "Welcome to Pandora's Forum: a tour of the forum";
 /** Routes of the deterministic mock fixture. */
 export const FORUM_PATH = "/f/did:plc:5qdku4cwkqmf5f7vo5owwvbz/pandoras-forum-test";
-export const WELCOME_PATH = "/p/did:plc:5qdku4cwkqmf5f7vo5owwvbz/yyxzy3wfando-3mxqo73ht2223";
+export const WELCOME_PATH = "/p/did:plc:5qdku4cwkqmf5f7vo5owwvbz/zpuqtzf4225m-3mxqo73ht2223";
 
 export interface Watch {
   errors: string[];
