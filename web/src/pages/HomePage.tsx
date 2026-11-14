@@ -2,7 +2,7 @@
 // The followed forums, creating a forum, and the forum directory (`forum_discover`), which comes
 // grouped by owner (sync.md §4.7): each owner's forums are listed under a heading naming the
 // owner, so a lookalike forum name shows under its real owner.
-import type { ActorView, ForumDraft, ForumSummary } from "@lessdugin/engine/types";
+import type { ActorView, ForumDraft, ForumSummary } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";

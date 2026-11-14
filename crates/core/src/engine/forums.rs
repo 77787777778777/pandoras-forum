@@ -8,11 +8,13 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did, Nsid};
-use lessdugin_atp::xrpc::ListRecords;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::{AccessAction, Action, Forum, Md, ModAction, Moderator};
-use lessdugin_lexicon::values::{AccessLevel, DefaultTier as LexTier, MembershipMode as LexMode};
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did, Nsid};
+use pandoras_forum_atp::xrpc::ListRecords;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::{AccessAction, Action, Forum, Md, ModAction, Moderator};
+use pandoras_forum_lexicon::values::{
+    AccessLevel, DefaultTier as LexTier, MembershipMode as LexMode,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -108,8 +110,8 @@ pub(crate) fn markdown_body(md: &crate::dto::BodyDraft) -> Result<Md, EngineErro
     for m in &md.media {
         medias.push(media_value(m)?);
     }
-    let meta = lessdugin_markdown::derive_metadata(&md.markdown, &[]);
-    let mut m = lessdugin_lexicon::records::Markdown::inline(md.markdown.clone());
+    let meta = pandoras_forum_markdown::derive_metadata(&md.markdown, &[]);
+    let mut m = pandoras_forum_lexicon::records::Markdown::inline(md.markdown.clone());
     if !medias.is_empty() {
         m.media = Some(medias);
     }
@@ -130,7 +132,7 @@ pub(crate) fn markdown_body(md: &crate::dto::BodyDraft) -> Result<Md, EngineErro
 /// that shows such a uri is left alone.
 pub(crate) fn handle_destinations(markdown: &str) -> Vec<(std::ops::Range<usize>, String)> {
     use pulldown_cmark::{Event, LinkType, Parser, Tag};
-    let mut it = Parser::new_ext(markdown, lessdugin_markdown::OPTIONS).into_offset_iter();
+    let mut it = Parser::new_ext(markdown, pandoras_forum_markdown::OPTIONS).into_offset_iter();
     // (where the destination is written, the destination)
     let mut dests: Vec<(std::ops::Range<usize>, String)> = Vec::new();
     for (ev, range) in &mut it {
@@ -243,7 +245,7 @@ impl<H: crate::host::Host> Engine<H> {
 
 /// The excerpt a spilled body would carry (PO6).
 pub(crate) fn excerpt_of(markdown: &str) -> String {
-    lessdugin_markdown::derive_metadata(markdown, &[]).excerpt
+    pandoras_forum_markdown::derive_metadata(markdown, &[]).excerpt
 }
 
 /// A forum summary from the declaration value alone (a forum without a loaded model).
@@ -547,9 +549,9 @@ impl<H: Host> Engine<H> {
                     .iter()
                     .filter(|(_, s)| s.listed())
                     .filter(|(u, _)| {
-                        l.model
-                            .skel(u)
-                            .is_some_and(|x| x.coll == Some(lessdugin_lexicon::Collection::Post))
+                        l.model.skel(u).is_some_and(|x| {
+                            x.coll == Some(pandoras_forum_lexicon::Collection::Post)
+                        })
                     })
                     .map(|(u, _)| u.clone())
                     .collect()
@@ -570,11 +572,11 @@ impl<H: Host> Engine<H> {
                 continue;
             };
             let profile = body.get("profile").and_then(Value::as_str);
-            let rendered = lessdugin_markdown::render_profile(
+            let rendered = pandoras_forum_markdown::render_profile(
                 src,
                 &[],
                 profile,
-                &lessdugin_markdown::RenderOpts::default(),
+                &pandoras_forum_markdown::RenderOpts::default(),
             );
             if rendered.links.contains(&target) {
                 links.push(u.clone());
@@ -765,7 +767,9 @@ impl<H: Host> Engine<H> {
                 let Ok(uri) = AtUri::parse(uri) else {
                     continue;
                 };
-                if uri.did() != did || !lessdugin_lexicon::validity::check_uri(&uri, value).valid {
+                if uri.did() != did
+                    || !pandoras_forum_lexicon::validity::check_uri(&uri, value).valid
+                {
                     continue;
                 }
                 if let Some(f) = value.get("forum").and_then(Value::as_str) {
@@ -941,7 +945,11 @@ impl<H: Host> Engine<H> {
         Ok(out)
     }
 
-    fn access_action(key: &ForumKey, did: &str, now: lessdugin_atp::syntax::Datetime) -> ModAction {
+    fn access_action(
+        key: &ForumKey,
+        did: &str,
+        now: pandoras_forum_atp::syntax::Datetime,
+    ) -> ModAction {
         ModAction::new(
             key.uri.clone(),
             did,
@@ -1053,8 +1061,10 @@ pub fn render_draft(
 ///
 /// The blob is a placeholder: the outbox substitutes the object `uploadBlob` returns, verbatim,
 /// and fails the write when the returned `ref.$link` is not the CID computed locally (§8.8).
-fn media_value(m: &crate::dto::MediaRef) -> Result<lessdugin_lexicon::records::Media, EngineError> {
-    use lessdugin_lexicon::records::{AspectRatio as LexAspect, Blob, CidLink, Media};
+fn media_value(
+    m: &crate::dto::MediaRef,
+) -> Result<pandoras_forum_lexicon::records::Media, EngineError> {
+    use pandoras_forum_lexicon::records::{AspectRatio as LexAspect, Blob, CidLink, Media};
     if m.cid.is_empty() {
         return Err(EngineError::invalid_input(
             "a media reference has no CID: pass its bytes through `prepare_media` first",

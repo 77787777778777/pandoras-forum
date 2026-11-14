@@ -7,9 +7,9 @@
 mod common;
 
 use common::{MINUTE, block_on, scenario, scenario_with};
-use lessdugin_core::dto::{ThreadOpts, ThreadView};
-use lessdugin_core::engine::EngineConfig;
-use lessdugin_tui::{CaptureOpts, capture_thread};
+use pandoras_forum_core::dto::{ThreadOpts, ThreadView};
+use pandoras_forum_core::engine::EngineConfig;
+use pandoras_forum_tui::{CaptureOpts, capture_thread};
 
 #[test]
 fn capture_holds_the_engine_view_byte_for_byte() {

@@ -11,7 +11,7 @@
 // - `parityNowMs` (engine-api.md §2.1) needs an e2e build.
 
 import * as Comlink from "comlink";
-import initWasm, * as wasm from "../pkg/lessdugin_engine.js";
+import initWasm, * as wasm from "../pkg/pandoras_forum_engine.js";
 import { connectBridgePort } from "./bridge-port.ts";
 import { globalIdb } from "./idb.ts";
 import type { LockManagerLike } from "./locks.ts";
@@ -35,7 +35,7 @@ function blockedWhat(uri: string): string {
 globalThis.addEventListener("securitypolicyviolation", (e) => {
   const v = e as SecurityPolicyViolationEvent;
   console.error(
-    `lessdugin engine worker: csp-violation ${v.effectiveDirective || v.violatedDirective} blocked=${blockedWhat(v.blockedURI)}`,
+    `pandoras-forum engine worker: csp-violation ${v.effectiveDirective || v.violatedDirective} blocked=${blockedWhat(v.blockedURI)}`,
   );
 });
 

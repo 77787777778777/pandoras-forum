@@ -223,7 +223,7 @@ pub enum OnExists {
 }
 
 /// One opinion intent (`data-model.md` §8.5, `engine-api.md` §3.5 `OpinionIntent`), mapped to
-/// [`lessdugin_lexicon::records::OpinionIntent`] when the write is sent. An absent `value`
+/// [`pandoras_forum_lexicon::records::OpinionIntent`] when the write is sent. An absent `value`
 /// clears.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]

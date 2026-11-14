@@ -22,10 +22,10 @@
 
 use futures::StreamExt;
 use futures::future::join_all;
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::{
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::{
     Comment, ExternalLink, Labels, Post, SelfLabels, StrongRef, TextQuote as LexQuote,
 };
 use serde_json::{Map, Value};
@@ -89,7 +89,7 @@ pub(crate) fn agreement_str(v: AgreementValue) -> &'static str {
 /// P (`lfm-1.md` §10) of a record's inline body; `None` for a spilled or absent body.
 pub(crate) fn body_text(value: &Value) -> Option<String> {
     let src = value.get("body")?.get("text")?.as_str()?;
-    Some(lessdugin_markdown::plain_projection(src).text)
+    Some(pandoras_forum_markdown::plain_projection(src).text)
 }
 
 /// A quote with its derived `prefix`, `suffix` and `start` (W8): a quote with only `exact` is
@@ -103,14 +103,15 @@ fn derived_quote(q: &TextQuote, value: &Value) -> Result<LexQuote, EngineError> 
     let Some(p) = body_text(value) else {
         return Ok(lex_quote(q));
     };
-    let (start, end) = lessdugin_markdown::quote::find_first(&q.exact, &p).ok_or_else(|| {
-        EngineError::invalid_input(format!("the quoted text {:?} is not in the item", q.exact))
-    })?;
+    let (start, end) =
+        pandoras_forum_markdown::quote::find_first(&q.exact, &p).ok_or_else(|| {
+            EngineError::invalid_input(format!("the quoted text {:?} is not in the item", q.exact))
+        })?;
     let (start, end) = (
         usize::try_from(start).unwrap_or(usize::MAX),
         usize::try_from(end).unwrap_or(usize::MAX),
     );
-    let b = lessdugin_markdown::build_quote(&p, start, end)
+    let b = pandoras_forum_markdown::build_quote(&p, start, end)
         .map_err(|e| EngineError::invalid_input(format!("quote: {e}")))?;
     let mut l = LexQuote::new(b.exact);
     l.prefix = b.prefix;
@@ -145,7 +146,7 @@ pub(crate) fn opinion_checks(
     intent: &OpinionIntent,
     qkey: &str,
 ) -> Result<Vec<(NoticeCode, String)>, EngineError> {
-    use lessdugin_lexicon::values::{Capability, Voting};
+    use pandoras_forum_lexicon::values::{Capability, Voting};
     if clears(intent) {
         return Ok(Vec::new());
     }
@@ -234,7 +235,7 @@ pub(crate) fn opinion_checks(
             }
         }
         OpinionIntent::Tag { .. } => {
-            if coll != lessdugin_lexicon::collection::nsid::POST {
+            if coll != pandoras_forum_lexicon::collection::nsid::POST {
                 return Err(EngineError::invalid_input("tag votes apply to posts only"));
             }
             restricted(Capability::Tag, "tag voting")?;
@@ -449,8 +450,8 @@ impl<H: Host> Engine<H> {
     /// new version: one `suspendsAssertions` notice names them. Empty when there are none, or
     /// while the forum's moderation layer is pending. `not_found` when `uri` is not cached.
     pub async fn edit_preflight(&self, uri: &str) -> Result<Vec<ActionNotice>, EngineError> {
-        use lessdugin_lexicon::records::{Action, ModAction};
-        use lessdugin_lexicon::values::Tier as LexTier;
+        use pandoras_forum_lexicon::records::{Action, ModAction};
+        use pandoras_forum_lexicon::values::Tier as LexTier;
         let u = records::at_uri(uri)?;
         if RecordStore::new(self.host.cache())
             .get(&u)
@@ -716,7 +717,7 @@ impl<H: Host> Engine<H> {
                     Some(q) => Some(derived_quote(q, &value)?),
                     None => None,
                 };
-                quote_key = lessdugin_markdown::qkey(q.as_ref().map(|q| q.exact.as_str()));
+                quote_key = pandoras_forum_markdown::qkey(q.as_ref().map(|q| q.exact.as_str()));
                 OpinionStep::React {
                     id: id.clone(),
                     stance: match stance {

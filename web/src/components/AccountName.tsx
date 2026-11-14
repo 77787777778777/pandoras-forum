@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Accounts carry only did/handle/pds (`AccountView`); names come from the identity cache.
 
-import type { AccountView, ActorView } from "@lessdugin/engine/types";
+import type { AccountView, ActorView } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEngine } from "../engine/context.tsx";
 import { qk } from "../engine/queries.ts";

@@ -7,25 +7,25 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use common::{POST, RKEY, World, block_on};
-use lessdugin_atp::Ipld;
-use lessdugin_atp::car::write_car;
-use lessdugin_atp::dagcbor;
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::discovery::{ForumKey, SyncOpts};
-use lessdugin_core::engine::{Engine, EngineConfig, IndexerConsent, IndexerMode, Sources};
-use lessdugin_core::host::Host;
-use lessdugin_core::indexer::{EndpointPolicy, LiveProofBatch, ProofStatus};
-use lessdugin_core::store::records::RecordStore;
-use lessdugin_core::store::{Level, Source};
-use lessdugin_core::sync::{Priority, Stats};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::records::{Forum, Membership, Post};
-use lessdugin_lexicon::values::MembershipMode;
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::identity::fake_key;
-use lessdugin_testkit::repo::{TestRepo, tid_at_ms};
-use lessdugin_testkit::{FakeNet, MemHost, resp};
+use pandoras_forum_atp::Ipld;
+use pandoras_forum_atp::car::write_car;
+use pandoras_forum_atp::dagcbor;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::discovery::{ForumKey, SyncOpts};
+use pandoras_forum_core::engine::{Engine, EngineConfig, IndexerConsent, IndexerMode, Sources};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::indexer::{EndpointPolicy, LiveProofBatch, ProofStatus};
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_core::store::{Level, Source};
+use pandoras_forum_core::sync::{Priority, Stats};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::records::{Forum, Membership, Post};
+use pandoras_forum_lexicon::values::MembershipMode;
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::identity::fake_key;
+use pandoras_forum_testkit::repo::{TestRepo, tid_at_ms};
+use pandoras_forum_testkit::{FakeNet, MemHost, resp};
 use serde_json::{Value, json};
 
 const INDEX: &str = "https://index.example.com";
@@ -33,7 +33,7 @@ const INDEX: &str = "https://index.example.com";
 fn endpoint(method: &str) -> String {
     format!(
         "{INDEX}/xrpc/{}",
-        lessdugin_core::indexer::contract::method_nsid(method)
+        pandoras_forum_core::indexer::contract::method_nsid(method)
     )
 }
 
@@ -78,13 +78,13 @@ fn with_meta(mut value: Value, seq: i64) -> Value {
     value
 }
 
-fn bundle(repo: &TestRepo, rev: lessdugin_atp::tid::Tid, forged: bool) -> Vec<u8> {
+fn bundle(repo: &TestRepo, rev: pandoras_forum_atp::tid::Tid, forged: bool) -> Vec<u8> {
     bundle_many(repo, rev, &[RKEY], forged)
 }
 
 fn bundle_many(
     repo: &TestRepo,
-    rev: lessdugin_atp::tid::Tid,
+    rev: pandoras_forum_atp::tid::Tid,
     rkeys: &[&str],
     forged: bool,
 ) -> Vec<u8> {
@@ -93,7 +93,7 @@ fn bundle_many(
 
 fn bundle_in(
     repo: &TestRepo,
-    rev: lessdugin_atp::tid::Tid,
+    rev: pandoras_forum_atp::tid::Tid,
     coll: &str,
     rkeys: &[&str],
     forged: bool,
@@ -123,7 +123,7 @@ fn bundle_in(
     manifest.insert("v".to_owned(), Ipld::Integer(1));
     manifest.insert("items".to_owned(), Ipld::List(items));
     let manifest = dagcbor::encode(&Ipld::Map(manifest)).unwrap();
-    let root = lessdugin_atp::cid::for_dag_cbor(&manifest);
+    let root = pandoras_forum_atp::cid::for_dag_cbor(&manifest);
     all.insert(root, manifest);
     write_car(&[root], all.iter().map(|(c, b)| (c, b.as_slice())))
 }
@@ -151,8 +151,11 @@ fn direct_mode_generates_no_indexer_traffic() {
     )
     .unwrap();
     assert!(report.is_none());
-    let query =
-        lessdugin_core::dto::ListPostsQuery::new(format!("at://{}/{}/f", w.alice.did, nsid::FORUM));
+    let query = pandoras_forum_core::dto::ListPostsQuery::new(format!(
+        "at://{}/{}/f",
+        w.alice.did,
+        nsid::FORUM
+    ));
     assert!(block_on(e.hydrate_indexer_page(&query)).unwrap().is_none());
     assert!(w.host.requests_to(INDEX).is_empty());
     assert!(
@@ -281,7 +284,7 @@ fn stored_consent_survives_restart_and_other_forum_consent_does_not_leak() {
     block_on(e.set_setting(
         "indexers",
         Some(&json!([
-            {"url": INDEX, "forum": "at://did:plc:other/online.7778777.lessdugin.temp.forum/f",
+            {"url": INDEX, "forum": "at://did:plc:other/forum.pandoras.temp.forum/f",
              "grantedAtMs": 1}
         ])),
     ))
@@ -333,7 +336,7 @@ fn oversized_bundles_halve_then_use_pds_for_one_oversized_item() {
     w.host.respond_seq(
         &endpoint("getRecordProofs"),
         vec![
-            Err(lessdugin_core::host::HostError::TooLarge),
+            Err(pandoras_forum_core::host::HostError::TooLarge),
             Ok(resp::car(first)),
             Ok(resp::car(second)),
         ],
@@ -351,7 +354,7 @@ fn oversized_bundles_halve_then_use_pds_for_one_oversized_item() {
     describe(&w.host, &["getRecordProofs"], 0);
     w.host.fail(
         &endpoint("getRecordProofs"),
-        lessdugin_core::host::HostError::TooLarge,
+        pandoras_forum_core::host::HostError::TooLarge,
     );
     let e = engine(&w.host, Sources::Assisted);
     let uri = AtUri::parse(&w.uri(RKEY)).unwrap();
@@ -378,7 +381,7 @@ fn unavailable_proof_service_falls_back_to_the_authors_pds() {
     describe(&w.host, &["getRecordProofs"], 0);
     w.host.fail(
         &endpoint("getRecordProofs"),
-        lessdugin_core::host::HostError::Network("offline".into()),
+        pandoras_forum_core::host::HostError::Network("offline".into()),
     );
     let e = engine(&w.host, Sources::Assisted);
     let forum = format!("at://{}/{}/f", w.alice.did, nsid::FORUM);
@@ -432,7 +435,7 @@ fn visible_page_uses_only_uri_hints_then_hydrates_proofs() {
             0,
         )),
     );
-    let query = lessdugin_core::dto::ListPostsQuery::new(&forum);
+    let query = pandoras_forum_core::dto::ListPostsQuery::new(&forum);
     let report = block_on(e.hydrate_indexer_page(&query)).unwrap().unwrap();
     assert_eq!(report.admitted, 1, "{report:?}");
     let stored = block_on(RecordStore::new(w.host.cache()).get(&uri))
@@ -548,13 +551,13 @@ fn cold_page_falls_back_to_pds_sync_when_the_indexer_is_unavailable() {
     let w = forum_world();
     w.host.fail(
         &endpoint("listPosts"),
-        lessdugin_core::host::HostError::Network("offline".into()),
+        pandoras_forum_core::host::HostError::Network("offline".into()),
     );
-    let mut query = lessdugin_core::dto::ListPostsQuery::new(w.key.uri.to_string());
-    query.filter = lessdugin_core::dto::PostFilter::All;
+    let mut query = pandoras_forum_core::dto::ListPostsQuery::new(w.key.uri.to_string());
+    query.filter = pandoras_forum_core::dto::PostFilter::All;
     let page = block_on(
         w.engine
-            .list_posts_page(&query, &lessdugin_core::dto::SyncOpts::default()),
+            .list_posts_page(&query, &pandoras_forum_core::dto::SyncOpts::default()),
     )
     .unwrap();
     assert_eq!(page.items.len(), 1);
@@ -572,7 +575,7 @@ fn cold_page_falls_back_to_pds_sync_when_the_indexer_is_unavailable() {
     block_on(w.engine.set_setting("indexers", Some(&json!([])))).unwrap();
     let page = block_on(
         w.engine
-            .list_posts_page(&query, &lessdugin_core::dto::SyncOpts::default()),
+            .list_posts_page(&query, &pandoras_forum_core::dto::SyncOpts::default()),
     )
     .unwrap();
     assert_eq!(page.items[0].title.as_deref(), Some("Title"));
@@ -621,7 +624,7 @@ fn forum_world_in(mode: MembershipMode) -> ForumWorld {
     let _ = net.default_pds();
     let owner = net.add_account("alice.example.com");
     let key = ForumKey::new(owner.did(), "meta").unwrap();
-    let dt = lessdugin_atp::syntax::Datetime::from_millis(host.now() - 3_600_000).unwrap();
+    let dt = pandoras_forum_atp::syntax::Datetime::from_millis(host.now() - 3_600_000).unwrap();
     let forum = Forum::create("meta", dt.clone(), mode);
     owner.put(nsid::FORUM, "meta", &serde_json::to_value(forum).unwrap());
     let membership = Membership::new(key.uri.clone(), dt.clone());
@@ -808,15 +811,11 @@ fn audit_reports_omissions_and_forged_proofs() {
         .unwrap();
     assert!(report.has_contradiction_or_omission(), "{report:?}");
     assert!(
-        report
-            .findings()
-            .any(|f| f.check == "A3 records"
-                && f.kind == lessdugin_core::indexer::AuditKind::Omission)
+        report.findings().any(|f| f.check == "A3 records"
+            && f.kind == pandoras_forum_core::indexer::AuditKind::Omission)
     );
-    assert!(
-        report.findings().any(|f| f.check == "A5 proofs"
-            && f.kind == lessdugin_core::indexer::AuditKind::Contradiction)
-    );
+    assert!(report.findings().any(|f| f.check == "A5 proofs"
+        && f.kind == pandoras_forum_core::indexer::AuditKind::Contradiction));
     assert!(report.counts.contradictions >= 2);
 }
 
@@ -848,23 +847,23 @@ fn serve_honest_audit(w: &ForumWorld, posts: Value) {
 }
 
 fn check<'a>(
-    report: &'a lessdugin_core::indexer::AuditReport,
+    report: &'a pandoras_forum_core::indexer::AuditReport,
     name: &str,
-) -> &'a lessdugin_core::indexer::AuditCheck {
+) -> &'a pandoras_forum_core::indexer::AuditCheck {
     report.checks.iter().find(|c| c.name == name).unwrap()
 }
 
 #[test]
 fn audit_does_not_count_a_hidden_post_as_an_omission() {
-    use lessdugin_lexicon::records::{Action, HideAction, ModAction};
+    use pandoras_forum_lexicon::records::{Action, HideAction, ModAction};
     let w = forum_world();
     // The owner hides their own post: it stays a valid record but the fold no longer lists it,
     // so an honest indexer's listPosts leaves it out (sync.md §15.4 A3).
-    let hide = lessdugin_core::outbox::records::mod_action(&ModAction::new(
+    let hide = pandoras_forum_core::outbox::records::mod_action(&ModAction::new(
         w.key.uri.clone(),
         w.post.as_str(),
         Action::Hide(HideAction::hide()),
-        lessdugin_atp::syntax::Datetime::from_millis(w.host.now()).unwrap(),
+        pandoras_forum_atp::syntax::Datetime::from_millis(w.host.now()).unwrap(),
     ))
     .unwrap();
     w.owner.put(nsid::MOD_ACTION, &hide.rkey, &hide.value);
@@ -876,8 +875,8 @@ fn audit_does_not_count_a_hidden_post_as_an_omission() {
         },
     ))
     .unwrap();
-    let mut query = lessdugin_core::dto::ListPostsQuery::new(w.key.uri.to_string());
-    query.filter = lessdugin_core::dto::PostFilter::All;
+    let mut query = pandoras_forum_core::dto::ListPostsQuery::new(w.key.uri.to_string());
+    query.filter = pandoras_forum_core::dto::PostFilter::All;
     assert!(
         block_on(w.engine.list_posts(&query))
             .unwrap()
@@ -904,14 +903,14 @@ fn empty_bundle() -> Vec<u8> {
     manifest.insert("v".to_owned(), Ipld::Integer(1));
     manifest.insert("items".to_owned(), Ipld::List(Vec::new()));
     let manifest = dagcbor::encode(&Ipld::Map(manifest)).unwrap();
-    let root = lessdugin_atp::cid::for_dag_cbor(&manifest);
+    let root = pandoras_forum_atp::cid::for_dag_cbor(&manifest);
     write_car(&[root], [(&root, manifest.as_slice())])
 }
 
 #[test]
 fn audit_proof_check_counts_only_rejected_proofs_as_contradictions() {
-    use lessdugin_core::host::HostError;
-    use lessdugin_core::indexer::AuditKind;
+    use pandoras_forum_core::host::HostError;
+    use pandoras_forum_core::indexer::AuditKind;
     // An unreachable proof endpoint and a proof still over the cap at one URI present nothing
     // to verify: neither is a contradiction, and the item is not counted as checked. It is an
     // `unchecked` finding, counted as such (sync.md §15.4, engine-api.md §4.3).
@@ -967,7 +966,7 @@ fn post_hint(uri: &str) -> Value {
     json!({"ref": {"uri": uri}, "effectiveAt": "2025-01-01T00:00:00Z", "state": "visible"})
 }
 
-fn posts_page(posts: Value, cursor: Option<&str>) -> lessdugin_core::host::HttpResponse {
+fn posts_page(posts: Value, cursor: Option<&str>) -> pandoras_forum_core::host::HttpResponse {
     resp::ok_json(&with_meta(
         json!({
             "posts": posts, "cursor": cursor,
@@ -979,7 +978,7 @@ fn posts_page(posts: Value, cursor: Option<&str>) -> lessdugin_core::host::HttpR
 
 #[test]
 fn audit_leaves_an_unreachable_pds_unchecked_instead_of_failing() {
-    use lessdugin_testkit::fake_pds::Fault;
+    use pandoras_forum_testkit::fake_pds::Fault;
     let w = forum_world();
     w.host.advance_ms(180_000);
     // The indexer lists the local post and one more of the same author that is not local.
@@ -996,8 +995,8 @@ fn audit_leaves_an_unreachable_pds_unchecked_instead_of_failing() {
     let report = block_on(w.engine.audit_indexer(w.key.uri.as_str()))
         .unwrap()
         .unwrap();
-    use lessdugin_core::indexer::AuditKind;
-    let unchecked = |c: &lessdugin_core::indexer::AuditCheck| -> Vec<String> {
+    use pandoras_forum_core::indexer::AuditKind;
+    let unchecked = |c: &pandoras_forum_core::indexer::AuditCheck| -> Vec<String> {
         assert!(
             c.findings.iter().all(|f| f.kind == AuditKind::Unchecked),
             "{c:?}"
@@ -1086,7 +1085,7 @@ fn serve_change_log(
     );
     host.on_get(&endpoint("getChanges"), move |req| {
         let url = match &req.target {
-            lessdugin_core::host::Target::Anon(url) => url.clone(),
+            pandoras_forum_core::host::Target::Anon(url) => url.clone(),
             _ => panic!("getChanges carried credentials"),
         };
         let q = |name: &str| {
@@ -1124,7 +1123,7 @@ fn serve_change_log(
 fn observe(w: &ForumWorld, rev: &str, cid: Option<String>) {
     w.engine
         .syncer()
-        .note_observed_change(lessdugin_core::sync::ObservedChange {
+        .note_observed_change(pandoras_forum_core::sync::ObservedChange {
             fk: w.key.fk.clone(),
             uri: w.post.clone(),
             did: w.owner.did().to_string(),
@@ -1138,7 +1137,7 @@ fn change_row(w: &ForumWorld, rev: &str, cid: Option<&str>, op: &str) -> Value {
     json!({"uri": w.post, "did": w.owner.did(), "rev": rev, "cid": cid, "op": op})
 }
 
-fn a2_after(w: &ForumWorld) -> lessdugin_core::indexer::AuditCheck {
+fn a2_after(w: &ForumWorld) -> pandoras_forum_core::indexer::AuditCheck {
     w.host.clear_requests();
     let report = block_on(w.engine.audit_indexer(w.key.uri.as_str()))
         .unwrap()
@@ -1219,7 +1218,7 @@ fn audit_change_check_accepts_a_row_at_or_after_the_observed_change() {
 /// say the change is missing: it is one unchecked finding, never an omission (sync.md §15.4).
 #[test]
 fn audit_change_check_leaves_a_change_unchecked_when_the_read_back_stops_early() {
-    use lessdugin_core::indexer::AuditKind;
+    use pandoras_forum_core::indexer::AuditKind;
     let observed = tid_at_ms(1_700_000_000_000).to_string();
     let w = forum_world();
     let cid = w
@@ -1384,7 +1383,7 @@ fn a_hostile_change_feed_cannot_steer_fetches_at_arbitrary_dids() {
 fn a_change_feed_newcomer_goes_through_discovery_confirmation() {
     let w = forum_world_in(MembershipMode::Open);
     let newbie = w._net.add_account("newbie.example.com");
-    let dt = lessdugin_atp::syntax::Datetime::from_millis(w.host.now()).unwrap();
+    let dt = pandoras_forum_atp::syntax::Datetime::from_millis(w.host.now()).unwrap();
     newbie.put(
         nsid::MEMBERSHIP,
         &w.key.fk,
@@ -1423,7 +1422,7 @@ fn a_change_feed_newcomer_goes_through_discovery_confirmation() {
 
     // A sync confirms it like any newcomer hint, within the discovery budget.
     let source = format!("indexer:did:web:index.example.com:{}", w.key.fk);
-    let mut rewind = lessdugin_core::store::blob::CursorRow::new(w.host.now());
+    let mut rewind = pandoras_forum_core::store::blob::CursorRow::new(w.host.now());
     rewind.seq = Some(0);
     let mut batch = RecordStore::new(w.host.cache()).batch();
     batch.put_cursor(&source, &rewind).unwrap();
@@ -1433,7 +1432,7 @@ fn a_change_feed_newcomer_goes_through_discovery_confirmation() {
             .sync_forum(w.key.uri.as_str(), &SyncOpts::default()),
     )
     .unwrap();
-    let disc = block_on(lessdugin_core::discovery::state::disc_rows(
+    let disc = block_on(pandoras_forum_core::discovery::state::disc_rows(
         w.host.cache(),
         &w.key.fk,
     ))
@@ -1442,7 +1441,7 @@ fn a_change_feed_newcomer_goes_through_discovery_confirmation() {
     assert!(row.src.iter().any(|s| s == "hint:indexer"), "{row:?}");
     assert_eq!(
         row.state,
-        lessdugin_core::discovery::DiscState::Confirmed,
+        pandoras_forum_core::discovery::DiscState::Confirmed,
         "{row:?}"
     );
 }
@@ -1469,8 +1468,8 @@ fn indexer_page_and_head_hints_stay_inside_the_forum() {
     w.host
         .respond_get(&endpoint("getRecordProofs"), resp::car(empty_bundle()));
     w.host.clear_requests();
-    let mut query = lessdugin_core::dto::ListPostsQuery::new(w.key.uri.to_string());
-    query.filter = lessdugin_core::dto::PostFilter::All;
+    let mut query = pandoras_forum_core::dto::ListPostsQuery::new(w.key.uri.to_string());
+    query.filter = pandoras_forum_core::dto::PostFilter::All;
     let report = block_on(w.engine.hydrate_indexer_page(&query))
         .unwrap()
         .unwrap();
@@ -1514,18 +1513,18 @@ fn indexer_page_and_head_hints_stay_inside_the_forum() {
 
 #[test]
 fn an_expired_change_cursor_reconciles_at_reconcile_priority_at_most_daily() {
-    use lessdugin_lexicon::records::{AccessAction, Action, ModAction};
-    use lessdugin_lexicon::values::AccessLevel;
+    use pandoras_forum_lexicon::records::{AccessAction, Action, ModAction};
+    use pandoras_forum_lexicon::values::AccessLevel;
     let w = forum_world();
     // A granted member: a participant, reconciled at P3.
     let member = w._net.add_account("member.example.com");
-    let dt = lessdugin_atp::syntax::Datetime::from_millis(w.host.now()).unwrap();
+    let dt = pandoras_forum_atp::syntax::Datetime::from_millis(w.host.now()).unwrap();
     member.put(
         nsid::MEMBERSHIP,
         &w.key.fk,
         &serde_json::to_value(Membership::new(w.key.uri.clone(), dt.clone())).unwrap(),
     );
-    let grant = lessdugin_core::outbox::records::mod_action(&ModAction::new(
+    let grant = pandoras_forum_core::outbox::records::mod_action(&ModAction::new(
         w.key.uri.clone(),
         member.did().as_str(),
         Action::Access(AccessAction::new(AccessLevel::Member)),
@@ -1554,7 +1553,7 @@ fn an_expired_change_cursor_reconciles_at_reconcile_priority_at_most_daily() {
                 ))),
             ],
         );
-        let rewind = lessdugin_core::store::blob::CursorRow {
+        let rewind = pandoras_forum_core::store::blob::CursorRow {
             seq: Some(7),
             ..block_on(RecordStore::new(w.host.cache()).cursor(&source))
                 .unwrap()
@@ -1637,7 +1636,7 @@ fn a_change_cursor_past_blocklisted_rows_is_followed() {
 
 #[test]
 fn production_endpoints_are_exact_and_devnet_is_loopback_only() {
-    use lessdugin_core::indexer::endpoint_allowed;
+    use pandoras_forum_core::indexer::endpoint_allowed;
     let ok = |u: &str, p| endpoint_allowed(&url::Url::parse(u).unwrap(), p);
     assert!(ok(INDEX, EndpointPolicy::Production));
     assert!(!ok(
@@ -1659,7 +1658,7 @@ fn a_change_is_first_seen_when_it_is_received_not_at_the_indexer_snapshot() {
     let w = forum_world();
     // An edit the feed reports; the stored version is the one the forum sync listed.
     let rkey = w.post.rsplit('/').next().unwrap().to_owned();
-    let dt = lessdugin_atp::syntax::Datetime::from_millis(w.host.now() - 3_600_000).unwrap();
+    let dt = pandoras_forum_atp::syntax::Datetime::from_millis(w.host.now() - 3_600_000).unwrap();
     let edited = Post::article(w.key.uri.clone(), "Edited", "Body", dt);
     let cid = w
         .owner

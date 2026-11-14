@@ -24,7 +24,7 @@ did(abe) < did(wes), so a tie on KP between them goes to abe by DID, and K separ
 
 from __future__ import annotations
 
-from lessdugin_ref.build import MIN, T0, Forum, did
+from pandoras_forum_ref.build import MIN, T0, Forum, did
 
 BOOSTERS = tuple("booster" + c for c in "abcdefghijkl")        # 12
 USERS = ("tess", "sid", "vera", "wes", "abe")

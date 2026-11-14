@@ -17,9 +17,9 @@
 
 use std::collections::BTreeSet;
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::records::Forum;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::records::Forum;
 use serde_json::Value;
 
 use crate::social::FoldError;
@@ -30,13 +30,13 @@ use crate::store::repo::RepoStatus;
 /// `data-model.md` §7 for one record: `(valid, first failing rule)`.
 pub type Validity<'v> = &'v dyn Fn(&str, &Value) -> (bool, Option<String>);
 
-/// Record validity with this build's lexicon (`lessdugin_lexicon::validity`), whose namespace is
-/// [`lessdugin_lexicon::ns::NS`].
+/// Record validity with this build's lexicon (`pandoras_forum_lexicon::validity`), whose namespace is
+/// [`pandoras_forum_lexicon::ns::NS`].
 pub fn lexicon_validity(uri: &str, value: &Value) -> (bool, Option<String>) {
     let Ok(u) = AtUri::parse(uri) else {
         return (false, Some("G4".into()));
     };
-    let v = lessdugin_lexicon::validity::check_uri(&u, value);
+    let v = pandoras_forum_lexicon::validity::check_uri(&u, value);
     (v.valid, v.first_rule().map(|r| r.to_string()))
 }
 

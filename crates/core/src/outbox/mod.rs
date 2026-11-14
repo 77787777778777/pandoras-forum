@@ -42,11 +42,11 @@ use std::sync::{Arc, Mutex as StdMutex};
 use futures::StreamExt;
 use futures::channel::mpsc;
 use futures::lock::Mutex as AsyncMutex;
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_atp::tid::{Tid, TidGenerator};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::records::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_atp::tid::{Tid, TidGenerator};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::records::{
     Action, Comment, Forum, ModAction, Opinion, Post, Profile, Sequence, WikiRevision,
 };
 use serde::de::DeserializeOwned;
@@ -361,7 +361,7 @@ impl<H: Host> Outbox<H> {
     pub fn with_listener(host: Arc<H>, listener: Arc<dyn OutboxListener>) -> Self {
         let mut b = [0u8; 2];
         host.fill_random(&mut b);
-        let clock_id = u16::from_le_bytes(b) & lessdugin_atp::tid::MAX_CLOCK_ID;
+        let clock_id = u16::from_le_bytes(b) & pandoras_forum_atp::tid::MAX_CLOCK_ID;
         Self {
             host,
             shared: Arc::new(Shared {
@@ -572,7 +572,7 @@ impl<H: Host> Outbox<H> {
     // Write operations
 
     async fn has_own_membership(&self, session: &Session, forum: &AtUri) -> bool {
-        let Ok(rkey) = lessdugin_lexicon::keys::membership_rkey(forum.as_str()) else {
+        let Ok(rkey) = pandoras_forum_lexicon::keys::membership_rkey(forum.as_str()) else {
             return false;
         };
         let Ok(uri) = AtUri::parse(&format!("at://{}/{}/{rkey}", session.did, nsid::MEMBERSHIP))
@@ -727,7 +727,7 @@ impl<H: Host> Outbox<H> {
         session: &Session,
         forum: &AtUri,
     ) -> Result<WriteTicket, EngineError> {
-        let rkey = lessdugin_lexicon::keys::membership_rkey(forum.as_str())
+        let rkey = pandoras_forum_lexicon::keys::membership_rkey(forum.as_str())
             .map_err(|e| EngineError::invalid_ref(format!("{forum}: {e}")))?;
         let uri = records::at_uri(&format!("at://{}/{}/{rkey}", session.did, nsid::MEMBERSHIP))?;
         let cid = RecordStore::new(self.host.cache())
@@ -1031,7 +1031,7 @@ impl<H: Host> Outbox<H> {
         protocol::lexicon_intent(&step)?;
         let rkey = records::opinion_rkey(forum, subject)?;
         records::at_uri(subject)?;
-        lessdugin_atp::Cid::try_from(subject_cid)
+        pandoras_forum_atp::Cid::try_from(subject_cid)
             .map_err(|e| EngineError::invalid_input(format!("subject CID {subject_cid:?}: {e}")))?;
         let account = session.did.as_str();
         let _g = self.shared.rows.lock().await;
@@ -1553,7 +1553,7 @@ impl<H: Host> Outbox<H> {
         Ok(u32::try_from(released.len()).unwrap_or(u32::MAX))
     }
 
-    /// "Send now" (`lessdugin outbox flush`, `retry`): ends the back-off of `account`'s writes
+    /// "Send now" (`pandoras-forum outbox flush`, `retry`): ends the back-off of `account`'s writes
     /// that wait after an ambiguous or transient failure, so the next step tries them at once.
     /// Holds that are not ours to shorten stay: the undo window (`held`), the write budget and
     /// a PDS rate limit (`rate_limited`), and a refused session (`needsLogin`). Returns how

@@ -19,19 +19,19 @@ version = "0.0.1"
 edition = "2024"
 rust-version = "1.88"
 license = "AGPL-3.0-or-later"
-repository = "https://github.com/77787777778777/lessdugin"
-homepage = "https://lessdugin.7778777.online"
-authors = ["lessdugin contributors"]
+repository = "https://github.com/77787777778777/pandoras-forum"
+homepage = "https://pandoras.forum"
+authors = ["Pandora's Forum contributors"]
 
 [workspace.dependencies]
 # internal
-lessdugin-atp = { path = "crates/atp", version = "0.0.1" }
-lessdugin-lexicon = { path = "crates/lexicon", version = "0.0.1" }
-lessdugin-markdown = { path = "crates/markdown", version = "0.0.1" }
-lessdugin-core = { path = "crates/core", version = "0.0.1" }
-lessdugin-native = { path = "crates/native", version = "0.0.1" }
-lessdugin-tui = { path = "crates/tui", version = "0.0.1" }
-lessdugin-testkit = { path = "crates/testkit", version = "0.0.1" }
+pandoras-forum-atp = { path = "crates/atp", version = "0.0.1" }
+pandoras-forum-lexicon = { path = "crates/lexicon", version = "0.0.1" }
+pandoras-forum-markdown = { path = "crates/markdown", version = "0.0.1" }
+pandoras-forum-core = { path = "crates/core", version = "0.0.1" }
+pandoras-forum-native = { path = "crates/native", version = "0.0.1" }
+pandoras-forum-tui = { path = "crates/tui", version = "0.0.1" }
+pandoras-forum-testkit = { path = "crates/testkit", version = "0.0.1" }
 
 # protocol / data model (exact pins for parsing + crypto, see docs/spec/threat-model.md)
 cid = { version = "=0.11.3", default-features = false, features = ["alloc", "serde"] }

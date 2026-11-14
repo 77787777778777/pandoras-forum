@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // A user's profile. Until the engine has the `user` operation (M5) it shows the identity
 // alone, with subscribing and muting, which need nothing more.
-import { type ActorView, isEngineError } from "@lessdugin/engine/types";
+import { type ActorView, isEngineError } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { useState } from "react";

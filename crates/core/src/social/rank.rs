@@ -138,9 +138,9 @@ pub fn cmp_comments(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_atp::syntax::Datetime;
-    use lessdugin_lexicon::records::Forum;
-    use lessdugin_lexicon::values::MembershipMode;
+    use pandoras_forum_atp::syntax::Datetime;
+    use pandoras_forum_lexicon::records::Forum;
+    use pandoras_forum_lexicon::values::MembershipMode;
 
     fn policy() -> EffectivePolicy {
         let f = Forum::create(

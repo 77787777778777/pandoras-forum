@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { DraftEntry } from "@lessdugin/engine/types";
+import type { DraftEntry } from "@pandoras-forum/engine/types";
 import { describe, expect, it } from "vitest";
 import { latestCommentDraft } from "./drafts.ts";
 
-const ROOT = "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.post/3kabc";
-const PARENT = "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.comment/3kdef";
+const ROOT = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.post/3kabc";
+const PARENT = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.comment/3kdef";
 
 const entry = (id: string, savedAtMs: number, markdown: string, parent?: string): DraftEntry => ({
   id,

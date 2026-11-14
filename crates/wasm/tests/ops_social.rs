@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The M3 operations through the wasm dispatcher (`ops::call`), over the fake network
-//! (`MemHost` + `FakePds`): every argument is the JSON `@lessdugin/engine` sends for its
+//! (`MemHost` + `FakePds`): every argument is the JSON `@pandoras-forum/engine` sends for its
 //! `EngineApi` method (optional request fields left out, as a TypeScript caller may), and every
 //! result is read back as the dto/1 JSON the SPA receives.
 //!
@@ -10,11 +10,11 @@
 //! §4.2), then reads the mod log and queue, adds carol as a moderator and updates the forum.
 
 use futures::executor::block_on;
-use lessdugin_core::engine::{Engine, EngineConfig, EngineError, ErrorCode};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::{FakeNet, MemHost};
-use lessdugin_wasm::ops;
+use pandoras_forum_core::engine::{Engine, EngineConfig, EngineError, ErrorCode};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::{FakeNet, MemHost};
+use pandoras_forum_wasm::ops;
 use serde_json::{Value, json};
 
 const MINUTE: i64 = 60_000;

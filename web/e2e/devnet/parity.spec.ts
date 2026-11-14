@@ -25,10 +25,12 @@ test("parity mode: two fresh profiles at different times read the same thread by
     ).toBeVisible();
     await expect(page.getByText("A first comment from alice.")).toBeVisible();
     const thread =
-      (await page.evaluate((uri) => window.__lessduginE2E?.getThread(uri), s.post.uri)) ?? "";
+      (await page.evaluate((uri) => window.__pandorasForumE2E?.getThread(uri), s.post.uri)) ?? "";
     const list =
-      (await page.evaluate((forum) => window.__lessduginE2E?.listPosts({ forum }), s.forum.uri)) ??
-      "";
+      (await page.evaluate(
+        (forum) => window.__pandorasForumE2E?.listPosts({ forum }),
+        s.forum.uri,
+      )) ?? "";
     const notice = await page.getByTestId("engine-banner").innerText();
     expect(await w.problems()).toEqual([]);
     await ctx.close();

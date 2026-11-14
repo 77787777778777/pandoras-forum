@@ -37,7 +37,7 @@ const TS_ONLY: Readonly<Record<string, string>> = {
   Cid: "alias of string",
   Slug: "alias of string",
   Ms: "alias of number",
-  Href: "lessdugin-markdown's safe_href result, re-tagged by the wasm binding",
+  Href: "pandoras-forum-markdown's safe_href result, re-tagged by the wasm binding",
   HrefContext: "an argument of safeHref",
   TagVoteValue: "alias of KarmaValue",
   MediaFile: "prepareMedia's engine API v0 argument (the bytes are a Uint8Array)",

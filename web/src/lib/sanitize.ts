@@ -14,7 +14,7 @@
 //   both ways; it probes the value grammars against the patterns of lfm-1.md §8.2.
 // - The sanitiser is a dedicated DOMPurify instance, configured once with `setConfig`: its hooks
 //   and configuration never leak into (or from) any other user of the shared default instance.
-// - The Trusted Types policy `lessdugin-md` wraps `sanitize(html)`. It is created once, at
+// - The Trusted Types policy `pandoras-forum-md` wraps `sanitize(html)`. It is created once, at
 //   startup, and is the only way rendered content reaches the DOM.
 // - This module is the only place that assigns `innerHTML` (scripts/check-no-raw-href.mjs).
 //
@@ -163,7 +163,7 @@ export const MATHML_ATTRS = [
 /**
  * lfm-1.md §7.3 MathML class tokens: the `mc-*` classes of the style normaliser (ADR 0002
  * decision 2; styled by `crates/markdown/assets/mathml.css`) and math-core's `menclose-*`
- * polyfill classes (`mathmlfixes.css`). The same list as `lessdugin_markdown::math::MATHML_CLASSES`.
+ * polyfill classes (`mathmlfixes.css`). The same list as `pandoras_forum_markdown::math::MATHML_CLASSES`.
  */
 export const MATHML_CLASSES: ReadonlySet<string> = new Set([
   "mc-al",
@@ -477,25 +477,25 @@ interface TrustedTypesFactory {
   createPolicy(name: string, rules: { createHTML: (input: string) => string }): TrustedHtmlPolicy;
 }
 
-const POLICY_KEY = Symbol.for("lessdugin.trusted-types.lessdugin-md");
+const POLICY_KEY = Symbol.for("pandoras-forum.trusted-types.pandoras-forum-md");
 type PolicyHolder = { [POLICY_KEY]?: TrustedHtmlPolicy | null };
 
-/** Creates the `lessdugin-md` policy once (call at startup). `null` without Trusted Types. */
-export function lessduginPolicy(): TrustedHtmlPolicy | null {
+/** Creates the `pandoras-forum-md` policy once (call at startup). `null` without Trusted Types. */
+export function pandorasForumPolicy(): TrustedHtmlPolicy | null {
   const holder = globalThis as unknown as PolicyHolder;
   const existing = holder[POLICY_KEY];
   if (existing !== undefined) return existing;
   const tt = (globalThis as unknown as { trustedTypes?: TrustedTypesFactory }).trustedTypes;
   const policy = tt?.createPolicy
-    ? tt.createPolicy("lessdugin-md", { createHTML: (html) => sanitizeLfm(html) })
+    ? tt.createPolicy("pandoras-forum-md", { createHTML: (html) => sanitizeLfm(html) })
     : null;
   holder[POLICY_KEY] = policy;
   return policy;
 }
 
-/** Replaces `el`'s children with sanitised `html`, through the `lessdugin-md` policy when
+/** Replaces `el`'s children with sanitised `html`, through the `pandoras-forum-md` policy when
  * Trusted Types are available. */
 export function setSanitizedHtml(el: Element, html: string): void {
-  const policy = lessduginPolicy();
+  const policy = pandorasForumPolicy();
   el.innerHTML = policy ? (policy.createHTML(html) as string) : sanitizeLfm(html);
 }

@@ -5,8 +5,8 @@
 //! ```text
 //! b32s(bytes)    base32, MSB-first 5-bit groups, alphabet "234567abcdefghijklmnopqrstuvwxyz", no padding
 //! H(tag, p1..pk) sha256(UTF8(tag) ‖ (0x1F ‖ UTF8(NFC(p_i)))*); rejects any p_i containing U+001F
-//! fk(forumUri)   b32s(H("lessdugin-fk/1", forumUri))[0..12]
-//! h16(name, p…)  b32s(H("lessdugin-sk/1", name, p…))[0..16]
+//! fk(forumUri)   b32s(H("pandoras-forum-fk/1", forumUri))[0..12]
+//! h16(name, p…)  b32s(H("pandoras-forum-sk/1", name, p…))[0..16]
 //! threadTid, stid, P, actionKey and the rkey of every collection
 //! ```
 //!
@@ -30,9 +30,9 @@ use crate::limits::SLUG_MAX_BYTES;
 /// The `b32s` alphabet; its order is the bit order (sortable).
 pub const ALPHABET: &[u8; 32] = b"234567abcdefghijklmnopqrstuvwxyz";
 /// Hash domain tag of `fk/1` (unchanged under `.temp`).
-pub const TAG_FK: &str = "lessdugin-fk/1";
+pub const TAG_FK: &str = "pandoras-forum-fk/1";
 /// Hash domain tag of `sk/1` (unchanged under `.temp`).
-pub const TAG_SK: &str = "lessdugin-sk/1";
+pub const TAG_SK: &str = "pandoras-forum-sk/1";
 /// Length of an fk.
 pub const FK_LEN: usize = 12;
 /// Length of an h16.
@@ -561,50 +561,50 @@ mod tests {
     use crate::ns::NS_FINAL;
     use serde_json::json;
 
-    const FORUM: &str =
-        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.forum/rationality";
-    const POST: &str = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c";
+    const FORUM: &str = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.forum/rationality";
+    const POST: &str =
+        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c";
 
     #[test]
     fn worked_example() {
         // data-model.md §3.4
-        assert_eq!(fk(FORUM).unwrap(), "uetjixxr3a33");
+        assert_eq!(fk(FORUM).unwrap(), "nkglkm5wsp3d");
         assert_eq!(
-            fk("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.temp.forum/rationality")
+            fk("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.temp.forum/rationality")
                 .unwrap(),
-            "2xbiijsnjtau"
+            "rij47lga3p74"
         );
         assert_eq!(
             post_rkey(FORUM, "3l2s5xxv2ze2c").unwrap(),
-            "uetjixxr3a33-3l2s5xxv2ze2c"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c"
         );
-        assert_eq!(h16("opinion", &[POST]).unwrap(), "wcz54x7liy3jsh3g");
+        assert_eq!(h16("opinion", &[POST]).unwrap(), "liu73r73htncrny7");
         assert_eq!(
             opinion_rkey(NS_FINAL, FORUM, POST).unwrap(),
-            "uetjixxr3a33-3l2s5xxv2ze2c-wcz54x7liy3jsh3g"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c-liu73r73htncrny7"
         );
         let comment = comment_rkey(NS_FINAL, FORUM, POST, "3l2s6aaaaaaa2").unwrap();
-        assert_eq!(comment, "uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2");
-        let c_uri = format!(
-            "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.comment/{comment}"
-        );
+        assert_eq!(comment, "nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2");
+        let c_uri =
+            format!("at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.comment/{comment}");
         assert_eq!(
             opinion_rkey(NS_FINAL, FORUM, &c_uri).unwrap(),
-            "uetjixxr3a33-3l2s5xxv2ze2c-3mjfititlivah7tw"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c-yp4sp6qksmmqiqeu"
         );
-        let a = |t: &str| json!({"$type": format!("online.7778777.lessdugin.modAction#{t}"), "scope": "forum"});
+        let a =
+            |t: &str| json!({"$type": format!("forum.pandoras.modAction#{t}"), "scope": "forum"});
         let ma = |s: &str, act: &Value| {
             mod_action_rkey(NS_FINAL, FORUM, None, s, act.as_object().unwrap()).unwrap()
         };
         assert_eq!(
             ma("did:plc:abcdefghijklmnopqrstuvwx", &a("access")),
-            "uetjixxr3a33-ckjbz7a2pjeplbao"
+            "nkglkm5wsp3d-jf2rkp6oclilez2z"
         );
-        assert_eq!(ma(POST, &a("hide")), "uetjixxr3a33-jmsm5bwwzljcu2zo");
-        assert_eq!(ma(POST, &a("pin")), "uetjixxr3a33-4vdjzbg6ohwpa323");
+        assert_eq!(ma(POST, &a("hide")), "nkglkm5wsp3d-z7jdhm6fkrboyadt");
+        assert_eq!(ma(POST, &a("pin")), "nkglkm5wsp3d-n3enyd5v2tw76a36");
         assert_eq!(
             ma("tag:decision-theory", &a("tag")),
-            "uetjixxr3a33-yext7l62fmg5ufrt"
+            "nkglkm5wsp3d-jeniqv3np5jznwjp"
         );
     }
 
@@ -621,7 +621,7 @@ mod tests {
 
     #[test]
     fn grammars() {
-        assert!(is_fk("uetjixxr3a33"));
+        assert!(is_fk("nkglkm5wsp3d"));
         assert!(!is_fk("uetjixxr3a3"));
         assert!(!is_fk("uetjixxr3a31"));
         assert!(is_tid("3l2s5xxv2ze2c"));
@@ -636,44 +636,44 @@ mod tests {
         assert!(is_slug(&"a".repeat(64)));
         assert!(matches_grammar(
             Collection::Post,
-            "uetjixxr3a33-3l2s5xxv2ze2c"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c"
         ));
         assert!(!matches_grammar(
             Collection::Post,
-            "uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
         ));
         assert!(matches_grammar(
             Collection::Comment,
-            "uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
         ));
         assert!(matches_grammar(
             Collection::Opinion,
-            "uetjixxr3a33-~-wcz54x7liy3jsh3g"
+            "nkglkm5wsp3d-~-liu73r73htncrny7"
         ));
         assert!(matches_grammar(
             Collection::ModAction,
-            "uetjixxr3a33-jmsm5bwwzljcu2zo"
+            "nkglkm5wsp3d-z7jdhm6fkrboyadt"
         ));
         assert!(matches_grammar(
             Collection::ModAction,
-            "uetjixxr3a33-3l2s5xxv2ze2c"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c"
         ));
         assert!(matches_grammar(
             Collection::Revision,
-            "uetjixxr3a33-3l2s5xxv2ze2c"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c"
         ));
         assert!(matches_grammar(
             Collection::Revision,
-            "uetjixxr3a33-jmsm5bwwzljcu2zo-3l2s5xxv2ze2c"
+            "nkglkm5wsp3d-z7jdhm6fkrboyadt-3l2s5xxv2ze2c"
         ));
         assert!(matches_grammar(
             Collection::Revision,
-            "uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2-3l2s7bbbbbbb2"
+            "nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2-3l2s7bbbbbbb2"
         ));
         assert!(!matches_grammar(Collection::Revision, "3l2s5xxv2ze2c"));
         assert!(matches_grammar(Collection::Profile, "self"));
         assert!(matches_grammar(Collection::Forum, "rationality"));
-        assert!(matches_grammar(Collection::Membership, "uetjixxr3a33"));
+        assert!(matches_grammar(Collection::Membership, "nkglkm5wsp3d"));
     }
 
     #[test]

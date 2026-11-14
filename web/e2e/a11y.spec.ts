@@ -62,19 +62,19 @@ for (const scheme of ["light", "dark"] as const) {
       const scores: AxeScore[] = [];
       const pages: [string, string][] = [
         ["/", "Your forums"],
-        [FORUM_PATH, "LessDugin Test Forum"],
-        [`${FORUM_PATH}/members`, "LessDugin Test Forum"],
-        [`${FORUM_PATH}/mod`, "LessDugin Test Forum"],
-        [`${FORUM_PATH}/settings`, "LessDugin Test Forum"],
-        [`${FORUM_PATH}/new`, "LessDugin Test Forum"],
+        [FORUM_PATH, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/members`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/mod`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/settings`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/new`, "Pandora's Test Forum"],
         [WELCOME_PATH, WELCOME],
         ["/notifications", "Notifications"],
         ["/drafts", "Drafts"],
         ["/settings", "Settings"],
         ["/search?q=vote", "Search"],
-        [`${FORUM_PATH}/tags`, "LessDugin Test Forum"],
-        [`${FORUM_PATH}/t/decision-theory`, "LessDugin Test Forum"],
-        [`${FORUM_PATH}/seqs`, "LessDugin Test Forum"],
+        [`${FORUM_PATH}/tags`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/t/decision-theory`, "Pandora's Test Forum"],
+        [`${FORUM_PATH}/seqs`, "Pandora's Test Forum"],
         [SEQUENCE_PATH, "Map and Territory"],
         ["/u/ada.test", "Ada Lovelace"],
       ];
@@ -124,7 +124,7 @@ for (const scheme of ["light", "dark"] as const) {
       ]) {
         await open(page, path, () =>
           expect(
-            page.getByRole("heading", { level: 1, name: "LessDugin Test Forum" }),
+            page.getByRole("heading", { level: 1, name: "Pandora's Test Forum" }),
           ).toBeVisible(),
         );
         await page.waitForLoadState("networkidle");
@@ -195,7 +195,7 @@ for (const scheme of ["light", "dark"] as const) {
         expect(page.getByRole("heading", { level: 1, name: "Your forums" })).toBeVisible(),
       );
       await page
-        .getByRole("article", { name: "LessDugin Test Forum" })
+        .getByRole("article", { name: "Pandora's Test Forum" })
         .getByRole("button", { name: "Unfollow" })
         .click();
       await expect(page.getByRole("heading", { level: 3, name: /^Forums by / })).toBeVisible();
@@ -280,7 +280,7 @@ for (const scheme of ["light", "dark"] as const) {
 test.describe("keyboard", () => {
   test("changing a sort or a filter keeps focus on the control", async ({ page }) => {
     await open(page, FORUM_PATH, () =>
-      expect(page.getByRole("heading", { level: 1, name: "LessDugin Test Forum" })).toBeVisible(),
+      expect(page.getByRole("heading", { level: 1, name: "Pandora's Test Forum" })).toBeVisible(),
     );
     const sort = page.getByLabel("Sort");
     await sort.focus();
@@ -374,7 +374,7 @@ test.describe("small screens", () => {
       "/settings",
       "/notifications",
       // An unknown comment: the error view shows a long at-uri.
-      "/at/did:plc:5qdku4cwkqmf5f7vo5owwvbz/online.7778777.lessdugin.temp.comment/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "/at/did:plc:5qdku4cwkqmf5f7vo5owwvbz/forum.pandoras.temp.comment/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     ];
     const wide: string[] = [];
     for (const path of paths) {

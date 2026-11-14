@@ -1,5 +1,5 @@
 ##### CRITIQUE: SECURITY #####
-# Red-team review: security, privacy and abuse in the lessdugin v1 designs
+# Red-team review: security, privacy and abuse in the Pandora's Forum v1 designs
 
 Severity scale:
 - **CRIT**: one cheap actor can compromise many users, or the forum's integrity.
@@ -67,7 +67,7 @@ References use the form DOC §n, where DOC is PROTOCOL, SYNC, SOCIAL or ARCH.
   - `less -R` has had filter bypasses (CVE-2022-46663).
   - Over SSH, the user's local terminal is the target.
 - **Fix:**
-  - Add a `TermText` newtype in `lessdugin-markdown`. It is the only type accepted by StyledDoc spans, the ratatui adapters and the CLI printers, and it is built only by `term_sanitize()`:
+  - Add a `TermText` newtype in `pandoras-forum-markdown`. It is the only type accepted by StyledDoc spans, the ratatui adapters and the CLI printers, and it is built only by `term_sanitize()`:
     - C0 (except structural `\n` and `\t`), DEL and C1 (U+0080–U+009F) become a visible `^[` or `\u{…}` in a distinct style.
     - U+2028 and U+2029 become a space.
     - Bidi controls (U+061C, U+200E/F, U+202A–E, U+2066–9) are stripped from prose. Inside code they become visible `⟨RLO⟩` markers (Trojan Source; people copy commands from posts).
@@ -92,11 +92,11 @@ References use the form DOC §n, where DOC is PROTOCOL, SYNC, SOCIAL or ARCH.
   - Turn on serde-saphyr's alias and budget limits for imported drafts (billion-laughs).
 
 **F3 [HIGH] Local-file exfiltration through draft image paths (ARCH §9: "local image paths … go through the media pipeline at publish time")**
-- **Attack:** `lessdugin post downloaded.md` (crossposting or RSS import), or a pasted quote, contains `![](../../.ssh/id_ed25519)` or `![](/home/u/Pictures/passport.jpg)`. The file is uploaded and published publicly and permanently, under a signature.
+- **Attack:** `pandoras-forum post downloaded.md` (crossposting or RSS import), or a pasted quote, contains `![](../../.ssh/id_ed25519)` or `![](/home/u/Pictures/passport.jpg)`. The file is uploaded and published publicly and permanently, under a signature.
 - **Fix:**
   - Resolve only relative paths that canonicalise (after following symlinks) inside the draft's own directory. Reject absolute paths, `~`, `..` and special files.
   - The sniffed type must be in the media allowlist. That alone rejects key files.
-  - The pre-publish summary lists every local file with its absolute path, size and type, and `--yes` cannot skip it for drafts not created by lessdugin.
+  - The pre-publish summary lists every local file with its absolute path, size and type, and `--yes` cannot skip it for drafts not created by Pandora's Forum.
 
 **F4 [HIGH] Attachment download or open (SYNC §11 `blob get … open`, ARCH §9 `media open`, PROTOCOL §3 `#media.name` ≤255b, declared mime)**
 - **Attack:**
@@ -330,7 +330,7 @@ References use the form DOC §n, where DOC is PROTOCOL, SYNC, SOCIAL or ARCH.
 ### E. Authentication and secrets
 
 **F25 [HIGH] Scope over-grant and main-password login (ARCH §1.11, §5)**
-- **`transition:generic` fallback:** it grants write and delete on *every* collection, including `app.bsky.*` and other apps' records. A lessdugin bug or a compromised hosted SPA could wipe a user's Bluesky presence.
+- **`transition:generic` fallback:** it grants write and delete on *every* collection, including `app.bsky.*` and other apps' records. A Pandora's Forum bug or a compromised hosted SPA could wipe a user's Bluesky presence.
 - **Main-password login:** "authFactorToken 2FA prompts" only apply to main-password `createSession`, so ARCH implicitly accepts main passwords. That grants account management (email change, deletion).
 - **Fix:**
   - Never request `transition:generic`. If `include:` fails, use PROTOCOL §8's enumerated list; if that fails, error out.
@@ -350,8 +350,8 @@ References use the form DOC §n, where DOC is PROTOCOL, SYNC, SOCIAL or ARCH.
   - XSS can then act only while a tab is open and cannot take a durable credential off the device.
   - Use Web Locks around refresh, since refresh tokens are single-use across tabs.
 
-**F27 [MED] `lessdugin web` origin squatting (ARCH §1.9: fixed port 47778)**
-- **Problem:** an origin is scheme, host and port, not a process. Another local user or program that binds 127.0.0.1:47778 while lessdugin isn't running owns that origin's localStorage and IndexedDB. That includes the session, and with F26 it can still *use* even non-extractable keys while its page is open. The TUI `o` key opens this URL. On shared machines this is a cross-user account takeover.
+**F27 [MED] `pandoras-forum web` origin squatting (ARCH §1.9: fixed port 47778)**
+- **Problem:** an origin is scheme, host and port, not a process. Another local user or program that binds 127.0.0.1:47778 while Pandora's Forum isn't running owns that origin's localStorage and IndexedDB. That includes the session, and with F26 it can still *use* even non-extractable keys while its page is open. The TUI `o` key opens this URL. On shared machines this is a cross-user account takeover.
 - **Fix:**
   - In `web` mode, keep no long-lived secrets in the browser. The CLI holds the session in the keyring and acts as an auth proxy (bring ARCH's phase-2 "engine bridge" forward for auth only).
   - A per-launch 256-bit capability is passed in the URL fragment, exchanged once, and kept in sessionStorage. A local user may race the brief argv exposure, but the capability is single-use.
@@ -435,15 +435,15 @@ References use the form DOC §n, where DOC is PROTOCOL, SYNC, SOCIAL or ARCH.
 ### G. Supply chain
 
 **F35 [HIGH] The hosted SPA and namespace control are a single point of failure (ARCH §11.4, §16 M7)**
-- **Problem:** this is the "trusted website" the user wanted to avoid. Whoever controls `7778777.online` (DNS, registrar, Pages) or the publisher account controls:
+- **Problem:** this is the "trusted website" the user wanted to avoid. Whoever controls `pandoras.forum` (DNS, registrar, Pages) or the publisher account controls:
   - the SPA code, and with it every hosted user's tokens;
   - the OAuth client_id identity;
   - `_lexicon` resolution, including the permission-set text shown on consent screens.
 - **Fix:**
   - Registrar lock, multi-year auto-renew, DNSSEC and CAA.
   - The publisher should be did:plc with an offline rotation key.
-  - Reproducible SPA and wasm builds, published hashes, and `lessdugin verify-site <url>`. Show the build hash in settings.
-  - Make `lessdugin web` the recommended path.
+  - Reproducible SPA and wasm builds, published hashes, and `pandoras-forum verify-site <url>`. Show the build hash in settings.
+  - Make `pandoras-forum web` the recommended path.
   - Keep lexicons compiled in; never fetch them at runtime.
   - Warn when an owner or moderator uses did:web, since domain expiry means forum takeover.
 
@@ -500,14 +500,14 @@ Sources:
 
 ### Critical Files for Implementation
 These are planned files; the repo currently holds only `LICENSE`.
-- /home/user/lessdugin/crates/markdown/src/term.rs and /home/user/lessdugin/crates/markdown/src/sanitize.rs (`TermText`, `safe_href`, MathML/TeX allowlist, depth pre-scan)
-- /home/user/lessdugin/crates/core/src/social/karma.rs and /home/user/lessdugin/crates/core/src/social/participation.rs (seeded karma/v1, separating directory from grant)
-- /home/user/lessdugin/crates/core/src/limits.rs (all byte, depth, count and fan-out caps, plus the poison-pill quarantine)
-- /home/user/lessdugin/crates/native/src/auth/mod.rs and /home/user/lessdugin/packages/engine/src/auth-bridge.ts (scope policy, keyring, non-extractable IDB keys, method allowlist, `web` bridge)
-- /home/user/lessdugin/docs/spec/threat-model.md (with the `modAction`, `report` and `markdown` lexicon deltas under /home/user/lessdugin/lexicons/online/7778777/lessdugin/)
+- /home/user/pandoras-forum/crates/markdown/src/term.rs and /home/user/pandoras-forum/crates/markdown/src/sanitize.rs (`TermText`, `safe_href`, MathML/TeX allowlist, depth pre-scan)
+- /home/user/pandoras-forum/crates/core/src/social/karma.rs and /home/user/pandoras-forum/crates/core/src/social/participation.rs (seeded karma/v1, separating directory from grant)
+- /home/user/pandoras-forum/crates/core/src/limits.rs (all byte, depth, count and fan-out caps, plus the poison-pill quarantine)
+- /home/user/pandoras-forum/crates/native/src/auth/mod.rs and /home/user/pandoras-forum/packages/engine/src/auth-bridge.ts (scope policy, keyring, non-extractable IDB keys, method allowlist, `web` bridge)
+- /home/user/pandoras-forum/docs/spec/threat-model.md (with the `modAction`, `report` and `markdown` lexicon deltas under /home/user/pandoras-forum/lexicons/forum/pandoras/)
 
 ##### CRITIQUE: PROTOCOL #####
-# Atproto protocol feasibility review of the lessdugin designs
+# Atproto protocol feasibility review of the Pandora's Forum designs
 
 **Verdict.** The overall architecture is feasible on today's atproto. The blockers are these:
 - **Edit semantics.** `applyWrites` has no per-op swap and no upsert.
@@ -532,7 +532,7 @@ The rest is medium or low.
   - PROTO §8 is correct, and `authFull` also covers the `.index.*` child group.
 - **NSID and DNS**
   - The NSID is valid: only the TLD segment may not start with a digit.
-  - `_lexicon.lessdugin.7778777.online` and `_lexicon.index.lessdugin.7778777.online` are the correct TXT names.
+  - `_lexicon.pandoras.forum` and `_lexicon.index.pandoras.forum` are the correct TXT names.
 - **OAuth spec**
   - Loopback `client_id` is exactly `http://localhost`: no port, path empty or `/`. Redirects go to `127.0.0.1` or `[::1]`, with the port ignored when matching. `scope` defaults to `atproto`. Servers are "encouraged", not required, to support this.
   - Native clients may use an `http://127.0.0.1` redirect.
@@ -593,10 +593,10 @@ The rest is medium or low.
   - Required sets are also permanent, for example `sequence.chapters!` and `wikiRevision.name!`.
 - **H5. ARCH §1.6 and §4.3 assume "skip the repo if the `getLatestCommit` rev is unchanged".**
   - The rev changes on every write in the repo, including all `app.bsky.*` activity. For typical Bluesky users nearly every participant repo is therefore dirty on every poll.
-  - Each dirty repo then needs a full `listRecords` of every lessdugin collection: 100 records per page, no range parameters, and deletes only detectable by re-listing everything.
+  - Each dirty repo then needs a full `listRecords` of every Pandora's Forum collection: 100 records per page, no range parameters, and deletes only detectable by re-listing everything.
   - The roughly 2k-participant serverless envelope is optimistic as a result.
   - **Correction:**
-    - Use Jetstream filtered to `online.7778777.lessdugin.*` as the dirty signal, or SYNC's MST subtree check, which ignores `app.bsky` churn.
+    - Use Jetstream filtered to `forum.pandoras.*` as the dirty signal, or SYNC's MST subtree check, which ignores `app.bsky` churn.
     - ARCH's P10 plan, "verified range diffs via `getRepo?since`", uses the wrong primitive. That call returns all blocks of the whole repo since the rev, and deletions cannot be interpreted without the previous MST; SYNC §0.6 is correct about this. Replace P10 with SYNC's `getRecord` + `getBlocks` range sync.
 - **H6. SYNC §6's fallback ("100 per page, newest first, stop at the window's lower rkey bound") does not work with `{fk}-{tid}` keys as written.**
   - `listRecords` orders by the full rkey (the reference PDS sorts by uri descending), so the order is forum-prefix-major, not time.
@@ -617,9 +617,9 @@ The rest is medium or low.
   - PROTO §9 allows `uris`/`subjects`/`actors` up to 100; SYNC allows `dids` up to 200.
   - Percent-encoded, that is about 13–25 KB of URL, past the common 8 KB proxy and CDN limits.
   - Cap at 25 at-uris (Bluesky's `getPosts` uses 25) and about 50 DIDs, or batch on the client.
-- **M3. SYNC §8 `forum.checkpoint` collides with an existing name.** It becomes `online.7778777.lessdugin.forum.checkpoint`, making `forum` both a record and a group. That breaks PROTO §1's naming rule and needs its own `_lexicon` TXT record. Rename it `online.7778777.lessdugin.checkpoint` (or SOCIAL's `karmaSnapshot`).
-- **M4. The digit segment `7778777` is valid, but the spec "strongly encourages" alphabetic-only authority segments.**
-  - Rust modules cannot start with a digit, so `online::7778777::lessdugin` is invalid. jacquard-lexgen or the xtask generator must mangle it (for example `_7778777`). TS codegen that emits identifiers needs the same treatment.
+- **M3. SYNC §8 `forum.checkpoint` collides with an existing name.** It becomes `forum.pandoras.forum.checkpoint`, making `forum` both a record and a group. That breaks PROTO §1's naming rule and needs its own `_lexicon` TXT record. Rename it `forum.pandoras.checkpoint` (or SOCIAL's `karmaSnapshot`).
+- **M4. The digit segment `7778777` (of the namespace then proposed, `online.7778777.…`) is valid, but the spec "strongly encourages" alphabetic-only authority segments.**
+  - Rust modules cannot start with a digit, so `online::7778777::…` is invalid. jacquard-lexgen or the xtask generator must mangle it (for example `_7778777`). TS codegen that emits identifiers needs the same treatment.
   - Add every consumer to spike S4: goat lex lint, `@atproto/lexicon`, atcute lex-cli, jacquard-lexgen, Jetstream wildcard, relay `listReposByCollection`, Constellation `source=` parsing.
 - **M5. Blob refs must be taken verbatim from `uploadBlob`.**
   - ARCH §4.4 checks only that "returned ref == local CID". The PDS compares `mimeType` and `size` with the blob it stored, and the mime type may be sniffed and differ from what the client declared.
@@ -657,7 +657,7 @@ The rest is medium or low.
 - **M12. PROTO §3's size budget can be exceeded.**
   - It assumes JSON escaping at most doubles the 100 KB post plus its snapshot. Control characters escape to 6 bytes, so the 1,000,000-byte `applyWrites` body limit can be exceeded. Measure the serialized body and spill to `textBlob` before sending.
   - `textBlob maxSize 10,000,000` exceeds the default 5 MiB upload limit on self-hosted PDSes. Keep the limit (it is frozen) but handle 413 responses.
-- **M13. OAuth sessions are short for every client.** There is no backend, so every lessdugin client is a public client with a hard ≤14-day session.
+- **M13. OAuth sessions are short for every client.** There is no backend, so every Pandora's Forum client is a public client with a hard ≤14-day session.
   - Headless, cron and moderator-bot use must use app passwords.
   - ARCH's `authFactorToken` 2FA prompt only applies to main-password logins; app passwords bypass email 2FA. The CLI should refuse main-password logins.
 - **M14. Some publishing and testing facts follow from the permission-set rules.**
@@ -687,7 +687,7 @@ The rest is medium or low.
     - Use SOCIAL's `modState` with rank plus safety-minimum, which does not depend on time. PROTO's "latest time wins" for section and tier depends on self-asserted time.
 - **X2. Derived rkeys.** There are four incompatible schemes:
   - PROTO sk/1: 16 characters, domain-separated by collection with 0x1F separators;
-  - SOCIAL: 26 characters, `lessdugin:kind:v1\n…`;
+  - SOCIAL: 26 characters, `pandoras-forum:kind:v1\n…`;
   - ARCH: 32 characters, `uri‖0x00‖axis`, no domain separation;
   - SYNC: `{fk}-…` layouts.
 
@@ -748,14 +748,14 @@ The rest is medium or low.
 6. Test OAuth query vs fragment responses, and loopback `client_id` acceptance, on a third-party authorization server.
 
 ### Critical Files for Implementation
-- /home/user/lessdugin/lexicons/online/7778777/lessdugin/ (one merged record set with final limits on every field; `authFull.json`; `index/`)
-- /home/user/lessdugin/docs/spec/data-model.md (the single rkey grammar, revision and wiki rules, write rules for swapCommit and no-upsert)
-- /home/user/lessdugin/crates/core/src/ids.rs (rkey derivation and validation; vectors already verified)
-- /home/user/lessdugin/crates/core/src/engine/outbox.rs (`applyWrites`/`swapCommit` retry, `putRecord`+`swapRecord`, verbatim blob refs)
-- /home/user/lessdugin/deploy/site/oauth/client-metadata.json and cli-client-metadata.json (full required fields, superset scope with `blob:*/*`)
+- /home/user/pandoras-forum/lexicons/forum/pandoras/ (one merged record set with final limits on every field; `authFull.json`; `index/`)
+- /home/user/pandoras-forum/docs/spec/data-model.md (the single rkey grammar, revision and wiki rules, write rules for swapCommit and no-upsert)
+- /home/user/pandoras-forum/crates/core/src/ids.rs (rkey derivation and validation; vectors already verified)
+- /home/user/pandoras-forum/crates/core/src/engine/outbox.rs (`applyWrites`/`swapCommit` retry, `putRecord`+`swapRecord`, verbatim blob refs)
+- /home/user/pandoras-forum/deploy/site/oauth/client-metadata.json and cli-client-metadata.json (full required fields, superset scope with `blob:*/*`)
 
 ##### CRITIQUE: PRODUCT #####
-# lessdugin product, UX and scope review
+# Pandora's Forum product, UX and scope review
 
 ## Verdict
 
@@ -778,7 +778,7 @@ The rest is medium or low.
 | # | Topic | PROTOCOL | SYNC | SOCIAL | ARCH | Recommendation |
 |---|---|---|---|---|---|---|
 | C1 | Interaction record granularity | Separate `vote` (2 axes), `react` (one per react+quote) and `tagVote` (§5.6–5.8) | One merged record per actor+subject (§4) | One `opinion` record with axes, `reacts[]` and `tags[]` (§6) | One record per axis (§1.3) | **SOCIAL's `opinion`.** It means fewer collections, so fewer `listRecords` calls per participant (see 2.1). It gives 1 write per toggle and one Constellation path. Do read-modify-write across devices with `putRecord`+`swapRecord`. |
-| C2 | Derived rkey function | `sk/1`, 16 chars, 80 bits, 0x1F separators | `{fk}-{stid}-{h16}` | 26 chars, `"lessdugin:kind:v1\n…"` | 32 chars, `uri‖0x00‖axis` | One function, PROTOCOL-style domain separation, prefixed with SYNC's `fk`. Drop `stid`; nobody needs windowing by subject time in the MVP. |
+| C2 | Derived rkey function | `sk/1`, 16 chars, 80 bits, 0x1F separators | `{fk}-{stid}-{h16}` | 26 chars, `"pandoras-forum:kind:v1\n…"` | 32 chars, `uri‖0x00‖axis` | One function, PROTOCOL-style domain separation, prefixed with SYNC's `fk`. Drop `stid`; nobody needs windowing by subject time in the MVP. |
 | C3 | Post/comment rkey type | `tid` | `any` = `{fk}-{tid}` | tid | tid | **`{fk}-{tid}`. This is permanent, so decide now.** I checked the reference PDS (`packages/pds/src/actor-store/record/reader.ts`): `listRecords` compares the full URI against `cursor` and still honours the deprecated `rkeyStart`/`rkeyEnd`. Per-forum range listing therefore works **today at L1, without rangesync**. A forum-wide sync costs one request per collection per participant, not a fetch of everything they wrote in every forum. Other PDS implementations fall back to list-all-and-filter (spike S7). |
 | C4 | Roster | `modAction#member` per member | Pages of 1,000 members plus a mod sweep | `access` dimension per DID | `roster_*` | MVP: one record per member; it is simple and carries reason and until. Pages can be added later as a new collection. The rate-limit ceiling (about 11k grants/day per mod) is not an MVP problem. |
 | C5 | Membership modes | open / approval | approval / open | roster / open (+`reviewNewUsers`, LATER) | approval | Unify as one roster with two policies. **approval**: content from non-members is hidden. **open**: non-members are shown collapsed as "new user" until a mod approves them, which is FM's review queue. This merges SOCIAL's open+reviewNewUsers, SYNC's sweep and PROTOCOL's beacon. |
@@ -787,14 +787,14 @@ The rest is medium or low.
 | C8 | Time | `min(createdAt, tid, firstSeen)`; future-dated content hidden | `min(createdAt, tid)`; future content "scheduled" | `t_rank` clamped to first-seen; says hide/clamp-to-now is a bug | Clamp to observed | SOCIAL `t_rank`. Any observer term makes output depend on the client, which contradicts SOCIAL §1 and ARCH M5 "byte-identical". The tests must inject `obs`. |
 | C9 | Revision snapshot | Verbatim union plus `op`, rkey tid | `{post,cid,record}`, rkey `{postRkey}-{tid}` | Must be verbatim (§22.9) | **Body over 16KB moved to a blob (§1.13), which breaks the CID check**; comments get only `editedAt` | Always verbatim. Bodies over 64KB are already `textBlob` refs, so snapshots stay small. Comments get revisions too. |
 | C10 | Edit concurrency | `applyWrites`+`swapCommit` (§2.4), which is **repo-wide**: one Bluesky like from another app causes a spurious conflict | – | – | "Edits use swapRecord" (§4.4); `applyWrites` has no per-op swap | Use `swapCommit`. On failure, re-read the record: if its CID is unchanged, retry against the new head automatically; otherwise it is a real conflict. |
-| C11 | Markdown | `lfm/1`, ids prefixed `h-`, KaTeX/Temml-compatible math, extended-autolink pass, inline limit 100,000b with spill at 64KiB | Inline limit 64KB | – | `lessdugin-md/1`, ids prefixed `md-`, math-core to MathML, `noreferrer`, `#/at/` routes | One profile name and one id prefix. Math rendering is decided by spike S10, not by the spec. |
+| C11 | Markdown | `lfm/1`, ids prefixed `h-`, KaTeX/Temml-compatible math, extended-autolink pass, inline limit 100,000b with spill at 64KiB | Inline limit 64KB | – | `pandoras-forum-md/1`, ids prefixed `md-`, math-core to MathML, `noreferrer`, `#/at/` routes | One profile name and one id prefix. Math rendering is decided by spike S10, not by the spec. |
 | C12 | MVP sync and store | Proof sync optional | **Rangesync over our own MST, `proof` as default, in the MVP**; relational SQLite plus an IDB mirror; L0/L1/L2 with strict/standard/accelerated | – | `listRecords` at `pds` level; verified sync in P10 via `getRepo?since` (which SYNC §0.6 rejects); ordered KV; hint/pds/proven/plc | MVP: ARCH's L1 path with fk ranges, and `verify` on demand. Rangesync comes in P7. The key layout from C3 keeps that option open. |
 | C13 | Indexer API | `.index.*` sub-group, `listForumRepos`, `search`, `listNotifications` | `.index.*`, `listParticipants`, `searchPosts`, `getActivity`, proof bundles | – | Flat namespace, `listParticipants`, `listBacklinks`, results are hints | `.index.*` sub-group, SYNC's method names, MVP results are uri+cid plus hint values (no bundles). |
 | C14 | Blob scope | `blob:*/*` | – | – | `blob:image/* blob:video/*` | ARCH's scope **breaks `textBlob` spill (`text/markdown`) and attachment cards**. Use `blob:*/*`. |
 | C15 | Feature phases | Q&A, quick takes, coauthors, sections, wiki with single `prev`, `.report` with a `forum` field, `forum create` writes gates of 0 | – | Same features LATER; wiki as a merge DAG (`parents≤8`, revScore); reports must have **no** forum/subject fields; FM gate defaults in open mode | P8 for those features; `topAdjusted` in M3 | Follow section 5. |
 | C16 | Posts with no forum | Allowed: `forum` absent means personal blog (§5.3) | Keys need `fk` | Everything is forum-scoped | – | **Require `forum`.** In FM, "personal blog" is a *tier* inside the site; standard.site covers real personal blogs. |
 | C17 | Names | modAction, profile, coauthor, wikiRevision, turn, `moderatorHat`, `subject`, integer votes | `forum.checkpoint` (breaks PROTOCOL §1's naming rule) | modState, authorSettings, coauthorAccept, tagRevision, dialogueMessage, `asModerator`, `root`, string vote values | – | Publish a glossary in P0. |
-| C18 | Crates and codegen | `lessdugin-core` monolith; jacquard-lexgen as a risk | Own MST code | – | atp, lexicon, markdown and core split; own xtask codegen | Use ARCH's split. |
+| C18 | Crates and codegen | `pandoras-forum-core` monolith; jacquard-lexgen as a risk | Own MST code | – | atp, lexicon, markdown and core split; own xtask codegen | Use ARCH's split. |
 
 **Inconsistency inside SYNC that changes the UX.**
 - §9 treats all `*.host.bsky.network` hosts as one 10 req/s rate-limit domain. §12 claims 500 participants (about 3.5k requests) cold-sync in about 15 s.
@@ -810,7 +810,7 @@ The rest is medium or low.
 
 Defer:
 - rangesync and our own MST range walk (keep the C3 key layout);
-- the `lessdugin.bundle/1` format, `getRepoRanges` and proof-serving indexers;
+- the `pandoras-forum.bundle/1` format, `getRepoRanges` and proof-serving indexers;
 - multi-indexer union and digests, `getSetDigest`/`listBucket`, 1% audit sampling;
 - `source_stats` strikes and demotion;
 - learning rate-limit domains;
@@ -823,7 +823,7 @@ Defer:
 
 Instead:
 - **Two user-facing modes.** `direct` (PDS, PLC and DNS only) and `assisted` (adds Jetstream, Constellation, relay and indexer). Default `assisted`.
-- **Three badges.** `[pds]`, `[verified]` (after `lessdugin verify` or the SPA's verify action) and `[hint]`.
+- **Three badges.** `[pds]`, `[verified]` (after `pandoras-forum verify` or the SPA's verify action) and `[hint]`.
 - **Simple scheduler.** A per-host semaphore of 6, 3 retries with jitter, honouring `RateLimit-*`/`Retry-After`, and a 24-hour reconciliation pass.
 - **Multi-tab.** Replace Web Locks leader election plus BroadcastChannel (§10 I10) with a per-tab worker and `navigator.locks.request('sync:'+did)` around each repo sync. Store writes are idempotent, monotonic-rev upserts.
 
@@ -877,7 +877,7 @@ MVP mod actions are `hide`, `ban`, `member`, `tier`, `pin`, `lock`, and `restric
 
 ## 3. Missing ForumMagnum must-haves for the MVP
 
-- **Recent Discussion feed** (recent comments across posts, grouped by post). On LessWrong this is how people find new activity. Every doc has only the `recentComments` *post* sort. Add `#/f/…/activity`, `lessdugin activity` and a TUI tab.
+- **Recent Discussion feed** (recent comments across posts, grouped by post). On LessWrong this is how people find new activity. Every doc has only the `recentComments` *post* sort. Add `#/f/…/activity`, `pandoras-forum activity` and a TUI tab.
 - **Comment edits with visible history.** ARCH's MVP has `editedAt` only; PROTOCOL uses revisions. Users expect an "edited" marker and a diff.
 - **LFM/1 gaps, which freeze at release:**
   - spoilers and collapsible blocks (heavily used on LessWrong): propose a post-pass on `> [!spoiler]` and `> [!details] Summary`;
@@ -886,7 +886,7 @@ MVP mod actions are `hide`, `ban`, `member`, `tier`, `pin`, `lock`, and `restric
 - **Short refs for comments in CLI `read` output** (e.g. `c12`). ARCH §9 defines numbered refs only for listings, so replying to or voting on a comment from the CLI has no specified UX.
 - **Clear UI for votes that do not count yet.** Under seeded karma, new users' votes have no weight. Say: "recorded; will count once you have 1 karma (applied retroactively)". Without this the forum feels broken in week 1.
 - **Undo window on votes and reacts.** Hold them 3–5 s in the outbox (ARCH already merges toggles). They are public and rate-limited writes, and the TUI makes them single keystrokes.
-- **Forum discovery in CLI and TUI** (`lessdugin forum discover`, via relay `listReposByCollection(.forum)`), and a **current forum**, so `ls` and `post` need no arguments.
+- **Forum discovery in CLI and TUI** (`pandoras-forum forum discover`, via relay `listReposByCollection(.forum)`), and a **current forum**, so `ls` and `post` need no arguments.
 - **Anonymous read path everywhere.** No login or config should be needed to read a link.
 - **Mention autocomplete** in the SPA editor (from the participant set) and mention notifications.
 - **Mobile layout for the SPA.** No doc mentions it, yet FM traffic is largely mobile. Mobile needs touch voting, collapsed thread indent and a bottom-sheet react palette.
@@ -899,17 +899,17 @@ MVP mod actions are `hide`, `ban`, `member`, `tier`, `pin`, `lock`, and `restric
 0. **Install.**
    - Release binaries embed the SPA.
    - `cargo install` from crates.io will not include `web/dist` unless the dist is packaged (watch the 10MB crate limit). Document `cargo binstall` and the release attestations.
-   - The `lessdugin web` placeholder page (ARCH §11.4) is acceptable.
-1. **First command is reading a shared link**, e.g. `lessdugin read 'https://lessdugin.7778777.online/#/f/alice.example/rationality'`.
+   - The `pandoras-forum web` placeholder page (ARCH §11.4) is acceptable.
+1. **First command is reading a shared link**, e.g. `pandoras-forum read 'https://pandoras.forum/#/f/alice.example/rationality'`.
    - It must work without login or config.
-   - On a cold sync, apply a default `--time-budget` of 10 s for interactive commands, then print what is available with `[partial 120/500 members — run 'lessdugin sync']`.
+   - On a cold sync, apply a default `--time-budget` of 10 s for interactive commands, then print what is available with `[partial 120/500 members — run 'pandoras-forum sync']`.
    - Never show a 6-minute spinner.
-2. **`lessdugin login alice.bsky.social`.**
+2. **`pandoras-forum login alice.bsky.social`.**
    - **SSH/headless:** loopback OAuth cannot work, because the browser is on another machine. Add `login --no-browser`, which prints the URL; the user pastes back the failed `http://127.0.0.1/...?code=` redirect URL (with a PKCE+state check). Steering everyone to app passwords is worse.
    - **Scope fallback:** the chain (`include:` → `repo?collection=` → `transition:generic`) must be resolved **at PAR time** (an `invalid_scope` error) before opening the browser. Otherwise users see up to three consent screens (S8).
    - Warn about the roughly 2-week public-client session expiry a few days ahead, and re-login inline in the TUI.
 3. **Join.**
-   - ARCH requires `forum add` + `forum join` + `--alias`. Make it one command: `lessdugin join <ref>` follows the forum, writes the membership, sets it as current and auto-aliases it.
+   - ARCH requires `forum add` + `forum join` + `--alias`. Make it one command: `pandoras-forum join <ref>` follows the forum, writes the membership, sets it as current and auto-aliases it.
    - `forum add` stays as "follow without joining" (lurk).
    - In approval mode, print: "pending — you can read; your posts are hidden until approved".
 4. **Read.** `ls` shows numbered posts with unread markers. `read 3` pipes to the pager and labels comments `c1…cN`, with "new since last visit" markers.
@@ -918,7 +918,7 @@ MVP mod actions are `hide`, `ban`, `member`, `tier`, `pin`, `lock`, and `restric
    - Editor fallback chain: `$VISUAL` → `$EDITOR` → `editor` → `nano` → `vi` (notepad on Windows).
    - After sending, show the permalink and state ("sent → confirmed on PDS").
 6. **Post with an image.**
-   - `lessdugin post draft.md` with frontmatter and `![](./cat.png)`.
+   - `pandoras-forum post draft.md` with frontmatter and `![](./cat.png)`.
    - Warn when alt text is missing.
    - Strip EXIF and physically apply orientation.
    - **Downscale automatically** to the PDS limit (self-hosted PDSes default to 5MiB).
@@ -948,10 +948,10 @@ That is about 6 commands for the whole flow, which is good. The only blockers ar
 
 - No criterion for a cold first visit; only a cached forum has one (<1.5 s). Add: "50-member forum, no indexer, first post titles <3 s; 2k members with indexer <2 s".
 - **The hosted SPA is a trusted website while it is being used**: its code holds the OAuth tokens. This needs to be stated clearly:
-  - `lessdugin web` is the zero-trust path;
+  - `pandoras-forum web` is the zero-trust path;
   - "self-host on any static origin": `xtask site --origin https://…` generates `client-metadata.json` per origin, because the client_id must be served as JSON at its own URL;
   - publish dist hashes per release.
-- **`lessdugin web` loopback OAuth:** if a PDS rejects loopback, the fallback is the hosted *native* metadata with a `127.0.0.1` redirect. A web-type client cannot use an http redirect. Spike S2 must cover this. The double login (CLI session plus browser session) is acceptable for the MVP but should be documented.
+- **`pandoras-forum web` loopback OAuth:** if a PDS rejects loopback, the fallback is the hosted *native* metadata with a `127.0.0.1` redirect. A web-type client cannot use an http redirect. Spike S2 must cover this. The double login (CLI session plus browser session) is acceptable for the MVP but should be documented.
 - **Safari/iOS:** ITP's 7-day script-storage eviction can wipe drafts, read marks and the atcute localStorage session.
   - Mitigations: PWA install, `storage.persist()`, an autosave warning, and "download draft".
   - Test in S11.
@@ -964,7 +964,7 @@ That is about 6 commands for the whole flow, which is good. The only blockers ar
 ## 6. Implementation risks (by impact)
 
 1. **Lexicon lock-in before learning.**
-   - Once real users write `online.7778777.lessdugin.*` records, the shapes are effectively frozen, even before publication.
+   - Once real users write `forum.pandoras.*` records, the shapes are effectively frozen, even before publication.
    - Make the NSID prefix a build-time constant.
    - Dogfood on devnet and on throwaway bsky.social accounts under `.temp.*`.
    - Switch to the real namespace only at release 0.1, after the social core has been dogfooded.
@@ -1018,12 +1018,12 @@ That is about 6 commands for the whole flow, which is good. The only blockers ar
 - Local drafts, read marks, unread highlighting, subscriptions, local notifications and local search.
 - L1 sync: fk ranges, CID recompute, delete confirmation, `getLatestCommit` skip.
 - Jetstream as a dirty signal; Constellation/relay discovery in open mode.
-- `lessdugin verify <ref>` for an on-demand proof.
+- `pandoras-forum verify <ref>` for an on-demand proof.
 
 **Clients:**
 - CLI core command tree.
 - TUI: home, forum, post/thread, composer, notifications, mod queue.
-- SPA: the same, plus the editor, `lessdugin web` and a hosted static deploy.
+- SPA: the same, plus the editor, `pandoras-forum web` and a hosted static deploy.
 
 **Indexer:**
 - describe, `listParticipants`, `listPosts`/`getThread` skeletons (values as hints), `searchPosts`, `getActivity`; `--audit`.
@@ -1107,11 +1107,11 @@ Q&A and quick takes are mostly UI and could be pulled in as stretch goals.
 **Scope**
 - Tags and sequences, local search, forum directory.
 - Live Jetstream, open-mode discovery.
-- `include:` scope with fallback, hosted SPA and client metadata, `lessdugin web`.
+- `include:` scope with fallback, hosted SPA and client metadata, `pandoras-forum web`.
 
 **Acceptance**
 - Open-mode devnet runs with a mini-Jetstream.
-- Login on bsky.social works via the CLI (loopback and hosted-native), the hosted SPA and `lessdugin web`, each with **one** consent screen.
+- Login on bsky.social works via the CLI (loopback and hosted-native), the hosted SPA and `pandoras-forum web`, each with **one** consent screen.
 
 ### P5: Optional indexer
 
@@ -1134,11 +1134,11 @@ Rangesync and proof as default, bundles, checkpoints, PLC audit, then the featur
 ### Critical Files for Implementation
 
 All of these are planned; the repo currently holds only LICENSE.
-- /home/user/lessdugin/docs/spec/data-model.md (the reconciled spec and decision log for C1–C18)
-- /home/user/lessdugin/lexicons/online/7778777/lessdugin/opinion.json (with forum.json, modAction.json, post.json and comment.json, using `{fk}-{tid}` keys)
-- /home/user/lessdugin/crates/core/src/ids.rs (the single rkey and fk derivation, and the effective-time rule)
-- /home/user/lessdugin/crates/core/src/social/view.rs (the fold entry point; the property-tested layering)
-- /home/user/lessdugin/crates/cli/src/main.rs (the first-run flow: anonymous `read`, `login --no-browser`, `join`, comment refs, time budget)
-- /home/user/lessdugin/packages/engine/src/worker.ts (the wasm/IDB/OAuth bridge, which the P1 walking skeleton must prove early)
+- /home/user/pandoras-forum/docs/spec/data-model.md (the reconciled spec and decision log for C1–C18)
+- /home/user/pandoras-forum/lexicons/forum/pandoras/opinion.json (with forum.json, modAction.json, post.json and comment.json, using `{fk}-{tid}` keys)
+- /home/user/pandoras-forum/crates/core/src/ids.rs (the single rkey and fk derivation, and the effective-time rule)
+- /home/user/pandoras-forum/crates/core/src/social/view.rs (the fold entry point; the property-tested layering)
+- /home/user/pandoras-forum/crates/cli/src/main.rs (the first-run flow: anonymous `read`, `login --no-browser`, `join`, comment refs, time budget)
+- /home/user/pandoras-forum/packages/engine/src/worker.ts (the wasm/IDB/OAuth bridge, which the P1 walking skeleton must prove early)
 
 Reference I checked for C3: https://github.com/bluesky-social/atproto/blob/main/packages/pds/src/actor-store/record/reader.ts

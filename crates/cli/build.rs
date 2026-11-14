@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Embeds the SPA for `lessdugin web` (`threat-model.md` WEB-5, `docs/design/synthesis-v1.md`
+//! Embeds the SPA for `pandoras-forum web` (`threat-model.md` WEB-5, `docs/design/synthesis-v1.md`
 //! §6.13).
 //!
-//! Every regular file under `web/dist` (or `$LESSDUGIN_WEB_DIST`) is embedded with
+//! Every regular file under `web/dist` (or `$PANDORAS_FORUM_WEB_DIST`) is embedded with
 //! `include_bytes!` into a generated table, `$OUT_DIR/web_assets.rs`:
 //!
 //! ```text
@@ -11,27 +11,27 @@
 //! ```
 //!
 //! When the directory is missing or has no `index.html`, the table is empty, `PLACEHOLDER` is
-//! true, and `lessdugin web` serves a placeholder page that explains how to build the SPA. A
+//! true, and `pandoras-forum web` serves a placeholder page that explains how to build the SPA. A
 //! release build refuses to embed the placeholder (release binaries MUST embed the real SPA)
-//! unless `LESSDUGIN_WEB_PLACEHOLDER=1` says that is intended. Symbolic links are not followed,
+//! unless `PANDORAS_FORUM_WEB_PLACEHOLDER=1` says that is intended. Symbolic links are not followed,
 //! and file names must be UTF-8 without `\` (they become URL paths).
 //!
 //! A release build also refuses a test build of the SPA (WEB-5, SUP-3): the mock e2e suite
 //! leaves a demo build in `web/dist`, and `cargo xtask e2e` embeds `web/dist-e2e`. Every
 //! scanned file (not the source maps) must be free of the e2e and mock markers that
 //! `web/scripts/check-release-bundle.mjs` checks (`release_markers.rs`), and a `mode` in
-//! `build-info.json`, when present, must be a release mode. `LESSDUGIN_WEB_ALLOW_TEST_BUILD=1`
+//! `build-info.json`, when present, must be a release mode. `PANDORAS_FORUM_WEB_ALLOW_TEST_BUILD=1`
 //! overrides this (a deliberate local release build of a test SPA).
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
 /// Overrides the directory that is embedded.
-const DIST_ENV: &str = "LESSDUGIN_WEB_DIST";
+const DIST_ENV: &str = "PANDORAS_FORUM_WEB_DIST";
 /// Allows a release build without the SPA.
-const PLACEHOLDER_ENV: &str = "LESSDUGIN_WEB_PLACEHOLDER";
+const PLACEHOLDER_ENV: &str = "PANDORAS_FORUM_WEB_PLACEHOLDER";
 /// Allows a release build that embeds a test build of the SPA.
-const TEST_BUILD_ENV: &str = "LESSDUGIN_WEB_ALLOW_TEST_BUILD";
+const TEST_BUILD_ENV: &str = "PANDORAS_FORUM_WEB_ALLOW_TEST_BUILD";
 
 #[allow(dead_code)] // `RELEASE_MODES` etc. are shared with src/web/assets.rs
 mod markers {
@@ -60,7 +60,7 @@ fn check_release_bundle(dist: &Path, files: &[(String, PathBuf)]) {
         panic!(
             "{} is a test build of the web app, which a release binary must not embed \
              (threat-model.md WEB-5, SUP-3):\n  {}\nBuild the release SPA (pnpm --filter \
-             @lessdugin/web build) or set {TEST_BUILD_ENV}=1 if this is intended.",
+             @pandoras-forum/web build) or set {TEST_BUILD_ENV}=1 if this is intended.",
             dist.display(),
             problems.join("\n  ")
         );
@@ -112,7 +112,7 @@ fn main() {
     println!("cargo:rerun-if-changed={}", dist.display());
 
     let mut files = Vec::new();
-    // Without the `web` feature there is no `lessdugin web`, so nothing is embedded.
+    // Without the `web` feature there is no `pandoras-forum web`, so nothing is embedded.
     let web = std::env::var_os("CARGO_FEATURE_WEB").is_some();
     let real = dist.join("index.html").is_file();
     let release = std::env::var("PROFILE").is_ok_and(|p| p == "release");
@@ -127,15 +127,15 @@ fn main() {
         let allowed = std::env::var(PLACEHOLDER_ENV).is_ok_and(|v| v == "1");
         if release && !allowed {
             panic!(
-                "{} has no index.html: release builds of lessdugin must embed the SPA \
+                "{} has no index.html: release builds of Pandora's Forum must embed the SPA \
                  (threat-model.md WEB-5). Build it first (pnpm install && pnpm --filter \
-                 @lessdugin/web build), or set {PLACEHOLDER_ENV}=1 to embed the placeholder page.",
+                 @pandoras-forum/web build), or set {PLACEHOLDER_ENV}=1 to embed the placeholder page.",
                 dist.display()
             );
         }
         println!(
-            "cargo:warning={} has no index.html: `lessdugin web` will serve a placeholder page \
-             (build the SPA with `pnpm --filter @lessdugin/web build`, then rebuild)",
+            "cargo:warning={} has no index.html: `pandoras-forum web` will serve a placeholder page \
+             (build the SPA with `pnpm --filter @pandoras-forum/web build`, then rebuild)",
             dist.display()
         );
     }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `lessdugin doctor [--pds <url>]`: configuration and paths, keyring, reachability of the
+//! `pandoras-forum doctor [--pds <url>]`: configuration and paths, keyring, reachability of the
 //! PLC directory, DoH, relays and Jetstream (short timeouts, no retries), the account's PDS
 //! (`describeServer`, `oauth-protected-resource`), and clock skew against the PDS's `Date`.
 //!
@@ -7,12 +7,12 @@
 //! "detail"}]}`. The exit code is 1 if any check failed.
 
 use futures::future::join_all;
-use lessdugin_core::dto::DTO_VERSION;
-use lessdugin_core::host::{Host, HttpRequest, HttpResponse, Target};
-use lessdugin_core::limits;
-use lessdugin_core::xrpc::parse_http_date;
-use lessdugin_native::auth::{KeyringStatus, StoredSession};
-use lessdugin_native::config::NetworkProfile;
+use pandoras_forum_core::dto::DTO_VERSION;
+use pandoras_forum_core::host::{Host, HttpRequest, HttpResponse, Target};
+use pandoras_forum_core::limits;
+use pandoras_forum_core::xrpc::parse_http_date;
+use pandoras_forum_native::auth::{KeyringStatus, StoredSession};
+use pandoras_forum_native::config::NetworkProfile;
 use serde::Serialize;
 use url::Url;
 
@@ -206,7 +206,7 @@ fn clock_skew(ctx: &Ctx, resp: &HttpResponse) -> Check {
         abs / 1000,
         if skew >= 0 { "ahead of" } else { "behind" }
     );
-    let status = if abs > lessdugin_core::limits::FUTURE_SKEW_MS {
+    let status = if abs > pandoras_forum_core::limits::FUTURE_SKEW_MS {
         Status::Fail
     } else if abs > SKEW_WARN_MS {
         Status::Warn
@@ -216,7 +216,7 @@ fn clock_skew(ctx: &Ctx, resp: &HttpResponse) -> Check {
     check("clock", status, detail)
 }
 
-/// `lessdugin doctor`.
+/// `pandoras-forum doctor`.
 pub async fn run(ctx: &Ctx, args: DoctorArgs) -> Result<(), CliError> {
     let mut checks = Vec::new();
     let cfg = &ctx.config;
@@ -251,7 +251,7 @@ pub async fn run(ctx: &Ctx, args: DoctorArgs) -> Result<(), CliError> {
             "keyring",
             Status::Ok,
             format!(
-                "disabled by LESSDUGIN_KEYRING; sessions are 0600 files in {}",
+                "disabled by PANDORAS_FORUM_KEYRING; sessions are 0600 files in {}",
                 store.dir().display()
             ),
         ),

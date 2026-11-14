@@ -1,5 +1,5 @@
 [package]
-name = "lessdugin-atp"
+name = "pandoras-forum-atp"
 description = "Minimal, wasm-safe AT Protocol primitives: syntax types, DAG-CBOR, CIDs, CAR, MST proofs, commit verification"
 version.workspace = true
 edition.workspace = true

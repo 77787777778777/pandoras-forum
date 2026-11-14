@@ -4,7 +4,7 @@
 // absent `viewer` (signed out, or the forum view is not loaded yet) never disables an action -
 // the existing "sign in" affordance and the engine's own refusal carry that case.
 
-import type { ViewerCaps } from "@lessdugin/engine/types";
+import type { ViewerCaps } from "@pandoras-forum/engine/types";
 
 /** A capability the client can gate an action on. */
 export type Cap =

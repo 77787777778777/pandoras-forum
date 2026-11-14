@@ -16,17 +16,17 @@ pub const PLACEHOLDER_HTML: &str = "<!doctype html>
 <head>
 <meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-<title>lessdugin web: the web app is not built in</title>
+<title>pandoras-forum web: the web app is not built in</title>
 </head>
 <body>
-<h1>The lessdugin web app is not built into this binary</h1>
-<p>This <code>lessdugin</code> was compiled without <code>web/dist</code>, so
-<code>lessdugin web</code> can only show this page. To build the web app into it, run in the
+<h1>The Pandora's Forum web app is not built into this binary</h1>
+<p>This <code>pandoras-forum</code> was compiled without <code>web/dist</code>, so
+<code>pandoras-forum web</code> can only show this page. To build the web app into it, run in the
 source tree:</p>
 <pre>pnpm install
-pnpm --filter @lessdugin/web build
-cargo build -p lessdugin</pre>
-<p>then start <code>lessdugin web</code> again. Release binaries always contain the web app.</p>
+pnpm --filter @pandoras-forum/web build
+cargo build -p pandoras-forum</pre>
+<p>then start <code>pandoras-forum web</code> again. Release binaries always contain the web app.</p>
 </body>
 </html>
 ";
@@ -43,7 +43,7 @@ pub struct Asset {
     pub cache_control: &'static str,
 }
 
-/// The files `lessdugin web` serves.
+/// The files `pandoras-forum web` serves.
 #[derive(Clone, Copy, Debug)]
 pub struct Assets {
     files: &'static [(&'static str, &'static [u8])],
@@ -145,7 +145,7 @@ mod tests {
         assert!(a.get("relative").is_none());
         assert!(a.build_hash().is_none());
         let text = std::str::from_utf8(page.body).unwrap();
-        assert!(text.contains("pnpm --filter @lessdugin/web build"));
+        assert!(text.contains("pnpm --filter @pandoras-forum/web build"));
         // CSP-clean: no script and no inline style.
         assert!(!text.contains("<script") && !text.contains("style"));
     }
@@ -199,8 +199,8 @@ mod tests {
     fn release_marker_scan() {
         assert!(markers::markers_in(b"const x = 1; export default x;").is_empty());
         assert_eq!(
-            markers::markers_in(b"..window.__lessduginE2E = hook; pds.example.test"),
-            ["__lessduginE2E", "pds.example.test"]
+            markers::markers_in(b"..window.__pandorasForumE2E = hook; pds.example.test"),
+            ["__pandorasForumE2E", "pds.example.test"]
         );
         assert!(markers::scanned("assets/index-abc.js"));
         assert!(markers::scanned("index.html"));

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Routes (synthesis §6.12), on hash history so the static build works from any host and path.
 
-import type { PostFilter, PostSort } from "@lessdugin/engine/types";
-import { POST_FILTERS, POST_SORTS } from "@lessdugin/engine/types";
+import type { PostFilter, PostSort } from "@pandoras-forum/engine/types";
+import { POST_FILTERS, POST_SORTS } from "@pandoras-forum/engine/types";
 import { createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
 import { AppShell } from "./components/AppShell.tsx";
 import { createAppHashHistory } from "./lib/hashHistory.ts";
@@ -207,7 +207,7 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
-  // `error`: the engine error code `lessdugin web` sends a failed sign-in back with.
+  // `error`: the engine error code `pandoras-forum web` sends a failed sign-in back with.
   validateSearch: (s: Record<string, unknown>): { error?: string } => {
     const e = str(s.error);
     return e && /^[a-z_]{1,40}$/.test(e) ? { error: e } : {};

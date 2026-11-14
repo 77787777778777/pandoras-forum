@@ -9,7 +9,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::values::{AccessLevel, MembershipMode};
+use pandoras_forum_lexicon::values::{AccessLevel, MembershipMode};
 use serde_json::{Map, Value, json};
 
 use crate::social::digest;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The forum's post list with ?sort, ?filter and ?tag (social.md §12.2–12.3).
 
-import type { ListPostsQuery, PostFilter, PostSort } from "@lessdugin/engine/types";
+import type { ListPostsQuery, PostFilter, PostSort } from "@pandoras-forum/engine/types";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { Badges } from "../../components/Badges.tsx";

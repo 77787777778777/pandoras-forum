@@ -27,14 +27,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::values::{
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::values::{
     Agreement, Capability, MembershipMode, NewUsers, PostKind as LexPostKind, Role, Stance,
     Tier as LexTier, VoteValue, Voting,
 };
-use lessdugin_markdown::quote::{QuoteResolution, QuoteTarget, resolve_quote};
+use pandoras_forum_markdown::quote::{QuoteResolution, QuoteTarget, resolve_quote};
 use serde_json::Value;
 
 use crate::dto::{
@@ -179,7 +179,7 @@ fn quote_dto(q: &Quote) -> TextQuote {
 /// A quote resolved against P (`lfm-1.md` §11): `None` while the text is not available.
 fn anchor_of(q: &TextQuote, text: Option<&str>) -> Option<Anchor> {
     let t = text?;
-    let tq = lessdugin_markdown::quote::TextQuote {
+    let tq = pandoras_forum_markdown::quote::TextQuote {
         exact: &q.exact,
         prefix: q.prefix.as_deref(),
         suffix: q.suffix.as_deref(),
@@ -429,7 +429,8 @@ impl Views<'_> {
     fn my_opinion_uri(&self, subject: &str) -> Option<String> {
         let me = self.me()?;
         let rkey =
-            lessdugin_lexicon::keys::opinion_rkey(NS, self.model.key.uri.as_str(), subject).ok()?;
+            pandoras_forum_lexicon::keys::opinion_rkey(NS, self.model.key.uri.as_str(), subject)
+                .ok()?;
         Some(format!("at://{me}/{}/{rkey}", nsid::OPINION))
     }
 
@@ -898,7 +899,7 @@ impl Views<'_> {
             .collect()
     }
 
-    fn wiki_revision(&self, uri: &str) -> Option<lessdugin_lexicon::records::WikiRevision> {
+    fn wiki_revision(&self, uri: &str) -> Option<pandoras_forum_lexicon::records::WikiRevision> {
         self.values
             .get(uri)
             .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -959,7 +960,7 @@ impl Views<'_> {
         })
     }
 
-    fn sequence_record(&self, uri: &str) -> Option<lessdugin_lexicon::records::Sequence> {
+    fn sequence_record(&self, uri: &str) -> Option<pandoras_forum_lexicon::records::Sequence> {
         self.values
             .get(uri)
             .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -994,7 +995,7 @@ impl Views<'_> {
             return false;
         };
         collection == nsid::POST
-            && lessdugin_lexicon::keys::fk_of(rkey) == Some(self.model.key.fk.as_str())
+            && pandoras_forum_lexicon::keys::fk_of(rkey) == Some(self.model.key.fk.as_str())
     }
 
     fn displayable_post(&self, uri: &str) -> Option<PostSummary> {
@@ -1152,7 +1153,7 @@ impl Views<'_> {
 
     /// Canonical rendered links of a listed, current post value. Hidden and stale values have
     /// no outbound links.
-    pub fn rendered_links(&self, uri: &str) -> Vec<lessdugin_atp::syntax::AtUri> {
+    pub fn rendered_links(&self, uri: &str) -> Vec<pandoras_forum_atp::syntax::AtUri> {
         if !self.listed(uri)
             || !self
                 .model
@@ -1162,7 +1163,7 @@ impl Views<'_> {
             return Vec::new();
         }
         let Some(post) = self.values.get(uri).and_then(|v| {
-            serde_json::from_value::<lessdugin_lexicon::records::Post>(v.clone()).ok()
+            serde_json::from_value::<pandoras_forum_lexicon::records::Post>(v.clone()).ok()
         }) else {
             return Vec::new();
         };
@@ -1542,18 +1543,19 @@ impl Views<'_> {
                     .uncached(&v, &self.model.input.ns, self.model.key.owner.as_str()),
             )
         });
-        let moderators = lessdugin_lexicon::validity::entry::moderators(d, &self.model.key.owner)
-            .into_iter()
-            .map(|(m, role)| ModeratorView {
-                actor: self.actor(m.did.as_str()),
-                role: match role {
-                    Role::Admin => ModRole::Admin,
-                    Role::Moderator => ModRole::Moderator,
-                },
-                title: m.title.clone(),
-                shown: self.model.is_member(m.did.as_str()),
-            })
-            .collect();
+        let moderators =
+            pandoras_forum_lexicon::validity::entry::moderators(d, &self.model.key.owner)
+                .into_iter()
+                .map(|(m, role)| ModeratorView {
+                    actor: self.actor(m.did.as_str()),
+                    role: match role {
+                        Role::Admin => ModRole::Admin,
+                        Role::Moderator => ModRole::Moderator,
+                    },
+                    title: m.title.clone(),
+                    shown: self.model.is_member(m.did.as_str()),
+                })
+                .collect();
         let mut banners = self.banners();
         if self.model.view.policy.membership == MembershipMode::Open {
             banners.push(Banner {
@@ -1704,7 +1706,7 @@ impl Views<'_> {
                 let status = status_dto(e.status);
                 let at_ms = e.time.map_or(0, ms);
                 if let Some(m) = v.moderation.records.get(&e.uri) {
-                    let hide = m.action == Some(lessdugin_lexicon::values::ActionKind::Hide);
+                    let hide = m.action == Some(pandoras_forum_lexicon::values::ActionKind::Hide);
                     let reason = m
                         .reason
                         .clone()

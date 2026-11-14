@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // A done adoption's report (`WriteState.done.report`) is shown for its acting account, once
 // (engine-api.md §3.5 `mod_adopt`; review finding sec-8).
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { qk } from "../engine/queries.ts";
@@ -9,7 +9,7 @@ import { WriteStore } from "../engine/writes.ts";
 import { renderWithApp } from "../test/render.tsx";
 import { AdoptionReport } from "./AdoptionReport.tsx";
 
-const NS = "online.7778777.lessdugin.temp";
+const NS = "forum.pandoras.temp";
 const MOD = `at://did:plc:moderatormoderatormoderat/${NS}.modAction`;
 const LINES = [`cannot adopt ${MOD}/k-1: not in effect`, `kept own assertion for ${MOD}/k-2`];
 

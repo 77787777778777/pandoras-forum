@@ -23,8 +23,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::Forum;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::Forum;
 use serde::{Deserialize, Serialize};
 
 use crate::discovery::forum_ref::ForumKey;

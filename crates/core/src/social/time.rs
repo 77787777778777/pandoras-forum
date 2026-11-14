@@ -18,8 +18,8 @@
 //! [`crate::social::full::timeline`], which visits each thread top-down after placement (§11
 //! step 5).
 
-use lessdugin_atp::syntax::Datetime;
-use lessdugin_atp::tid::Tid;
+use pandoras_forum_atp::syntax::Datetime;
+use pandoras_forum_atp::tid::Tid;
 
 /// The future-dating tolerance (µs): 5 minutes (`limits.md` `FUTURE_SKEW_MS`).
 pub const FUTURE_SKEW_US: i64 = crate::limits::FUTURE_SKEW_MS * 1000;

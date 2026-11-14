@@ -10,8 +10,8 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::schemas::{Def, Registry, StringFormat, TypeDef, registry};
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::schemas::{Def, Registry, StringFormat, TypeDef, registry};
 use serde_json::{Map, Value, json};
 
 /// A blessed raw-codec CID (blob refs).

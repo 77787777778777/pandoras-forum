@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: CC0-1.0
-# LFM/1 constructs (docs/spec/lfm-1.md): block and inline markdown, the lessdugin extensions,
+# LFM/1 constructs (docs/spec/lfm-1.md): block and inline markdown, the Pandora's Forum extensions,
 # math, raw HTML, URL schemes and the code points the sanitisers treat specially.
 "> "
 "- "
@@ -76,7 +76,7 @@
 "cid:bafkreihdwdcefgh4dqkjv67uzcmw7ojee6xedzdetojuzjevtenxquvyku"
 "cid:bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy"
 "at://did:plc:abcdefghijklmnopqrstuvwx"
-"/online.7778777.lessdugin.temp.post/3k2akbibjhm2a"
+"/forum.pandoras.temp.post/3k2akbibjhm2a"
 "at://did:web:example.com"
 "#/at/"
 "#/u/"

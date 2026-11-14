@@ -4,8 +4,8 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_atp::Cid;
-use lessdugin_atp::syntax::{Did, Tid};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::syntax::{Did, Tid};
 
 use super::repo::RepoOp;
 

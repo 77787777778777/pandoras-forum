@@ -936,7 +936,7 @@ impl<H: crate::host::Host> crate::engine::Engine<H> {
             // stripping changed the container enough to change its type: trust the result
             mime
         };
-        let cid = lessdugin_atp::cid::for_raw(&prepared).to_string();
+        let cid = pandoras_forum_atp::cid::for_raw(&prepared).to_string();
         // Keep the PREPARED bytes under their CID: the reference in the draft is only that,
         // a reference, and the outbox needs the bytes to upload at publish time
         // (data-model.md §8.8). They are stored, not held in memory, so a composer that is
@@ -1294,7 +1294,8 @@ impl<H: crate::host::Host> crate::engine::Engine<H> {
             bytes.extend_from_slice(&c.b);
         }
         // a torn or tampered row is not uploaded under a CID it does not have
-        if bytes.len() as u64 != row.size || lessdugin_atp::cid::for_raw(&bytes).to_string() != cid
+        if bytes.len() as u64 != row.size
+            || pandoras_forum_atp::cid::for_raw(&bytes).to_string() != cid
         {
             return Ok(None);
         }
@@ -1488,7 +1489,7 @@ impl<H: crate::host::Host> crate::engine::Engine<H> {
     /// never from a view or a record, which anyone can write.
     async fn author_pds(
         &self,
-        did: &lessdugin_atp::syntax::Did,
+        did: &pandoras_forum_atp::syntax::Did,
     ) -> Result<String, crate::engine::EngineError> {
         let ident = self
             .resolver()
@@ -1532,7 +1533,7 @@ impl<H: crate::host::Host> crate::engine::Engine<H> {
                         "loadMedia: the media view is of {other}, not {cid}"
                     )));
                 }
-                let did = lessdugin_atp::syntax::Did::parse(m.author).map_err(|e| {
+                let did = pandoras_forum_atp::syntax::Did::parse(m.author).map_err(|e| {
                     EngineError::invalid_input(format!("loadMedia: author {:?}: {e}", m.author))
                 })?;
                 if m.size_bytes > hard {
@@ -1835,8 +1836,8 @@ impl<H: crate::host::Host> crate::engine::Engine<H> {
     ) -> Result<crate::model::render::Spilled, crate::engine::EngineError> {
         use crate::host::HostError;
         use crate::model::render::Spilled;
-        use lessdugin_markdown::BodyError;
-        let did = lessdugin_atp::syntax::Did::parse(did)
+        use pandoras_forum_markdown::BodyError;
+        let did = pandoras_forum_atp::syntax::Did::parse(did)
             .map_err(|e| crate::engine::EngineError::invalid_input(format!("{did:?}: {e}")))?;
         let pds = self.author_pds(&did).await?;
         let pds = url::Url::parse(&pds).map_err(|e| {
@@ -1874,7 +1875,7 @@ impl<H: crate::host::Host> crate::engine::Engine<H> {
             }
             bytes.extend_from_slice(&w);
         }
-        Ok(match lessdugin_markdown::decode_text_blob(&bytes) {
+        Ok(match pandoras_forum_markdown::decode_text_blob(&bytes) {
             Ok(text) => Spilled::Text(text.into()),
             Err(e) => Spilled::Error(e),
         })
@@ -1913,10 +1914,10 @@ impl<H: crate::host::Host> crate::engine::Engine<H> {
             return prefs;
         }
         prefs.allowlist = self.media_hosts().await.unwrap_or_default();
-        let dids: Vec<lessdugin_atp::syntax::Did> = model
+        let dids: Vec<pandoras_forum_atp::syntax::Did> = model
             .participants()
             .iter()
-            .filter_map(|d| lessdugin_atp::syntax::Did::parse(d).ok())
+            .filter_map(|d| pandoras_forum_atp::syntax::Did::parse(d).ok())
             .collect();
         let found = futures::future::join_all(dids.iter().map(|d| self.resolver().cached(d))).await;
         for id in found.into_iter().flatten() {

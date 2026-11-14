@@ -6,8 +6,8 @@ Implements exactly docs/spec/data-model.md §3.1-§3.2:
 
     b32s(bytes)    base32, MSB-first 5-bit groups, alphabet "234567abcdefghijklmnopqrstuvwxyz", no padding
     H(tag, p1..pk) sha256(UTF8(tag) ‖ (0x1F ‖ UTF8(NFC(p_i)))*), rejecting any p_i that contains U+001F
-    fk(forumUri)   b32s(H("lessdugin-fk/1", forumUri))[0..12]
-    h16(name, p…)  b32s(H("lessdugin-sk/1", name, p…))[0..16]
+    fk(forumUri)   b32s(H("pandoras-forum-fk/1", forumUri))[0..12]
+    h16(name, p…)  b32s(H("pandoras-forum-sk/1", name, p…))[0..16]
     threadTid, stid, P, actionKey and the per-collection rkeys
 
 Usage (from anywhere; writes next to this script):
@@ -29,12 +29,12 @@ import sys
 import unicodedata
 from pathlib import Path
 
-NS = "online.7778777.lessdugin"
-NS_TEMP = "online.7778777.lessdugin.temp"
+NS = "forum.pandoras"
+NS_TEMP = "forum.pandoras.temp"
 
 ALPHABET = "234567abcdefghijklmnopqrstuvwxyz"
-TAG_FK = "lessdugin-fk/1"
-TAG_SK = "lessdugin-sk/1"
+TAG_FK = "pandoras-forum-fk/1"
+TAG_SK = "pandoras-forum-sk/1"
 
 FK_RE = r"[2-7a-z]{12}"
 TID_RE = r"[2-7a-j][2-7a-z]{12}"
@@ -249,28 +249,28 @@ def fk_vectors() -> list[dict]:
         ("slug-64-bytes", at(PLC_C, "forum", "a" * 30 + "-" + "0123456789" * 3 + "-b2"), None,
          "longest slug (64 bytes)"),
         ("slug-digits-and-hyphens", at(WEB_A, "forum", "2024-ai-safety-camp"), None, None),
-        ("nfc-composed", "at://did:web:example.com/online.7778777.lessdugin.forum/café", "raw",
+        ("nfc-composed", "at://did:web:example.com/forum.pandoras.forum/café", "raw",
          "not canonical (non-slug rkey); exercises NFC in H"),
-        ("nfc-decomposed-equals-composed", "at://did:web:example.com/online.7778777.lessdugin.forum/café", "raw",
+        ("nfc-decomposed-equals-composed", "at://did:web:example.com/forum.pandoras.forum/café", "raw",
          "NFC(e + U+0301) = U+00E9, so the fk equals nfc-composed"),
-        ("nfc-singleton-angstrom", "at://did:web:example.com/online.7778777.lessdugin.forum/Å", "raw",
+        ("nfc-singleton-angstrom", "at://did:web:example.com/forum.pandoras.forum/Å", "raw",
          "U+212B ANGSTROM SIGN normalises to U+00C5 under NFC"),
-        ("nfc-singleton-angstrom-equals", "at://did:web:example.com/online.7778777.lessdugin.forum/Å", "raw",
+        ("nfc-singleton-angstrom-equals", "at://did:web:example.com/forum.pandoras.forum/Å", "raw",
          "equals nfc-singleton-angstrom"),
-        ("nfc-hangul-jamo", "at://did:web:example.com/online.7778777.lessdugin.forum/가", "raw",
+        ("nfc-hangul-jamo", "at://did:web:example.com/forum.pandoras.forum/가", "raw",
          "conjoining jamo compose to U+AC00 under NFC"),
-        ("nfc-hangul-precomposed", "at://did:web:example.com/online.7778777.lessdugin.forum/가", "raw",
+        ("nfc-hangul-precomposed", "at://did:web:example.com/forum.pandoras.forum/가", "raw",
          "equals nfc-hangul-jamo"),
-        ("nfc-not-nfkc-ligature", "at://did:web:example.com/online.7778777.lessdugin.forum/ﬁle", "raw",
+        ("nfc-not-nfkc-ligature", "at://did:web:example.com/forum.pandoras.forum/ﬁle", "raw",
          "U+FB01 is unchanged by NFC (NFKC would give 'fi'); must differ from nfc-not-nfkc-plain"),
-        ("nfc-not-nfkc-plain", "at://did:web:example.com/online.7778777.lessdugin.forum/file", "raw",
+        ("nfc-not-nfkc-plain", "at://did:web:example.com/forum.pandoras.forum/file", "raw",
          "compare with nfc-not-nfkc-ligature"),
-        ("astral-emoji", "at://did:web:example.com/online.7778777.lessdugin.forum/\U0001f980", "raw",
+        ("astral-emoji", "at://did:web:example.com/forum.pandoras.forum/\U0001f980", "raw",
          "4-byte UTF-8"),
-        ("invalid-unit-separator", "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.forum/a\u001fb",
+        ("invalid-unit-separator", "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.forum/a\u001fb",
          "raw", "a part containing U+001F is rejected: no key"),
         ("unit-separator-only", "\u001f", "raw", "rejected even when it is the whole part"),
-        ("record-separator-accepted", "at://did:web:example.com/online.7778777.lessdugin.forum/a\u001eb", "raw",
+        ("record-separator-accepted", "at://did:web:example.com/forum.pandoras.forum/a\u001eb", "raw",
          "only U+001F is rejected; U+001E is hashed like any other character"),
         ("empty-string", "", "raw", "the empty part hashes to tag ‖ 0x1F"),
     ]
@@ -491,7 +491,7 @@ def rkey_vectors() -> list[dict]:
     rk("sequence-web-owner", collection="sequence", forum=FORUM_WEB, tid=T5)
     rk("profile", collection="profile")
     rk("membership-nfc-forum", collection="membership", raw=True,
-       forum="at://did:web:example.com/online.7778777.lessdugin.forum/Å",
+       forum="at://did:web:example.com/forum.pandoras.forum/Å",
        note="non-canonical forum uri; the fk equals fk.json nfc-singleton-angstrom")
     return out
 
@@ -501,32 +501,32 @@ def rkey_vectors() -> list[dict]:
 
 def self_check() -> None:
     """The worked example of data-model.md §3.4 (and the superseded draft vectors' b32s)."""
-    assert fk(FORUM) == "uetjixxr3a33", fk(FORUM)
-    assert fk(FORUM_TEMP) == "2xbiijsnjtau", fk(FORUM_TEMP)
-    assert POST.endswith("/uetjixxr3a33-3l2s5xxv2ze2c")
-    assert h16("opinion", [POST]) == "wcz54x7liy3jsh3g"
+    assert fk(FORUM) == "nkglkm5wsp3d", fk(FORUM)
+    assert fk(FORUM_TEMP) == "rij47lga3p74", fk(FORUM_TEMP)
+    assert POST.endswith("/nkglkm5wsp3d-3l2s5xxv2ze2c")
+    assert h16("opinion", [POST]) == "liu73r73htncrny7"
     assert rkey({"ns": NS, "collection": "opinion", "forum": FORUM, "subject": POST})["rkey"] == \
-        "uetjixxr3a33-3l2s5xxv2ze2c-wcz54x7liy3jsh3g"
+        "nkglkm5wsp3d-3l2s5xxv2ze2c-liu73r73htncrny7"
     assert rkey({"ns": NS, "collection": "comment", "forum": FORUM, "root": POST, "tid": T2})["rkey"] == \
-        "uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
+        "nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
     assert rkey({"ns": NS, "collection": "opinion", "forum": FORUM, "subject": COMMENT})["rkey"] == \
-        "uetjixxr3a33-3l2s5xxv2ze2c-3mjfititlivah7tw"
-    assert FK + "-" + h16("modAction", ["forum", PLC_B, "access"]) == "uetjixxr3a33-ckjbz7a2pjeplbao"
-    assert FK + "-" + h16("modAction", ["forum", POST, "hide"]) == "uetjixxr3a33-jmsm5bwwzljcu2zo"
-    assert FK + "-" + h16("modAction", ["forum", POST, "pin:forum"]) == "uetjixxr3a33-4vdjzbg6ohwpa323"
-    assert FK + "-" + h16("modAction", ["forum", "tag:decision-theory", "tag"]) == "uetjixxr3a33-yext7l62fmg5ufrt"
+        "nkglkm5wsp3d-3l2s5xxv2ze2c-yp4sp6qksmmqiqeu"
+    assert FK + "-" + h16("modAction", ["forum", PLC_B, "access"]) == "nkglkm5wsp3d-jf2rkp6oclilez2z"
+    assert FK + "-" + h16("modAction", ["forum", POST, "hide"]) == "nkglkm5wsp3d-z7jdhm6fkrboyadt"
+    assert FK + "-" + h16("modAction", ["forum", POST, "pin:forum"]) == "nkglkm5wsp3d-n3enyd5v2tw76a36"
+    assert FK + "-" + h16("modAction", ["forum", "tag:decision-theory", "tag"]) == "nkglkm5wsp3d-jeniqv3np5jznwjp"
     assert b32s(bytes.fromhex("00443214c74254b635cf84653a56d7c675be77df"), 32) == ALPHABET
     # NFC equalities the vectors claim
-    assert fk("at://did:web:example.com/online.7778777.lessdugin.forum/café") == \
-        fk("at://did:web:example.com/online.7778777.lessdugin.forum/café")
-    assert fk("at://did:web:example.com/online.7778777.lessdugin.forum/ﬁle") != \
-        fk("at://did:web:example.com/online.7778777.lessdugin.forum/file")
+    assert fk("at://did:web:example.com/forum.pandoras.forum/café") == \
+        fk("at://did:web:example.com/forum.pandoras.forum/café")
+    assert fk("at://did:web:example.com/forum.pandoras.forum/ﬁle") != \
+        fk("at://did:web:example.com/forum.pandoras.forum/file")
 
 
 DESCRIPTIONS = {
     "fk": (
         "fk/1 vectors (docs/spec/data-model.md §3.1). input.forumUri is passed to fk() as a string; "
-        "expected is {fk, digest} (digest = hex of H(\"lessdugin-fk/1\", forumUri)) or {error}. "
+        "expected is {fk, digest} (digest = hex of H(\"pandoras-forum-fk/1\", forumUri)) or {error}. "
         "error \"UnitSeparator\" = a hash part contains U+001F, so there is no key. "
         "raw: true marks inputs that are not canonical v1 values (they exercise NFC and U+001F in H); "
         "runners MUST evaluate them with the string-level function, without at-uri validation. "
@@ -543,7 +543,7 @@ DESCRIPTIONS = {
     ),
     "rkey": (
         "sk/1 rkey vectors (docs/spec/data-model.md §3.1-§3.2; uses fk/1). input.ns is the build's NSID "
-        "prefix (online.7778777.lessdugin or online.7778777.lessdugin.temp); collection names are short names "
+        "prefix (forum.pandoras or forum.pandoras.temp); collection names are short names "
         "resolved as ns + \".\" + name. input.fn selects the function: "
         "threadTid {uri} -> {threadTid}; stid {uri} -> {stid}; P {uri} -> {P}; actionKey {action} -> {actionKey}; "
         "rkey {collection, forum?, tid?, root?, subject?, scope?, action?} -> {rkey, ...intermediates}. "

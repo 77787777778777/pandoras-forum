@@ -3,7 +3,7 @@
 // and earlier-version notes, an uncounted own react is marked, and the shared Banners
 // component renders each banner kind (social.md §5, §7, §8, §9.2; engine-api.md banners).
 
-import type { ReactTally, ScoreView, ViewerCaps } from "@lessdugin/engine/types";
+import type { ReactTally, ScoreView, ViewerCaps } from "@pandoras-forum/engine/types";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderWithApp } from "../test/render.tsx";

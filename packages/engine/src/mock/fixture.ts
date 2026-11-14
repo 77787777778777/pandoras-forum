@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The mock engine's fixture: one forum ("LessDugin Test Forum") with posts of every kind,
+// The mock engine's fixture: one forum ("Pandora's Test Forum") with posts of every kind,
 // threaded comments in every display state, reacts, tags, a sequence, notifications, a mod
 // queue and log, and drafts. Fully deterministic: fixed times, hash-derived identifiers.
 
@@ -216,10 +216,10 @@ export function actorView(spec: {
   return v;
 }
 
-export const FORUM_SLUG = "lessdugin-test";
+export const FORUM_SLUG = "pandoras-forum-test";
 export const FORUM_URI: AtUri = atUri(did("ada"), COLL.forum, FORUM_SLUG);
 /** The forum key (`fk/1` shape; hash-derived in the mock). */
-export const FK = b32hash(`lessdugin-fk/1:${FORUM_URI}`, 12);
+export const FK = b32hash(`pandoras-forum-fk/1:${FORUM_URI}`, 12);
 
 const VISIBLE: ItemState = { kind: "visible" };
 
@@ -333,7 +333,7 @@ export function buildFixture(): Fixture {
       key: "welcome",
       author: "ada",
       kind: "article",
-      title: "Welcome to LessDugin: a tour of the forum",
+      title: "Welcome to Pandora's Forum: a tour of the forum",
       tags: ["meta", "rationality"],
       tier: "curated",
       pinned: true,
@@ -1138,13 +1138,13 @@ export function buildFixture(): Fixture {
     summary: {
       uri: FORUM_URI,
       owner: did("ada"),
-      name: "LessDugin Test Forum",
+      name: "Pandora's Test Forum",
       description:
-        "A sandbox forum for the lessdugin web app, served by the in-memory mock engine.",
+        "A sandbox forum for the Pandora's Forum web app, served by the in-memory mock engine.",
       membership: "open",
     },
     about:
-      "Welcome to the **LessDugin Test Forum**. Be kind, be curious, and remember that votes are public.\n\n- Stay on topic\n- No spam or advertising\n- Disagree with ideas, not people",
+      "Welcome to the **Pandora's Test Forum**. Be kind, be curious, and remember that votes are public.\n\n- Stay on topic\n- No spam or advertising\n- Disagree with ideas, not people",
     moderators: [
       { did: did("bob"), role: "moderator", title: "Moderator", shown: true },
       { did: did("me"), role: "admin", title: "Admin", shown: true },

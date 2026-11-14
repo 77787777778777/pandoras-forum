@@ -11,7 +11,7 @@ session `session_01RKj6dpNJHdoAn7d1iSbAYQ` so the work can continue without it.
   per-agent workflow output files were NOT (they lived at
   `/tmp/claude-0/-home-user/...` and `/root/.claude/...` inside the cloud VM).
 - veles relocated the local transcript to the correct project key
-  (`~/.claude/projects/-home-wrath-lessdugin/57d6f5d4-....jsonl`) without changing
+  (`~/.claude/projects/<project key>/57d6f5d4-....jsonl`) without changing
   the session ID, checked out branch `claude/exciting-keller-17oykr` at
   `18bfcb7`, and corrected `~/.claude.json`.
 - The session is blocked on Claude's **weekly** usage limit (resets 2026-10-26
@@ -32,7 +32,7 @@ session `session_01RKj6dpNJHdoAn7d1iSbAYQ` so the work can continue without it.
 ## Repository state at handoff (18bfcb7)
 
 Branch `claude/exciting-keller-17oykr`, remote
-`git@github-7778777:77787777778777/lessdugin.git`. M0, M1, M2 are done (see
+`git@github-7778777:77787777778777/pandoras-forum.git`. M0, M1, M2 are done (see
 `docs/plan.md` status lines). M3 and M4 are **partially** done; the two workflows
 reported "completed" but most of their stages hit the weekly limit:
 
@@ -77,7 +77,7 @@ Nix flake for a reproducible local toolchain (see `flake.nix`, `nix/`).
 ## How to get the toolchain
 
 ```sh
-cd ~/lessdugin
+cd ~/pandoras-forum
 nix develop            # default: rust 1.97+wasm, pnpm, node22, goat, wbg, clang/lld
 nix develop .#ci       # adds cargo-fuzz + PLAYWRIGHT_BROWSERS_PATH (exact 1.56.1 browsers)
 ```

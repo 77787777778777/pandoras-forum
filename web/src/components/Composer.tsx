@@ -13,7 +13,7 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { EditorView, keymap, placeholder as placeholderExt } from "@codemirror/view";
-import type { Draft, MediaRef, RenderedBody } from "@lessdugin/engine/types";
+import type { Draft, MediaRef, RenderedBody } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useEngine } from "../engine/context.tsx";

@@ -20,7 +20,7 @@ jobs:
   image:
     runs-on: ubuntu-24.04
     env:
-      IMAGE: ghcr.io/${{ github.repository_owner }}/lessdugin-indexer
+      IMAGE: ghcr.io/${{ github.repository_owner }}/pandoras-forum-indexer
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -37,7 +37,7 @@ jobs:
             --tag "${IMAGE}:sha-${GITHUB_SHA}" .
       - name: smoke-test the image
         run: |
-          podman run --rm --entrypoint /usr/local/bin/lessdugin-indexer \
+          podman run --rm --entrypoint /usr/local/bin/pandoras-forum-indexer \
             "${IMAGE}:sha-${GITHUB_SHA}" --help | grep -- --source-url
       - name: publish the immutable SHA tag
         if: github.event_name == 'workflow_dispatch' || github.ref == 'refs/heads/main'

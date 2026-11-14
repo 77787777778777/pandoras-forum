@@ -3,8 +3,8 @@
 // which it will not adopt, before anything is sent (engine-api.md §3.2 `mods_set`; review
 // finding sec-8, SPA part). A declaration whose about spilled into a blob is edited from its
 // bodySource, or refused while that source is unavailable (robustness-2).
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ForumView } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ForumView } from "@pandoras-forum/engine/types";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../../test/render.tsx";

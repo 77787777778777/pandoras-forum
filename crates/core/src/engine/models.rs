@@ -28,7 +28,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use futures::channel::{mpsc, oneshot};
 use futures::future::join_all;
 use futures::lock::Mutex as AsyncMutex;
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did};
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did};
 use serde_json::Value;
 
 use crate::discovery::forum_ref::{ForumKey, parse_forum_ref};
@@ -739,9 +739,9 @@ impl<H: Host> Engine<H> {
 
 #[cfg(test)]
 mod tests {
-    use lessdugin_atp::syntax::Datetime;
-    use lessdugin_lexicon::records::Forum;
-    use lessdugin_lexicon::values::MembershipMode;
+    use pandoras_forum_atp::syntax::Datetime;
+    use pandoras_forum_lexicon::records::Forum;
+    use pandoras_forum_lexicon::values::MembershipMode;
     use serde_json::json;
 
     use super::*;
@@ -757,7 +757,7 @@ mod tests {
             MembershipMode::Open,
         ))
         .unwrap();
-        let cid = lessdugin_atp::datamodel::record_cid(&decl)
+        let cid = pandoras_forum_atp::datamodel::record_cid(&decl)
             .unwrap()
             .to_string();
         let input = FoldInput::from_vector_json(&json!({

@@ -2,7 +2,7 @@
 // Local search over synced, listed items. Snippets are plain text; highlights are code-point
 // ranges into the snippet, rendered with <mark>.
 
-import { isCommentNode, type SearchHit } from "@lessdugin/engine/types";
+import { isCommentNode, type SearchHit } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";

@@ -1,4 +1,4 @@
-# lessdugin: final design and implementation plan (v1, 2026-10-16)
+# Pandora's Forum: final design and implementation plan (v1, 2026-10-16)
 
 This document is the reconciled design. It replaces the four design drafts and three critiques it was built from, and it is meant to be split into `docs/spec/*` (normative) and `docs/plan.md`. Section 10 records every critique decision. Behaviour IDs use the form `name/N`; once released they never change meaning.
 
@@ -8,8 +8,8 @@ This document is the reconciled design. It replaces the four design drafts and t
 
 | # | Decision |
 |---|---|
-| D1 | **The PDS is the only database.** No MVP feature needs a lessdugin server. The indexer is an optional extension. |
-| D2 | **Namespace.** Flat namespace `online.7778777.lessdugin.*` (`NS`), plus `NS.index.*` for indexer queries. Pre-release builds write to `online.7778777.lessdugin.temp.*`, and the prefix is a build-time constant. |
+| D1 | **The PDS is the only database.** No MVP feature needs a Pandora's Forum server. The indexer is an optional extension. |
+| D2 | **Namespace.** Flat namespace `forum.pandoras.*` (`NS`), plus `NS.index.*` for indexer queries. Pre-release builds write to `forum.pandoras.temp.*`, and the prefix is a build-time constant. |
 | D3 | **Ten record collections.** forum, membership, post, comment, revision, opinion, modAction, wikiRevision, sequence, profile. One `opinion` record per (voter, subject) holds the karma axis, the agreement axis, reacts and tag votes. |
 | D4 | **Every forum-scoped record key starts with the forum key `{fk}-`.** Keys that track a "subject" are deterministic. A record whose key is not the canonical one is invalid. |
 | D5 | **Every content record has a required `forum` field.** There are no forum-less posts. |
@@ -24,7 +24,7 @@ This document is the reconciled design. It replaces the four design drafts and t
 | D14 | **LFM/1 markdown.** CommonMark, GFM tables, strikethrough, task lists, footnotes and alerts, math, spoiler/details blocks and figure captions. No raw HTML. Media is referenced with `cid:` URLs. External images are never fetched automatically. |
 | D15 | **One renderer.** Rust produces HTML+MathML for the SPA and for export, and sanitised `TermText` styled lines for the TUI and CLI. |
 | D16 | **Media.** Metadata is stripped by allowlist rebuild, images are physically rotated and downscaled, every fetch is checked against its CID, and media loads automatically only under a privacy policy. |
-| D17 | **Auth.** OAuth everywhere: loopback or hosted-native for the CLI, web client for the SPA, and the CLI holds the session for `lessdugin web`. App passwords are accepted; main passwords are refused. `transition:generic` is never requested. |
+| D17 | **Auth.** OAuth everywhere: loopback or hosted-native for the CLI, web client for the SPA, and the CLI holds the session for `pandoras-forum web`. App passwords are accepted; main passwords are refused. `transition:generic` is never requested. |
 | D18 | **Rust layout.** Wasm-safe crates `atp`, `lexicon`, `markdown`, `core` sit over a `Host` trait. jacquard is used only behind the native OAuth facade. |
 | D19 | **SPA.** React, Vite and TypeScript. The wasm engine runs in a Web Worker. Hash routing. Strict CSP plus Trusted Types. |
 | D20 | **Indexer.** The same engine plus `NS.index.*` XRPC. It returns uri+cid with hint values, and verifiable proof CARs. |
@@ -70,7 +70,7 @@ This document is the reconciled design. It replaces the four design drafts and t
 
 - **CORE**: PDS, PLC/did:web, DNS (DoH provider is configurable).
 - **CORE+**: relay, Jetstream, Constellation, Slingshot.
-- **EXT**: lessdugin indexer.
+- **EXT**: Pandora's Forum indexer.
 
 | Feature | CORE | CORE+ | EXT |
 |---|---|---|---|
@@ -99,12 +99,12 @@ This document is the reconciled design. It replaces the four design drafts and t
 
 | Group | DNS TXT record | Contents |
 |---|---|---|
-| `online.7778777.lessdugin` | `_lexicon.lessdugin.7778777.online "did=<publisher>"` | 10 records, `defs`, `markdown`, `authFull`, `authInteract` |
-| `online.7778777.lessdugin.index` | `_lexicon.index.lessdugin.7778777.online "did=<publisher>"` | indexer queries and `index.defs` |
-| `online.7778777.lessdugin.temp` | none; never published | pre-release and dogfood builds (`NS` constant); dropped at 0.1 |
+| `forum.pandoras` | `_lexicon.pandoras.forum "did=<publisher>"` | 10 records, `defs`, `markdown`, `authFull`, `authInteract` |
+| `forum.pandoras.index` | `_lexicon.index.pandoras.forum "did=<publisher>"` | indexer queries and `index.defs` |
+| `forum.pandoras.temp` | none; never published | pre-release and dogfood builds (`NS` constant); dropped at 0.1 |
 
 **Publisher account**
-- A did:plc account with handle `lessdugin.7778777.online` and an offline rotation key.
+- A did:plc account with handle `pandoras.forum` and an offline rotation key.
 - It holds one `com.atproto.lexicon.schema` record per NSID (rkey = NSID).
 - CI publishes after `goat lex lint`, `goat lex breaking` against the last tag, and `goat lex check-dns`.
 - Domain hardening: registrar lock, multi-year auto-renew, DNSSEC, CAA.
@@ -150,8 +150,8 @@ This document is the reconciled design. It replaces the four design drafts and t
 ```
 b32s(x)        = base32, MSB-first 5-bit groups, alphabet "234567abcdefghijklmnopqrstuvwxyz", no padding (sort order = bit order)
 H(tag, p…)     = sha256( UTF8(tag) ‖ (0x1F ‖ UTF8(NFC(p)))* )          // any part containing U+001F ⇒ reject
-fk(forumUri)   = b32s(H("lessdugin-fk/1", forumUri))[0..12]           // 60 bits
-h16(name, p…)  = b32s(H("lessdugin-sk/1", name, p…))[0..16]          // 80 bits; name = short collection name ("opinion")
+fk(forumUri)   = b32s(H("pandoras-forum-fk/1", forumUri))[0..12]           // 60 bits
+h16(name, p…)  = b32s(H("pandoras-forum-sk/1", name, p…))[0..16]          // 80 bits; name = short collection name ("opinion")
 threadTid(uri) = for a post rkey {fk}-{T}: T ; for a comment rkey {fk}-{T}-{t}: T
 ```
 
@@ -374,14 +374,14 @@ Then apply NFC, collapse every run of White_Space to U+0020, and trim. Offsets a
 ### 2.8 Permission sets, scopes, client metadata
 
 ```json
-{"lexicon":1,"id":"online.7778777.lessdugin.authFull","defs":{"main":{"type":"permission-set",
- "title":"lessdugin (full access)",
- "detail":"Create, edit and delete your lessdugin forums, memberships, posts, comments, revisions, votes and reactions, wiki edits, sequences, profile and moderation actions.",
+{"lexicon":1,"id":"forum.pandoras.authFull","defs":{"main":{"type":"permission-set",
+ "title":"Pandora's Forum (full access)",
+ "detail":"Create, edit and delete your Pandora's Forum forums, memberships, posts, comments, revisions, votes and reactions, wiki edits, sequences, profile and moderation actions.",
  "permissions":[{"type":"permission","resource":"repo","collection":[
-  "online.7778777.lessdugin.forum","online.7778777.lessdugin.membership","online.7778777.lessdugin.post",
-  "online.7778777.lessdugin.comment","online.7778777.lessdugin.revision","online.7778777.lessdugin.opinion",
-  "online.7778777.lessdugin.modAction","online.7778777.lessdugin.wikiRevision","online.7778777.lessdugin.sequence",
-  "online.7778777.lessdugin.profile"]}]}}}
+  "forum.pandoras.forum","forum.pandoras.membership","forum.pandoras.post",
+  "forum.pandoras.comment","forum.pandoras.revision","forum.pandoras.opinion",
+  "forum.pandoras.modAction","forum.pandoras.wikiRevision","forum.pandoras.sequence",
+  "forum.pandoras.profile"]}]}}}
 ```
 
 `authInteract` covers membership, comment, revision and opinion.
@@ -394,7 +394,7 @@ Then apply NFC, collapse every run of White_Space to U+0020, and trim. Offsets a
 | P2 interop (requested incrementally) | `repo:community.lexicon.calendar.event?action=create …`, `repo:site.standard.document …` |
 
 **Client metadata.** Both files carry `grant_types: [authorization_code, refresh_token]`, `response_types: [code]`, `token_endpoint_auth_method: none` and `dpop_bound_access_tokens: true`, and their `scope` is the superset of every variant above. `client_uri` uses the same host.
-- **Web:** `https://lessdugin.7778777.online/oauth/client-metadata.json`, `application_type: web`, `redirect_uris: ["https://lessdugin.7778777.online/"]`.
+- **Web:** `https://pandoras.forum/oauth/client-metadata.json`, `application_type: web`, `redirect_uris: ["https://pandoras.forum/"]`.
 - **Native:** `…/oauth/cli-client-metadata.json`, `application_type: native`, `redirect_uris: ["http://127.0.0.1/callback"]` (the port is ignored when matching).
 
 **Callback handling.** The callback handler accepts both `?query` and `#fragment` responses. `xtask site --origin <url>` generates metadata for self-hosted origins.
@@ -431,7 +431,7 @@ getActivity(actor!, since?, forums[≤25]?, limit≤100, cursor?) → {activity[
 getKarma(forum!, actors[≤50])                       → {karma[{did, k1, kp, k}], policy, inputDigest}
 ```
 
-**Indexer discovery.** The indexer is a `did:web` whose DID doc has service `#lessdugin_index` of type `LessduginIndex`. Clients also learn of indexers through `forum.discovery.indexers` or user config.
+**Indexer discovery.** The indexer is a `did:web` whose DID doc has service `#pandoras_forum_index` of type `PandorasForumIndex`. Clients also learn of indexers through `forum.discovery.indexers` or user config.
 
 ### 2.10 Interop decisions
 
@@ -590,7 +590,7 @@ list_range(did, coll, fk):                                // cursors are opaque 
 **Jetstream (assisted mode)**
 - Connect to `wss://jetstream.{us-east,us-west}.bsky.network/subscribe?wantedCollections=NS.*&requireHello=true&cursor=<time_us − 5 s>`.
 - Default: no DID filter. Events are filtered client-side by the fk prefix of the rkey. This is cheap, and it also hides which forum you read.
-- When lessdugin-wide traffic exceeds about 50 events/s, switch to `options_update{wantedDids ≤ 10k}` plus a second connection that carries only membership events.
+- When pandoras-forum-wide traffic exceeds about 50 events/s, switch to `options_update{wantedDids ≤ 10k}` plus a second connection that carries only membership events.
 - Cursor handling: `time_us` is persisted every 5 s or 1,000 events; on reconnect, rewind 5 s and deduplicate through an LRU.
 - Reconnect backoff: 1 s doubling to 60 s, with jitter. Fail over to the other endpoint after 3 failures.
 - A gap longer than 36 h triggers a full reconcile.
@@ -652,7 +652,7 @@ verify_proof(car, did, coll, rkey, doc) -> Proven{rev, cid} | ProvenAbsent{rev} 
 **Rules**
 - Never advance a stored rev past the head observed at the PDS on the strength of a third-party proof.
 - A proof that fails against the current key but whose rev is older than the PDS head is `stale-proof`: fetch a fresh proof from the PDS and do not count it against the source (key rotation).
-- `lessdugin verify <ref> --deep` also verifies the referenced strongRefs, revision hashes (`cid(revision.record) == revision.subject.cid`) and blob CIDs.
+- `pandoras-forum verify <ref> --deep` also verifies the referenced strongRefs, revision hashes (`cid(revision.record) == revision.subject.cid`) and blob CIDs.
 
 ### 3.7 Scheduler and budgets
 
@@ -673,7 +673,7 @@ verify_proof(car, did, coll, rkey, doc) -> Proven{rev, cid} | ProvenAbsent{rev} 
 
 **Timeouts.** Connect 5 s; request 20 s; CAR 60 s.
 
-**Request headers.** Cross-origin browser GETs carry no custom headers, so there are no CORS preflights. Native requests send `User-Agent: lessdugin/<ver> (+https://lessdugin.7778777.online)`.
+**Request headers.** Cross-origin browser GETs carry no custom headers, so there are no CORS preflights. Native requests send `User-Agent: pandoras-forum/<ver> (+https://pandoras.forum)`.
 
 **User-visible budgets**
 - Interactive commands use `--time-budget 10s` by default, then print `[partial …]`.
@@ -697,7 +697,7 @@ verify_proof(car, did, coll, rkey, doc) -> Proven{rev, cid} | ProvenAbsent{rev} 
 | I6 | Claims of completeness require every relevant repo listed at rev ≥ the last known dirty rev; otherwise `[partial]`. |
 | I7 | Moderation inputs are read only from the record store. |
 | I8 | Records of DIDs that are not active are excluded. |
-| I9 | One background-sync leader per cache: a native `fd-lock` on `cache.lock`, or the browser Web Lock `lessdugin-sync-leader`. Other processes and tabs do P0 fetches under per-repo locks. Writes are idempotent and rev-monotonic. Changes are broadcast over BroadcastChannel. |
+| I9 | One background-sync leader per cache: a native `fd-lock` on `cache.lock`, or the browser Web Lock `pandoras-forum-sync-leader`. Other processes and tabs do P0 fetches under per-repo locks. Writes are idempotent and rev-monotonic. Changes are broadcast over BroadcastChannel. |
 
 **Eviction.** Whole forums are evicted, least recently viewed first, above 2 GB native or 500 MB browser. Never evicted: identities, the user's own repo, and authority repos of followed forums.
 
@@ -818,7 +818,7 @@ t_rank  = max(lower(r), t_eff)
 
 ### 4.4 Moderation fold (`mod/1`)
 
-**Ranks:** owner 3, admin 2, moderator 1, post author 0 (author scope only). Only the *current* declaration confers authority. Assertions by former moderators lapse at once. `lessdugin mod adopt <did>` re-issues them under the adopting moderator, with `adopts` pointing at each original.
+**Ranks:** owner 3, admin 2, moderator 1, post author 0 (author scope only). Only the *current* declaration confers authority. Assertions by former moderators lapse at once. `pandoras-forum mod adopt <did>` re-issues them under the adopting moderator, with `adopts` pointing at each original.
 
 **Authorization**
 - An assertion `a` by actor X on target T is authorized if any of these holds:
@@ -1104,14 +1104,14 @@ All of this is computed locally at sync time and live via Jetstream. An item is 
 - malicious markdown and media;
 - a compromised hosted SPA or domain;
 - XSS through dependencies;
-- another local user (`lessdugin web`).
+- another local user (`pandoras-forum web`).
 
 **Inherent limits, stated in the UI and documentation**
 - Votes and mod actions are public and permanent in archives.
 - Reading reveals your IP to self-hosting participants' PDSes when media loads, and to every PDS you sync.
 - Signed content is non-repudiable.
 - Time-based rules are best-effort.
-- The hosted SPA is trusted while you use it; `lessdugin web` is the zero-trust path.
+- The hosted SPA is trusted while you use it; `pandoras-forum web` is the zero-trust path.
 
 ### 5.2 Measures
 
@@ -1119,21 +1119,21 @@ All of this is computed locally at sync time and live via Jetstream. An item is 
 |---|---|
 | Terminal (F1, F2) | `TermText` newtype, built only by `term_sanitize`: C0 controls (except `\n`, `\t`), DEL and C1 become visible `^[` or `\u{..}`; U+2028 and U+2029 become a space; bidi controls are stripped (shown as visible `⟨RLO⟩` markers in code); names lose zero-width characters and are grapheme-capped. OSC 8 links only for `safe_href` URLs, with the host shown when the text differs. Content never sets the terminal title. A sanitising `tracing` writer. On a TTY, `--json` and `--raw` escape C1 and bidi characters; piped output stays byte-exact. Editor templates: ≥ 6 fixed trailing lines, quoted lines prefixed `# ` with modelines neutralised, files 0600 inside 0700, serde-saphyr alias and budget limits. |
 | Local files (F3, F4) | Draft image paths must canonicalise inside the draft's own directory; absolute, `~`, `..` and special files are rejected; the sniffed type must be on the allowlist; publish confirmation lists every local file, and `--yes` is not honoured for foreign drafts. Downloads are saved as `<cid>.<ext>`; `open` works only for image, video and audio; Windows gets Mark-of-the-Web; no shell is ever used. |
-| SPA (F5–F8) | CSP below plus Trusted Types (`lessdugin-md`, `dompurify`). DOMPurify is configured with exactly the renderer's allowlist, and vectors assert `DOMPurify(html) === html`. `<SafeLink>` with `safe_href` from the core, plus a lint rule banning raw `href`. `<bdi>` for names. MathML allowlist and disabled TeX macros. Referrer `no-referrer`; JS frame guard. |
+| SPA (F5–F8) | CSP below plus Trusted Types (`pandoras-forum-md`, `dompurify`). DOMPurify is configured with exactly the renderer's allowlist, and vectors assert `DOMPurify(html) === html`. `<SafeLink>` with `safe_href` from the core, plus a lint rule banning raw `href`. `<bdi>` for names. MathML allowlist and disabled TeX macros. Referrer `no-referrer`; JS frame guard. |
 | Poison pills (F8) | Iterative walkers; depth limits checked before parsing (CBOR/JSON ≤ 32, markdown ≤ 64, TeX); no preallocation from declared lengths; native `catch_unwind` per record. The worker writes in-flight `(uri, cid, RENDERER_VERSION)` to IndexedDB, so after a crash they are quarantined as "failed to render" and the worker restarts with backoff. Fuzzing (cargo-fuzz) on the CAR, CBOR, MST, lexicon validator and renderer. |
 | Identity (F9–F11) | DoH by default; bidirectional handles; confusable warnings; mention styling only for verified `at://did`; when link text looks like a URL, the real host is shown; TOFU auth-server pin; third-party proofs need a doc ≤ 1 h old; `rev ≤ now + 5 min`; owners or moderators on did:web are warned (domain expiry means takeover). |
 | Infrastructure (F13–F17) | Hints never become text. Byte caps are counted while streaming, after decompression. Every Jetstream message is capped at 1.2 MB. Equivocation: record `(did, rev, cid)` and compare against Jetstream commits; a fork shows a warning (P2: evidence attached to a hide). Fan-out: identities resolved lazily only for participants; forum endpoints need consent, https, a hostname and the default port; per-domain budgets. Indexer: FTS tokens quoted and capped at 16 terms; snippets as plain text; takedown blocklist; SSRF guard (re-checked on every redirect, resolved IP pinned, private and v4-mapped ranges blocked); no `immutable` caching of record data; no blob storage. |
 | Social (F18–F24) | Seeded `karma/1` with `establishSeeds = 2`; grants are explicit; positive assertions are CID-bound; a ban hides everything; locks carry allow-lists; fail closed; ≤ 32 reacts per opinion; canonical uris; the deleted-subject rule; wiki walks capped. |
 | Auth (F25–F28) | No `transition:generic`. No main passwords (the `xxxx-xxxx-xxxx-xxxx` shape is enforced; app passwords are taken by prompt, stdin or environment variable, never argv, and never persisted). Enumerated blob scopes. Native sessions in the OS keyring (`keyring` crate); the file fallback is 0600 with `O_NOFOLLOW` and refuses lax permissions. Tokens and DPoP proofs redacted in logs. `UserPds` requests never follow redirects and only go to the PDS bound at login. Browser: non-extractable WebCrypto keys in IndexedDB, and Web Locks around refresh. AuthBridge allowlist: `com.atproto.repo.{createRecord, putRecord, deleteRecord, applyWrites, uploadBlob}` on NS collections only, plus `server.getSession`. `web` mode keeps no secrets in the browser (§6.13). `logout --purge`. |
 | Privacy (F29–F34) | Media autoload policy (§3.9). Media cache purged on hide or delete. The editor warns that history stays public; "replace without history" and "redact revisions" (delete revision records, so their blobs are garbage-collected); a missing snapshot shows "history redacted". `export` defaults to `--mine`. Metadata stripping by allowlist rebuild (JPEG keeps only image segments and ICC APP2; PNG drops tEXt, iTXt, zTXt and eXIf; WebP drops EXIF and XMP; GIF drops comment and application extensions except NETSCAPE loop). MP4 `udta` and `meta` boxes are overwritten as `free` boxes, so no offsets shift. `media.name` is opt-in. HEIC is not accepted natively (the SPA converts via canvas). Public-action interstitials. |
-| Supply chain (F35, F36) | Domain hardening; reproducible SPA and wasm builds with published hashes; `lessdugin verify-site <url>`; build hash shown in Settings. pnpm `minimumReleaseAge = 7d`, `onlyBuiltDependencies: []`, lockfile-lint, osv-scanner. cargo-vet plus exact `=` pins for the parsing and crypto crates; `cargo auditable`. GitHub Actions pinned by SHA, with `permissions: contents: read`, protected release and Pages environments, and no `pull_request_target`. TUI images use pure-Rust decoders only, limited to 64 MB, 8192² pixels and 200 GIF frames, decoded off the UI thread with a timeout. |
+| Supply chain (F35, F36) | Domain hardening; reproducible SPA and wasm builds with published hashes; `pandoras-forum verify-site <url>`; build hash shown in Settings. pnpm `minimumReleaseAge = 7d`, `onlyBuiltDependencies: []`, lockfile-lint, osv-scanner. cargo-vet plus exact `=` pins for the parsing and crypto crates; `cargo auditable`. GitHub Actions pinned by SHA, with `permissions: contents: read`, protected release and Pages environments, and no `pull_request_target`. TUI images use pure-Rust decoders only, limited to 64 MB, 8192² pixels and 200 GIF frames, decoded off the UI thread with a timeout. |
 
-**SPA CSP** (sent as a header by `lessdugin web` and Cloudflare/Netlify `_headers`; a `<meta>` tag on GitHub Pages):
+**SPA CSP** (sent as a header by `pandoras-forum web` and Cloudflare/Netlify `_headers`; a `<meta>` tag on GitHub Pages):
 
 ```
 default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; font-src 'self';
 img-src 'self' blob:; media-src blob:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'none';
-form-action 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types lessdugin-md dompurify
+form-action 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types pandoras-forum-md dompurify
 ```
 
 A dev variant adds `http:` for the devnet.
@@ -1165,18 +1165,18 @@ A dev variant adds `http:` for the devnet.
 ### 6.1 Repository layout
 
 ```
-lessdugin/
+pandoras-forum/
 ├─ Cargo.toml  rust-toolchain.toml(1.97, +wasm32-unknown-unknown)  .cargo/config.toml(xtask alias)
 ├─ clippy.toml (disallowed: SystemTime::now, Instant::now, thread::sleep, Utc::now in wasm-safe crates)  deny.toml
 ├─ package.json  pnpm-workspace.yaml  biome.json  tsconfig.base.json
-├─ lexicons/online/7778777/lessdugin/{forum,membership,post,comment,revision,opinion,modAction,wikiRevision,
+├─ lexicons/forum/pandoras/{forum,membership,post,comment,revision,opinion,modAction,wikiRevision,
 │        sequence,profile,defs,markdown,authFull,authInteract}.json  index/{defs,…}.json        (CC0)
 ├─ crates/{atp,lexicon,markdown,core,native,tui,cli,wasm,indexer,testkit}   xtask/
 ├─ packages/{engine,e2e}   web/
 ├─ testdata/vectors/{syntax,datamodel,keys,lexicon,lfm1,terminal,xss,mathml,limits,media,thread,modfold,karma,
 │        rank,reacts,tags,time,fold,proofs}/*.json   testdata/interop/ (vendored atproto-interop-tests + LICENSE)
 ├─ docs/{spec/{data-model,lfm-1,social,sync,threat-model,limits,glossary,conformance-level0}.md, adr/, guide/, plan.md}
-└─ deploy/{site/{_headers, oauth/*.json, lessdugin-config.json}, indexer/Dockerfile, compose.e2e.yml}  .github/workflows/
+└─ deploy/{site/{_headers, oauth/*.json, pandoras-forum-config.json}, indexer/Dockerfile, compose.e2e.yml}  .github/workflows/
 ```
 
 ### 6.2 Crates and dependencies
@@ -1185,16 +1185,16 @@ Versions are pinned at M0 in `[workspace.dependencies]`. A `=` pin means an exac
 
 | Crate | wasm-safe | Responsibility | Key dependencies |
 |---|---|---|---|
-| `lessdugin-atp` (MIT/Apache) | yes | Syntax types (Did, Handle, Nsid, AtUri, Rkey, Tid, Datetime); JSON ⇄ DAG-CBOR; CID; CARv1 reader; MST proof walk; commit verify; did:key; DID doc; XRPC request/response structs (~16 endpoints) | `cid 0.11`, `serde_ipld_dagcbor 0.7`, `ipld-core 0.4`, `sha2 0.10`, `k256`/`p256` (`ecdsa` verify, latest stable, `=`), `multibase 0.9`, `data-encoding 2`, `serde`/`serde_json 1`, `thiserror 2` |
-| `lessdugin-lexicon` (MIT/Apache) | yes | Hand-written owned serde structs with `#[serde(flatten)] extra` for unknown fields; a runtime data-driven validator that embeds the lexicon JSON (lengths, graphemes, formats, knownValues); key derivation and grammar; `NS` constant | atp, `unicode-segmentation 1`, `unicode-normalization 0.1`, `tsify 0.5` (optional) |
-| `lessdugin-markdown` | yes | LFM/1 events → post-passes → HTML+MathML, `StyledDoc<TermText>`, P projection, ToC, excerpt, links, mentions, media refs, quote resolution; `term_sanitize`, `safe_href` | `pulldown-cmark =0.13.4` (no defaults), `math-core 0.9` (feature `math`), `unicode-width 0.2`, `unicode-security 0.1`, `ammonia 4.2.3` (feature `ammonia`, native only) |
-| `lessdugin-core` | yes | `Host`/`KvStore`; store keys; identity (DoH over Host); discovery; sync; Jetstream parsing; outbox; verification orchestration; `social/` fold; `ForumModel`; search (in-memory inverted index); notifications; media (sniff, strip, CID); `limits`; view DTOs; `Engine<H>` | atp, lexicon, markdown, `futures 0.3`, `http 1`, `url 2`, `tracing 0.1`, `libm 0.2`, `img-parts 0.4`, `imagesize 0.15` |
-| `lessdugin-native` | no | `NativeHost`: reqwest with an SSRF guard; `SqliteKv` (WAL, busy_timeout); WebSocket; system DNS (opt-in); keyring sessions; app-password auth; OAuth facade; config and paths; image decode, rotate and downscale | `tokio 1`, `reqwest 0.13` (rustls, http2, gzip, stream), `rusqlite 0.40` (bundled, fts5), `tokio-tungstenite 0.30` (rustls), `zstd 0.13`, `hickory-resolver 0.26`, `keyring 3`, `fd-lock 4`, `directories 6`, `image 0.25` (png, jpeg, gif, webp only), `jacquard-oauth =0.12.2` (feature `oauth`), `webbrowser 1` |
-| `lessdugin-tui` | no | Elm-style app | `ratatui 0.30.2`, `crossterm 0.29`, `ratatui-image 11.1.0` (`default-features=false`, `image-defaults,crossterm`), a `tui-textarea` release compatible with ratatui 0.30 (checked in M0) |
-| `lessdugin` (cli, bin) | no | Command tree, output, drafts, `tui`, `web` (axum + embedded SPA + bridge) | `clap 4.6` (derive, env), `clap_complete 4.6`, `serde-saphyr 2`, `axum 0.8`, `tower-http 0.6`, `rust-embed 8`, `indicatif 0.18` |
-| `lessdugin-wasm` | target | Bindings and `WasmHost` | `wasm-bindgen =0.2.129`, `wasm-bindgen-futures 0.4`, `js-sys`/`web-sys 0.3`, `tsify 0.5`, `serde-wasm-bindgen 0.6`, `getrandom 0.4` (`wasm_js`), `console_error_panic_hook` (feature `debug-panic`) |
-| `lessdugin-indexer` (bin) | no | Ingest, XRPC, SQL side tables | core, native, `axum 0.8`, `tower-http 0.6`, `tower_governor`, `metrics-exporter-prometheus` |
-| `lessdugin-testkit` | both | `MemHost`, `FakePds` (XRPC subset with fault injection, proofs, cursor modes), fake Constellation, mini-Jetstream (devnet `subscribeRepos` → Jetstream JSON), Devnet launcher, vector runner, synthetic forum generator | `proptest 1`, `insta 1`, `assert_cmd 2` |
+| `pandoras-forum-atp` (MIT/Apache) | yes | Syntax types (Did, Handle, Nsid, AtUri, Rkey, Tid, Datetime); JSON ⇄ DAG-CBOR; CID; CARv1 reader; MST proof walk; commit verify; did:key; DID doc; XRPC request/response structs (~16 endpoints) | `cid 0.11`, `serde_ipld_dagcbor 0.7`, `ipld-core 0.4`, `sha2 0.10`, `k256`/`p256` (`ecdsa` verify, latest stable, `=`), `multibase 0.9`, `data-encoding 2`, `serde`/`serde_json 1`, `thiserror 2` |
+| `pandoras-forum-lexicon` (MIT/Apache) | yes | Hand-written owned serde structs with `#[serde(flatten)] extra` for unknown fields; a runtime data-driven validator that embeds the lexicon JSON (lengths, graphemes, formats, knownValues); key derivation and grammar; `NS` constant | atp, `unicode-segmentation 1`, `unicode-normalization 0.1`, `tsify 0.5` (optional) |
+| `pandoras-forum-markdown` | yes | LFM/1 events → post-passes → HTML+MathML, `StyledDoc<TermText>`, P projection, ToC, excerpt, links, mentions, media refs, quote resolution; `term_sanitize`, `safe_href` | `pulldown-cmark =0.13.4` (no defaults), `math-core 0.9` (feature `math`), `unicode-width 0.2`, `unicode-security 0.1`, `ammonia 4.2.3` (feature `ammonia`, native only) |
+| `pandoras-forum-core` | yes | `Host`/`KvStore`; store keys; identity (DoH over Host); discovery; sync; Jetstream parsing; outbox; verification orchestration; `social/` fold; `ForumModel`; search (in-memory inverted index); notifications; media (sniff, strip, CID); `limits`; view DTOs; `Engine<H>` | atp, lexicon, markdown, `futures 0.3`, `http 1`, `url 2`, `tracing 0.1`, `libm 0.2`, `img-parts 0.4`, `imagesize 0.15` |
+| `pandoras-forum-native` | no | `NativeHost`: reqwest with an SSRF guard; `SqliteKv` (WAL, busy_timeout); WebSocket; system DNS (opt-in); keyring sessions; app-password auth; OAuth facade; config and paths; image decode, rotate and downscale | `tokio 1`, `reqwest 0.13` (rustls, http2, gzip, stream), `rusqlite 0.40` (bundled, fts5), `tokio-tungstenite 0.30` (rustls), `zstd 0.13`, `hickory-resolver 0.26`, `keyring 3`, `fd-lock 4`, `directories 6`, `image 0.25` (png, jpeg, gif, webp only), `jacquard-oauth =0.12.2` (feature `oauth`), `webbrowser 1` |
+| `pandoras-forum-tui` | no | Elm-style app | `ratatui 0.30.2`, `crossterm 0.29`, `ratatui-image 11.1.0` (`default-features=false`, `image-defaults,crossterm`), a `tui-textarea` release compatible with ratatui 0.30 (checked in M0) |
+| `pandoras-forum` (cli, bin) | no | Command tree, output, drafts, `tui`, `web` (axum + embedded SPA + bridge) | `clap 4.6` (derive, env), `clap_complete 4.6`, `serde-saphyr 2`, `axum 0.8`, `tower-http 0.6`, `rust-embed 8`, `indicatif 0.18` |
+| `pandoras-forum-wasm` | target | Bindings and `WasmHost` | `wasm-bindgen =0.2.129`, `wasm-bindgen-futures 0.4`, `js-sys`/`web-sys 0.3`, `tsify 0.5`, `serde-wasm-bindgen 0.6`, `getrandom 0.4` (`wasm_js`), `console_error_panic_hook` (feature `debug-panic`) |
+| `pandoras-forum-indexer` (bin) | no | Ingest, XRPC, SQL side tables | core, native, `axum 0.8`, `tower-http 0.6`, `tower_governor`, `metrics-exporter-prometheus` |
+| `pandoras-forum-testkit` | both | `MemHost`, `FakePds` (XRPC subset with fault injection, proofs, cursor modes), fake Constellation, mini-Jetstream (devnet `subscribeRepos` → Jetstream JSON), Devnet launcher, vector runner, synthetic forum generator | `proptest 1`, `insta 1`, `assert_cmd 2` |
 
 **Feature flags**
 - markdown: `math` (default), `ammonia`
@@ -1266,7 +1266,7 @@ Keys are tuple-encoded so they sort correctly as bytes: strings are escaped with
 
 `--json` output from the CLI and the SPA's types share one versioned schema, so parity checks are byte comparisons.
 
-### 6.6 Wasm boundary and `@lessdugin/engine`
+### 6.6 Wasm boundary and `@pandoras-forum/engine`
 
 **Wasm side**
 - `WasmEngine` mirrors §6.5 one-to-one. `JsHost` is imported with the methods `http`, `kvGetMany`, `kvScan`, `kvWrite` (per store), `openWs`, `now`, `sleep` and `random`.
@@ -1319,11 +1319,11 @@ source → pulldown-cmark events → LFM post-passes (§2.7) → URL policy and 
 
 Video and audio get only the box neutralisation from §5.2. Thumbnails are deferred to P2.
 
-### 6.10 CLI (`lessdugin`)
+### 6.10 CLI (`pandoras-forum`)
 
 **Global flags:** `--account`, `--forum`, `--json`, `--offline`, `--sync`, `--sources direct|assisted`, `--verify pds|proof`, `--indexer <url|none|forum>`, `--time-budget`, `--max-requests`, `--data-dir`, `--color auto|always|never`, `--dev`, `-q`/`-v`.
 
-**Bare invocation:** `lessdugin` on a TTY with an account opens the TUI; otherwise it prints help. Reading never needs a login.
+**Bare invocation:** `pandoras-forum` on a TTY with an account opens the TUI; otherwise it prints help. Reading never needs a login.
 
 ```
 login [handle|did] [--app-password] [--no-browser] [--oauth-client loopback|hosted]   logout [--purge]   whoami   accounts [use <a>]
@@ -1374,9 +1374,9 @@ tui [forum]    web [--port] [--no-open]    config get|set|edit    completions <s
 - `--color never` gives plain, accessible output with no box drawing.
 - Exit codes: 0 ok, 1 error, 2 usage, 3 auth required, 4 not found, 5 conflict, 6 partial.
 
-**Paths:** config `~/.config/lessdugin/config.toml`; data `~/.local/share/lessdugin/{state.sqlite, drafts/}`; cache `~/.cache/lessdugin/{cache.sqlite, blobs/}`.
+**Paths:** config `~/.config/pandoras-forum/config.toml`; data `~/.local/share/pandoras-forum/{state.sqlite, drafts/}`; cache `~/.cache/pandoras-forum/{cache.sqlite, blobs/}`.
 
-### 6.11 TUI (`lessdugin-tui`)
+### 6.11 TUI (`pandoras-forum-tui`)
 
 **Architecture**
 - `State` plus a stack of screens. `update(State, Action) → Vec<Effect>`; `view` is pure.
@@ -1384,7 +1384,7 @@ tui [forum]    web [--port] [--no-open]    config get|set|edit    completions <s
 - `$EDITOR` runs with the terminal suspended. An inline composer (tui-textarea) handles short replies; `Ctrl-e` escalates to `$EDITOR`.
 - `:edit` asks first when the edit would suspend a moderator's keep, tier or pin on the item (`edit_preflight`, `social.md` §4.5); when that check cannot run, it says what it could not check and why, and asks the same question, rather than refusing the edit.
 - The mod menu's restrict presets ("posting", "voting, reacting") add to the capabilities the moderator's own `#restrict` record restricts while it is in effect, and send that record's `until` and `reason` with them unless the entry states its own: the one record's expiry belongs to everything it states (`social.md` §4.2), so adding to a timed restriction never makes it permanent, and a lapsed one is not re-imposed. The `:mod` command line states the complete set, as the CLI does.
-- Images use a ratatui-image protocol (Kitty, iTerm2, Sixel, else halfblocks), learnt by asking the terminal once, before the input reader starts. The terminal is asked only when it is worth asking: under `LESSDUGIN_TUI_IMAGES=auto` (the default) when the environment names an emulator or a multiplexer (`TERM_PROGRAM`, `KITTY_WINDOW_ID`, `WEZTERM_*`, `ITERM_SESSION_ID`, `VTE_VERSION`, `TMUX`, a `TERM` such as `xterm-kitty` or `foot`) or the terminal reports its cell size in pixels; a bare pty with an inherited `TERM` gets halfblocks unasked, and `query`, `halfblocks` and `off` force the answer. The TUI reads the answer itself with one bounded poll on stdin (2 s) ending at the terminal's Device Status Report, so a terminal that never answers leaves no reader behind, and keys typed around the answer are forwarded as the keys they are: the input thread is the only reader stdin ever has, and no keystroke is lost (`crates/tui/src/image.rs`). tmux passthrough is detected as before.
+- Images use a ratatui-image protocol (Kitty, iTerm2, Sixel, else halfblocks), learnt by asking the terminal once, before the input reader starts. The terminal is asked only when it is worth asking: under `PANDORAS_FORUM_TUI_IMAGES=auto` (the default) when the environment names an emulator or a multiplexer (`TERM_PROGRAM`, `KITTY_WINDOW_ID`, `WEZTERM_*`, `ITERM_SESSION_ID`, `VTE_VERSION`, `TMUX`, a `TERM` such as `xterm-kitty` or `foot`) or the terminal reports its cell size in pixels; a bare pty with an inherited `TERM` gets halfblocks unasked, and `query`, `halfblocks` and `off` force the answer. The TUI reads the answer itself with one bounded poll on stdin (2 s) ending at the terminal's Device Status Report, so a terminal that never answers leaves no reader behind, and keys typed around the answer are forwarded as the keys they are: the input thread is the only reader stdin ever has, and no keystroke is lost (`crates/tui/src/image.rs`). tmux passthrough is detected as before.
 
 **Screens:** Home (forums with unread counts, notification badge, sync status), Forum (sort and filter tabs; Posts and Activity), Post, Thread, Tags/Tag, Sequences/Sequence, User, Notifications, Search, Mod queue (one key per action, plus reason), Mod log, Drafts. Overlays: `?` help, `:` command line (accepts any CLI subcommand), react palette, confirmations, login.
 
@@ -1397,7 +1397,7 @@ tui [forum]    web [--port] [--no-open]    config get|set|edit    completions <s
 | Opinions | `u`/`U` up/strong, `d`/`D` down/strong, `a`/`A` agree/strong, `z`/`Z` disagree/strong, `0` clear, `x` react palette; `Backspace` undoes the pending write |
 | Writing | `c` comment on post, `r` reply, `P` new post, `e` edit own, `Del` delete own, `H` history |
 | Lists | `s` sort, `f` filter, `t` tags, `b` bookmark, `S` subscribe |
-| Other | `m` mod menu, `o` open in `lessdugin web`, `y` yank uri, `R` sync, `/` search, `n`/`N` next/prev match, `?` |
+| Other | `m` mod menu, `o` open in `pandoras-forum web`, `y` yank uri, `R` sync, `/` search, `n`/`N` next/prev match, `?` |
 
 ### 6.12 SPA (`web/`)
 
@@ -1431,8 +1431,8 @@ tui [forum]    web [--port] [--no-open]    config get|set|edit    completions <s
 
 | Mode | Behaviour |
 |---|---|
-| **Static site** `https://lessdugin.7778777.online/` (GitHub Pages; `_headers` for Cloudflare/Netlify) | Web OAuth client with tokens in IndexedDB. Ships `lessdugin-config.json {oauth: "hosted"}`, the source and licence link (AGPL §13), and source maps. Trusted while in use; reproducible hash published per release. Self-hosting: `xtask site --origin <url>`. |
-| **`lessdugin web`** (the zero-trust path) | axum on `127.0.0.1:<port>` only (default 47778, persisted; fails if busy). Rejects any Host header other than `127.0.0.1:<port>` or `[::1]:<port>`. Serves the embedded SPA with CSP headers and `lessdugin-config.json {oauth: "bridge"}`. A 256-bit per-launch capability travels in the URL fragment, is exchanged once (`POST /bridge/session`), and lives in sessionStorage. |
+| **Static site** `https://pandoras.forum/` (GitHub Pages; `_headers` for Cloudflare/Netlify) | Web OAuth client with tokens in IndexedDB. Ships `pandoras-forum-config.json {oauth: "hosted"}`, the source and licence link (AGPL §13), and source maps. Trusted while in use; reproducible hash published per release. Self-hosting: `xtask site --origin <url>`. |
+| **`pandoras-forum web`** (the zero-trust path) | axum on `127.0.0.1:<port>` only (default 47778, persisted; fails if busy). Rejects any Host header other than `127.0.0.1:<port>` or `[::1]:<port>`. Serves the embedded SPA with CSP headers and `pandoras-forum-config.json {oauth: "bridge"}`. A 256-bit per-launch capability travels in the URL fragment, is exchanged once (`POST /bridge/session`), and lives in sessionStorage. |
 
 **Bridge endpoints** (POST only, bearer token, Origin checked):
 - `/bridge/xrpc`: the allowlisted write methods, sent through the CLI's keyring session.
@@ -1442,7 +1442,7 @@ tui [forum]    web [--port] [--no-open]    config get|set|edit    completions <s
 
 The browser holds no long-lived secrets. `build.rs` embeds `web/dist`, or a placeholder page that explains how to build it. Release binaries always embed the real SPA.
 
-### 6.14 Indexer (`lessdugin-indexer`)
+### 6.14 Indexer (`pandoras-forum-indexer`)
 
 **Ingest**
 - Jetstream wildcard `NS.*` from two endpoints, `time_us` cursor with a 10 s rewind.
@@ -1483,13 +1483,13 @@ The browser holds no long-lived secrets. `build.rs` embeds `web/dist`, or a plac
 
 | Layer | How |
 |---|---|
-| Protocol | Vendored atproto-interop-tests: syntax (including `online.7778777.lessdugin.*` cases), data model JSON ⇄ CBOR ⇄ CID, MST, signatures with high-S rejected, did:key. Tampered-proof fixtures. `cargo-fuzz` on CAR, CBOR, MST, validator and renderer (nightly). jacquard-repo and `@atproto/repo` used as test oracles. |
+| Protocol | Vendored atproto-interop-tests: syntax (including `forum.pandoras.*` cases), data model JSON ⇄ CBOR ⇄ CID, MST, signatures with high-S rejected, did:key. Tampered-proof fixtures. `cargo-fuzz` on CAR, CBOR, MST, validator and renderer (nightly). jacquard-repo and `@atproto/repo` used as test oracles. |
 | Shared vectors | `testdata/vectors/<kind>/*.json` as `{name, input, expected}`. A Rust runner (testkit) and a TS runner (vitest) call `runVector` in a `vectors`-feature wasm build, so native and wasm results are proven equal. `xtask vectors --bless` regenerates expected output, and the diff is reviewed. |
 | Social | Vectors: power boundaries; keys; karma (self-vote, seed establishment with 1 vs 2 seeds, sybil ring, pairCap boundary, deleted subject with 1 vs 2 voters, nullify); modfold (rank, same-rank safety-min, lapse and adopt, expiry, CID-bound pin after an edit, keep vs ban, immunity, author tier at gate 49/50); reacts (gate boundaries, contradiction, anchors with 0, 1 or 2 occurrences); time (future-dated, comment before parent); rank (exact f64 bit patterns); threads (2- and 3-cycles, missing and cross-root parents); wiki (fork, merge, pin, removed head, altered ancestor). **Property tests:** permutation invariance, duplicate idempotence, layering (L5–L7 records never change E, K1, KP or K), sybil theorem, pair bound, incremental = batch, native == wasm on random inputs. |
 | Markdown and terminal | ≥ 150 LFM/1 vectors; XSS and mXSS corpora (HTML and MathML); escape corpus asserting that no ESC appears except our own SGR and OSC 8; proptest that ammonia and DOMPurify leave renderer output unchanged; StyledDoc snapshots. |
 | Sync and engine | `MemHost` + `FakePds` scenarios: idempotent sync, cursor-range fallback, rollback, deletes only after confirmation, outbox survives `kill -9`, `InvalidSwap` retry vs real conflict, opinion merge across two devices, Jetstream hint → fetch, quarantine, fail closed with a mod PDS down. A 5,000-repo load simulation asserts the request budgets in §3.10. A synthetic 1k-post / 50k-opinion forum must `ls` in under 300 ms warm. |
 | CLI and TUI | `assert_cmd` + `insta` against FakePds. TUI key sequences produce `TestBackend` snapshots at 80×24 and 160×48, plus a resize fuzz test. |
-| End-to-end | `packages/e2e/devnet.mjs` starts `@atproto/dev-env 0.6.20` `TestNetworkNoAppView`, plus the testkit mini-Jetstream and fake Constellation (or the indexer in poll mode). Rust e2e tests run when `LESSDUGIN_E2E=1`. Playwright 1.64 (Chromium from `/opt/pw-browsers`) does real OAuth against the devnet; if http issuers are rejected, an e2e-only app-password build is used. Any `securitypolicyviolation` fails the test; axe runs. |
+| End-to-end | `packages/e2e/devnet.mjs` starts `@atproto/dev-env 0.6.20` `TestNetworkNoAppView`, plus the testkit mini-Jetstream and fake Constellation (or the indexer in poll mode). Rust e2e tests run when `PANDORAS_FORUM_E2E=1`. Playwright 1.64 (Chromium from `/opt/pw-browsers`) does real OAuth against the devnet; if http issuers are rejected, an e2e-only app-password build is used. Any `securitypolicyviolation` fails the test; axe runs. |
 | Cross-client parity | Scenario: alice creates a forum (CLI); bob joins and posts with an image (SPA); carol replies, votes, reacts and tags (TUI); a mod hides and pins (CLI); edits and revisions. With `now` and `obs` injected, CLI `--json`, SPA `getThread`, indexer-hydrated output and the TUI snapshot must match byte for byte. Variants: approval mode, indexer on/off, direct/assisted. |
 | Production smoke | Manual or nightly runs on throwaway bsky.social accounts using `.temp` NSIDs, and on one self-hosted PDS. |
 
@@ -1513,13 +1513,13 @@ Milestones are vertical slices. M3 freezes engine API v0. After that, M4, M5 and
 | Milestone | Scope | Acceptance criteria |
 |---|---|---|
 | **M0: Spec and spikes** | This document split into `docs/spec` (data model, LFM/1, social, sync, threat model, limits, glossary) plus a decision log. Draft lexicons under `.temp` pass `goat lex lint`. Key vectors generated. Workspace, toolchain, CI skeleton, devnet script. **Spikes (each written up as an ADR):** **S1** jacquard-oauth loopback, hosted-native and `--no-browser` against bsky.social, and signed XRPC through the facade. **S2** the browser OAuth library: non-extractable IndexedDB keys, `signIn(did)`, query and fragment callbacks, OAuth against an http devnet PDS. **S3/S10** wasm size with and without math-core and k256/p256, and Temml fallback cost. **S4** the digit NSID through goat, `@atproto/lexicon`, the Jetstream wildcard, relay `listReposByCollection` and Constellation `source=`; `validate`-unset writes containing a union of record types plus nested blob refs, and blobs referenced only by a revision surviving GC. **S5** devnet in GitHub Actions. **S6** Jetstream wildcard plus rkey-prefix filtering. **S7** `listRecords` cursor-range behaviour on bsky.social and on non-reference PDSes. **S8** detecting `include:` failure at PAR. **S9** PDS read limits per host vs shared (cold sync of 200 real repos), and PLC throughput at 20 requests/s. **S11** Safari/iOS IndexedDB eviction and session persistence. **S12** `createRecord`-with-rkey create-if-absent, and `putRecord swapRecord` semantics. | Every spike has an ADR. `cargo xtask ci` is green. The devnet boots 3 accounts in under 30 s. Spec reviewed and frozen for `.temp`. |
-| **M1: Protocol foundations** | atp (complete); lexicon types and validator; key derivation; identity (DoH, PLC, did:web, Slingshot hint); XRPC subset; NativeHost (reqwest + SSRF guard, SqliteKv, WebSocket, keyring); auth (app password, OAuth loopback, hosted, no-browser, refresh lock); `TermText`; CLI `login`, `logout`, `whoami`, `accounts`, `resolve`, `verify`, `doctor`. | Interop vectors pass. `lessdugin verify at://<real bsky post>` reports proven with the key source, and tampered fixtures fail. Login works on bsky.social and the devnet with **one** consent screen. Parallel CLI processes never break a refresh. |
-| **M2: Walking skeleton** (text, all three clients) | KvStore for SQLite, IndexedDB and memory; L1 forum-range sync with fallback; outbox (`applyWrites` + `swapCommit` retry, membership beacon); forum create, join, post, comment, edit with revision, delete, retract; threads; basic LFM (no math or media); CLI `read` (anonymous), `ls`, `post`, `comment`, `edit`, `delete`, `sync`, `join`, `forum *`; TUI read and reply via `$EDITOR`; wasm worker, JsHost, AuthBridge, leader election; SPA anonymous read, login and comment; `lessdugin web` with bridge auth. | Devnet parity scenario (text subset) is byte-identical across CLI, SPA and TUI. A production smoke test on `.temp` succeeds. A 50-member FakePds forum cold-syncs natively in under 5 s. Wasm size reported in CI. No CSP or Trusted Types violations. |
+| **M1: Protocol foundations** | atp (complete); lexicon types and validator; key derivation; identity (DoH, PLC, did:web, Slingshot hint); XRPC subset; NativeHost (reqwest + SSRF guard, SqliteKv, WebSocket, keyring); auth (app password, OAuth loopback, hosted, no-browser, refresh lock); `TermText`; CLI `login`, `logout`, `whoami`, `accounts`, `resolve`, `verify`, `doctor`. | Interop vectors pass. `pandoras-forum verify at://<real bsky post>` reports proven with the key source, and tampered fixtures fail. Login works on bsky.social and the devnet with **one** consent screen. Parallel CLI processes never break a refresh. |
+| **M2: Walking skeleton** (text, all three clients) | KvStore for SQLite, IndexedDB and memory; L1 forum-range sync with fallback; outbox (`applyWrites` + `swapCommit` retry, membership beacon); forum create, join, post, comment, edit with revision, delete, retract; threads; basic LFM (no math or media); CLI `read` (anonymous), `ls`, `post`, `comment`, `edit`, `delete`, `sync`, `join`, `forum *`; TUI read and reply via `$EDITOR`; wasm worker, JsHost, AuthBridge, leader election; SPA anonymous read, login and comment; `pandoras-forum web` with bridge auth. | Devnet parity scenario (text subset) is byte-identical across CLI, SPA and TUI. A production smoke test on `.temp` succeeds. A 50-member FakePds forum cold-syncs natively in under 5 s. Wasm size reported in CI. No CSP or Trusted Types violations. |
 | **M3: Social core** | Opinion records with undo window and merge; `karma/1`; scores and agreement; `magic/1` sorts; Recent Discussion; `mod/1` fold including author tier, CID-bound positives, ban, lock, fail closed; approval and open modes, closure, newcomer collapse; mod queue, log and adopt; grants UI; notifications and unread; votes-public interstitial; "not counted yet" UI; reacts with gates, against-reacts and anchors listed. Engine API v0 frozen. | All social vectors and property tests pass. With the mod's PDS offline, no hidden spam reappears. Every MVP action is reachable in all three clients (`:` command line in the TUI). Parity diffs are clean. |
 | **M4: Rich content and media** | Full LFM/1 (math, footnotes and sidenotes, ToC, alerts, spoilers, details, captions, hover previews, verified mentions); media pipeline (strip, orient, downscale, CID, verbatim refs); display and autoload policy; attachments; history view and redaction; SPA editor (toolbar, paste/drop, preview, mention autocomplete); TUI images; `export`. | ≥ 150 LFM vectors, plus the XSS, mXSS and escape corpora. DOMPurify and ammonia leave output unchanged. A 10-minute fuzz run without panics. EXIF, GPS and MP4 `udta` removed with orientation preserved. Auto-downscale stays under 5 MiB. |
-| **M5: Organisation, discovery, production** | Tags (relevance, wiki DAG, mod tag actions); sequences (library, next/prev, continue reading); local search; forum directory; live Jetstream; open-mode discovery (Constellation, Jetstream, relay); `include:` scope with PAR-time fallback; hosted SPA (client metadata, CSP, Trusted Types, Pages); mobile layout; `--verify proof` background checks. | Open-mode devnet scenario passes with mini-Jetstream and fake Constellation. Login on bsky.social works through CLI loopback, CLI hosted-native, the hosted SPA and `lessdugin web`, each with one consent screen. A cached forum renders in under 1.5 s. Axe and Lighthouse accessibility ≥ 90. |
+| **M5: Organisation, discovery, production** | Tags (relevance, wiki DAG, mod tag actions); sequences (library, next/prev, continue reading); local search; forum directory; live Jetstream; open-mode discovery (Constellation, Jetstream, relay); `include:` scope with PAR-time fallback; hosted SPA (client metadata, CSP, Trusted Types, Pages); mobile layout; `--verify proof` background checks. | Open-mode devnet scenario passes with mini-Jetstream and fake Constellation. Login on bsky.social works through CLI loopback, CLI hosted-native, the hosted SPA and `pandoras-forum web`, each with one consent screen. A cached forum renders in under 1.5 s. Axe and Lighthouse accessibility ≥ 90. |
 | **M6: Optional indexer** | Ingest, backfill and poll mode; every §2.9 method including `getRecordProofs`; client integration (assisted mode, cold start, proof fetches on Jetstream events, audit, demotion); Docker image; operator docs. | Devnet: consistent within 5 s of a write; restart resumes with no gaps. Clients produce identical views with and without the indexer. The SPA cold-paints a 2k-participant synthetic forum in under 2 s with the indexer. `--audit` flags an injected omission and a forged proof. `listPosts` p95 under 50 ms at 200 requests/s on 1M records. |
-| **M7: Release 0.1** | Security review pass (threat model, fuzzing, corpora); switch `NS` from `.temp` to the release prefix; publish lexicons and permission sets; DNS TXT records; publisher account hardening; release pipeline; user guide, spec, indexer self-hosting guide, Level-0 conformance doc (read posts, comments and mod hides). | `goat lex check-dns` passes. `include:` works on bsky.social. On a fresh machine: install from a release, log in, post, and the post appears on the hosted SPA and in `lessdugin web` with matching hashes. |
+| **M7: Release 0.1** | Security review pass (threat model, fuzzing, corpora); switch `NS` from `.temp` to the release prefix; publish lexicons and permission sets; DNS TXT records; publisher account hardening; release pipeline; user guide, spec, indexer self-hosting guide, Level-0 conformance doc (read posts, comments and mod hides). | `goat lex check-dns` passes. `include:` works on bsky.social. On a fresh machine: install from a release, log in, post, and the post appears on the hosted SPA and in `pandoras-forum web` with matching hashes. |
 
 **Deferred (P2 and later, in rough order)**
 - **P2:** Q&A answers and accepted answers; quick-take feed; co-authors (+`karma/2`); side-comment and inline-react margin UI; author moderation styles and guidelines; rate limits (`ratelimit/1`); reports (sealed or service); bulk mod actions (`#banList`, `#raid`, `#banHost`) and `#access.keep`; public bookmarks; standard.site syndication; thumbnails; labelers; "what's public about me" view; `sensitive` forum flag; fork-evidence actions; `topAdjusted`; personalised magic and tag-filter weights.
@@ -1548,7 +1548,7 @@ Milestones are vertical slices. M3 freezes engine API v0. After that, M4, M5 and
 | Abuse and legal exposure for indexer operators (CSAM, takedowns) | No blob storage, blocklist, documented contact, honour takedowns from upstream |
 | Safari storage eviction (S11) | PWA install, `persist()`, draft download, re-login prompt |
 | PLC throughput for cold starts | Pacing, caching, Slingshot hints (badged), indexer |
-| Single-maintainer domain or publisher compromise | Hardening, offline rotation key, reproducible builds, `lessdugin web` |
+| Single-maintainer domain or publisher compromise | Hardening, offline rotation key, reproducible builds, `pandoras-forum web` |
 
 ---
 
@@ -1659,8 +1659,8 @@ Milestones are vertical slices. M3 freezes engine API v0. After that, M4, M5 and
 ---
 
 ### Critical Files for Implementation
-- /home/user/lessdugin/docs/spec/data-model.md: the normative lexicons, rkey grammar, write and read rules, and decision log from §§2, 3.5 and 10.
-- /home/user/lessdugin/lexicons/online/7778777/lessdugin/: one JSON file per NSID with final limits, plus `authFull.json`, `authInteract.json` and `index/`. The highest-stakes files are `opinion.json`, `modAction.json`, `forum.json`, `comment.json` and `post.json`.
-- /home/user/lessdugin/crates/core/src/ids.rs (with /home/user/lessdugin/crates/lexicon/src/keys.rs): `fk/1` and `sk/1` derivation, key grammars, canonical at-uris and the time helpers, together with `testdata/vectors/keys`.
-- /home/user/lessdugin/crates/core/src/social/fold.rs: the layered fold (`mod/1`, `karma/1`, scores, visibility, `magic/1`), `inputDigest`, and the property-tested invariants.
-- /home/user/lessdugin/crates/core/src/host.rs (with /home/user/lessdugin/packages/engine/src/worker.ts): the `Host`/`KvStore` contract and the wasm JsHost, AuthBridge and leader bridge, which the M2 walking skeleton has to prove.
+- /home/user/pandoras-forum/docs/spec/data-model.md: the normative lexicons, rkey grammar, write and read rules, and decision log from §§2, 3.5 and 10.
+- /home/user/pandoras-forum/lexicons/forum/pandoras/: one JSON file per NSID with final limits, plus `authFull.json`, `authInteract.json` and `index/`. The highest-stakes files are `opinion.json`, `modAction.json`, `forum.json`, `comment.json` and `post.json`.
+- /home/user/pandoras-forum/crates/core/src/ids.rs (with /home/user/pandoras-forum/crates/lexicon/src/keys.rs): `fk/1` and `sk/1` derivation, key grammars, canonical at-uris and the time helpers, together with `testdata/vectors/keys`.
+- /home/user/pandoras-forum/crates/core/src/social/fold.rs: the layered fold (`mod/1`, `karma/1`, scores, visibility, `magic/1`), `inputDigest`, and the property-tested invariants.
+- /home/user/pandoras-forum/crates/core/src/host.rs (with /home/user/pandoras-forum/packages/engine/src/worker.ts): the `Host`/`KvStore` contract and the wasm JsHost, AuthBridge and leader bridge, which the M2 walking skeleton has to prove.

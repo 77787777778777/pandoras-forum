@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { ForumView } from "@lessdugin/engine/types";
+import type { ForumView } from "@pandoras-forum/engine/types";
 import { createContext, use } from "react";
 import { parseAtUri } from "../../lib/uri.ts";
 

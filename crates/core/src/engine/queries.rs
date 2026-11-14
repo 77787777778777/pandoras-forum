@@ -12,9 +12,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::collection::nsid;
 use serde_json::Value;
 
 use crate::dto::{
@@ -432,7 +432,7 @@ impl<H: Host> Engine<H> {
     /// every viewer, like `raw`.
     pub async fn body_source(&self, uri: &str) -> Result<BodySource, EngineError> {
         use crate::model::render::{Spilled, text_blob_cid};
-        use lessdugin_markdown::BodyError;
+        use pandoras_forum_markdown::BodyError;
         let u = parse_uri(uri)?;
         let coll = u.collection().as_str();
         // (forum, author, the body's record CID, the body's `md` value): all from one model.

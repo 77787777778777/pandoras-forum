@@ -12,12 +12,12 @@ mod common;
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
 use common::{add_unknown_fields, nsid, sample_def, sample_record};
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::records::*;
-use lessdugin_lexicon::schemas::{Def, TypeDef, registry};
-use lessdugin_lexicon::validate::validate_record;
-use lessdugin_lexicon::values::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::records::*;
+use pandoras_forum_lexicon::schemas::{Def, TypeDef, registry};
+use pandoras_forum_lexicon::validate::validate_record;
+use pandoras_forum_lexicon::values::{
     AccessLevel, Agreement, Capability, MembershipMode, PinScope, Stance, Tier, VoteValue,
 };
 use serde::Serialize;
@@ -114,7 +114,7 @@ fn every_object_definition_has_a_struct() {
     let reg = registry();
     let mut want: Vec<String> = Vec::new();
     for d in reg.docs() {
-        let ours = d.id.starts_with(lessdugin_lexicon::ns::NS) && !d.id.contains(".index.");
+        let ours = d.id.starts_with(pandoras_forum_lexicon::ns::NS) && !d.id.contains(".index.");
         for (name, def) in &d.defs {
             let r = format!("{}#{name}", d.id);
             let modelled_external = r == "com.atproto.repo.strongRef#main"
@@ -218,30 +218,29 @@ fn unknown_union_members_survive() {
     assert_eq!(serde_json::to_value(&p).unwrap(), v);
 
     // a member of the other namespace prefix is unknown too (§1.3)
-    let other = if lessdugin_lexicon::ns::NS == lessdugin_lexicon::ns::NS_TEMP {
-        "online.7778777.lessdugin.markdown"
+    let other = if pandoras_forum_lexicon::ns::NS == pandoras_forum_lexicon::ns::NS_TEMP {
+        "forum.pandoras.markdown"
     } else {
-        "online.7778777.lessdugin.temp.markdown"
+        "forum.pandoras.temp.markdown"
     };
     v["body"] = json!({"$type": other, "text": "hi"});
     let p: Post = serde_json::from_value(v.clone()).unwrap();
     assert!(matches!(p.body, Some(OpenUnion::Unknown(_))));
     // `nsid#main` names the main def too
     v["body"] =
-        json!({"$type": format!("{}#main", lessdugin_lexicon::nsid::MARKDOWN), "text": "hi"});
+        json!({"$type": format!("{}#main", pandoras_forum_lexicon::nsid::MARKDOWN), "text": "hi"});
     let p: Post = serde_json::from_value(v.clone()).unwrap();
     assert!(matches!(p.body, Some(OpenUnion::Known(_))));
     assert_eq!(serde_json::to_value(&p).unwrap(), v);
 
     let mut m = sample_record(Collection::ModAction.nsid());
-    m["action"] =
-        json!({"$type": format!("{}#feature", lessdugin_lexicon::nsid::MOD_ACTION), "until": 3});
+    m["action"] = json!({"$type": format!("{}#feature", pandoras_forum_lexicon::nsid::MOD_ACTION), "until": 3});
     let ma: ModAction = serde_json::from_value(m.clone()).unwrap();
     assert!(matches!(ma.action, Action::Unknown(_)));
     assert_eq!(ma.action.kind(), None);
     assert_eq!(
         ma.action.action_key(),
-        format!("{}#feature", lessdugin_lexicon::nsid::MOD_ACTION)
+        format!("{}#feature", pandoras_forum_lexicon::nsid::MOD_ACTION)
     );
     assert_eq!(serde_json::to_value(&ma).unwrap(), m);
 }
@@ -274,7 +273,7 @@ fn integers_are_data_model_integers() {
 
 #[test]
 fn actions_dispatch_and_keys() {
-    let ns = lessdugin_lexicon::ns::NS;
+    let ns = pandoras_forum_lexicon::ns::NS;
     let cases = [
         (Action::Hide(HideAction::hide()), "hide"),
         (
@@ -298,7 +297,7 @@ fn actions_dispatch_and_keys() {
         assert_eq!(back, a);
         assert_eq!(a.action_key(), key);
         assert_eq!(
-            lessdugin_lexicon::keys::action_key(ns, v.as_object().unwrap()).unwrap(),
+            pandoras_forum_lexicon::keys::action_key(ns, v.as_object().unwrap()).unwrap(),
             key
         );
     }
@@ -342,8 +341,8 @@ fn forum_create_presets() {
         json!({"reactSecond": 5, "reactCreate": 10, "reactAnti": 20, "authorModPersonal": 50,
                "authorModFrontpage": 2000, "createTag": 10, "wikiEdit": 5, "sequence": 1000})
     );
-    assert!(validate_record(lessdugin_lexicon::nsid::FORUM, &v).is_valid());
-    assert!(validate_record(lessdugin_lexicon::nsid::FORUM, &o).is_valid());
+    assert!(validate_record(pandoras_forum_lexicon::nsid::FORUM, &v).is_valid());
+    assert!(validate_record(pandoras_forum_lexicon::nsid::FORUM, &o).is_valid());
     assert_eq!(f.membership_mode().value, MembershipMode::Approval);
 }
 
@@ -430,12 +429,12 @@ fn qkey_matches_the_lfm1_vectors() {
 
 #[test]
 fn opinion_apply_is_deterministic() {
-    let ns = lessdugin_lexicon::ns::NS;
+    let ns = pandoras_forum_lexicon::ns::NS;
     let forum = uri(&format!(
         "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.forum/rationality"
     ));
     let subject = uri(&format!(
-        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.post/uetjixxr3a33-3l2s5xxv2ze2c"
+        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.post/nkglkm5wsp3d-3l2s5xxv2ze2c"
     ));
     let t0 = dt("2026-10-16T12:00:00.000Z");
     let t1 = dt("2026-10-16T12:05:00.000Z");
@@ -585,12 +584,12 @@ fn opinion_apply_is_deterministic() {
 
 #[test]
 fn opinion_apply_drops_duplicate_keys() {
-    let ns = lessdugin_lexicon::ns::NS;
+    let ns = pandoras_forum_lexicon::ns::NS;
     let forum = uri(&format!(
         "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.forum/f"
     ));
     let subject = uri(&format!(
-        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.post/uetjixxr3a33-3l2s5xxv2ze2c"
+        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.post/nkglkm5wsp3d-3l2s5xxv2ze2c"
     ));
     let t = dt("2026-10-16T12:00:00.000Z");
     let mut stored = Opinion::new(
@@ -629,7 +628,7 @@ fn opinion_apply_drops_duplicate_keys() {
 
 #[test]
 fn constructors_write_type_and_defaults() {
-    let ns = lessdugin_lexicon::ns::NS;
+    let ns = pandoras_forum_lexicon::ns::NS;
     let forum = uri(&format!(
         "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.forum/f"
     ));
@@ -662,12 +661,12 @@ fn constructors_write_type_and_defaults() {
 fn opinion_dedupe_scales() {
     // a fetched (possibly invalid) opinion with 100,000 reacts and tags, half of them repeats:
     // `apply` keeps the first occurrence of each key, in order, in O(n log n) (not quadratic)
-    let ns = lessdugin_lexicon::ns::NS;
+    let ns = pandoras_forum_lexicon::ns::NS;
     let forum = uri(&format!(
         "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.forum/rationality"
     ));
     let subject = uri(&format!(
-        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.post/uetjixxr3a33-3l2s5xxv2ze2c"
+        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{ns}.post/nkglkm5wsp3d-3l2s5xxv2ze2c"
     ));
     let t0 = dt("2026-10-16T12:00:00.000Z");
     let mut current = Opinion::apply(None, &subject, &forum, "bafyreia", &[], &t0);

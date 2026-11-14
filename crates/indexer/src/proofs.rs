@@ -10,14 +10,14 @@ use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
 
 use anyhow::{Context, anyhow};
-use lessdugin_atp::car::{CarLimits, read_car, write_car};
-use lessdugin_atp::cid;
-use lessdugin_atp::proof::{ProofBundle, ProofCaps, verify_proof};
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_atp::xrpc::SyncGetRecord;
-use lessdugin_atp::{Cid, Ipld};
-use lessdugin_core::limits;
-use lessdugin_core::xrpc::{CallOpts, Service};
+use pandoras_forum_atp::car::{CarLimits, read_car, write_car};
+use pandoras_forum_atp::cid;
+use pandoras_forum_atp::proof::{ProofBundle, ProofCaps, verify_proof};
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_atp::xrpc::SyncGetRecord;
+use pandoras_forum_atp::{Cid, Ipld};
+use pandoras_forum_core::limits;
+use pandoras_forum_core::xrpc::{CallOpts, Service};
 
 use crate::Indexer;
 use crate::store::ProofRow;
@@ -187,7 +187,7 @@ pub async fn bundle(indexer: &Indexer, uris: &[String]) -> anyhow::Result<Vec<u8
     let mut manifest = BTreeMap::new();
     manifest.insert("v".into(), Ipld::Integer(1));
     manifest.insert("items".into(), Ipld::List(items));
-    let manifest = lessdugin_atp::dagcbor::encode(&Ipld::Map(manifest))?;
+    let manifest = pandoras_forum_atp::dagcbor::encode(&Ipld::Map(manifest))?;
     let root = cid::for_dag_cbor(&manifest);
     let total = blocks.len() + 1;
     if total > CarLimits::BUNDLE.max_blocks {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Creating a sequence in the forum (engine-api.md §3.5 `seq_create`).
 
-import type { SequenceDraft } from "@lessdugin/engine/types";
+import type { SequenceDraft } from "@pandoras-forum/engine/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { SequenceFormView } from "../../components/SequenceForm.tsx";

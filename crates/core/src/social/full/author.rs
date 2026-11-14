@@ -26,8 +26,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::values::{AccessLevel, ActionKind, Tier};
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::values::{AccessLevel, ActionKind, Tier};
 
 use crate::social::full::cx::Cx;
 use crate::social::full::karma::Karma;

@@ -1,5 +1,5 @@
 [package]
-name = "lessdugin-markdown"
+name = "pandoras-forum-markdown"
 description = "LFM/1 markdown: one renderer for HTML+MathML, terminal styled text and plain-text projection"
 version.workspace = true
 edition.workspace = true
@@ -16,7 +16,7 @@ math = ["dep:math-core"]
 ammonia = ["dep:ammonia"]
 
 [dependencies]
-lessdugin-atp.workspace = true
+pandoras-forum-atp.workspace = true
 pulldown-cmark.workspace = true
 math-core = { workspace = true, optional = true }
 ammonia = { workspace = true, optional = true }

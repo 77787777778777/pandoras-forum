@@ -7,9 +7,9 @@
 //! (deserialization validates). Parsing never panics and never allocates more than the input.
 //!
 //! Rules follow the atproto specs (`/specs/did`, `/specs/handle`, `/specs/nsid`,
-//! `/specs/record-key`, `/specs/at-uri-scheme`, `/specs/lexicon` datetime); lessdugin-specific
+//! `/specs/record-key`, `/specs/at-uri-scheme`, `/specs/lexicon` datetime); pandoras-forum-specific
 //! policy (only `did:plc` and host-only `did:web`) is exposed separately via
-//! [`Did::check_lessdugin_policy`] and [`AtUri::check_lessdugin_canonical`].
+//! [`Did::check_pandoras_forum_policy`] and [`AtUri::check_pandoras_forum_canonical`].
 
 mod aturi;
 mod datetime;
@@ -165,7 +165,7 @@ mod tests {
         assert!(serde_json::from_str::<Did>("\"nope\"").is_err());
         let h: Handle = serde_json::from_str("\"Alice.Example.COM\"").unwrap();
         assert_eq!(h.as_str(), "alice.example.com");
-        let n: Nsid = serde_json::from_str("\"online.7778777.lessdugin.post\"").unwrap();
+        let n: Nsid = serde_json::from_str("\"forum.pandoras.post\"").unwrap();
         assert_eq!(n.name(), "post");
         let k: RecordKey = serde_json::from_str("\"self\"").unwrap();
         assert_eq!(k, "self");

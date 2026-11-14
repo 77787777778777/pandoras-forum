@@ -12,7 +12,7 @@ import {
   type PostTag,
   type TagVoteValue,
   type ViewerCaps,
-} from "@lessdugin/engine/types";
+} from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useId, useRef, useState } from "react";

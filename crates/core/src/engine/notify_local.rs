@@ -223,7 +223,7 @@ impl<H: Host> Engine<H> {
         rows.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
         let mut out = Vec::with_capacity(rows.len());
         for (uri, at) in rows {
-            let post = if uri.contains(lessdugin_lexicon::collection::nsid::POST) {
+            let post = if uri.contains(pandoras_forum_lexicon::collection::nsid::POST) {
                 self.get_post(&uri).await.ok().map(|p| p.post)
             } else {
                 None
@@ -255,7 +255,7 @@ impl<H: Host> Engine<H> {
     /// `social.md` §10.3). Emits `Changed` for the user and every cached forum.
     pub async fn mute(&self, actor: &str, on: bool) -> Result<(), EngineError> {
         let did = if actor.starts_with("did:") {
-            lessdugin_atp::syntax::Did::parse(actor)
+            pandoras_forum_atp::syntax::Did::parse(actor)
                 .map_err(|e| EngineError::invalid_ref(format!("{actor:?}: {e}")))?
                 .to_string()
         } else {

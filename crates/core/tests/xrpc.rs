@@ -4,11 +4,11 @@
 mod common;
 
 use common::*;
-use lessdugin_atp::syntax::{AtIdentifier, Did, Nsid, RecordKey};
-use lessdugin_atp::xrpc::{CommitMeta, GetLatestCommit, GetRecord};
-use lessdugin_core::host::{HostError, Redirects, Target};
-use lessdugin_core::xrpc::{CallOpts, RetryPolicy, Service, Xrpc, XrpcCallError};
-use lessdugin_testkit::{MemHost, resp};
+use pandoras_forum_atp::syntax::{AtIdentifier, Did, Nsid, RecordKey};
+use pandoras_forum_atp::xrpc::{CommitMeta, GetLatestCommit, GetRecord};
+use pandoras_forum_core::host::{HostError, Redirects, Target};
+use pandoras_forum_core::xrpc::{CallOpts, RetryPolicy, Service, Xrpc, XrpcCallError};
+use pandoras_forum_testkit::{MemHost, resp};
 use serde_json::{Value, json};
 
 const BASE: &str = "https://pds.example.com";

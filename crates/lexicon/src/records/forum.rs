@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! `forum` (§6.1) and `membership` (§6.2).
 
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Commit decoding and verification (`lessdugin_atp::commit`, `sync.md` §8.4) on raw commit
+//! Commit decoding and verification (`pandoras_forum_atp::commit`, `sync.md` §8.4) on raw commit
 //! blocks.
 //!
 //! Contract: never panics. Beyond that, the unsigned bytes [`Commit::decode`] reconstructs are
@@ -9,12 +9,12 @@
 
 #![no_main]
 
-use lessdugin_atp::commit::{Commit, CommitError, VERSION};
-use lessdugin_atp::dagcbor::validate_with;
-use lessdugin_atp::datamodel::Limits;
-use lessdugin_atp::syntax::Did;
-use lessdugin_fuzz::common::NOW;
-use lessdugin_fuzz::{FUZZ_DID, FUZZ_KEY, LIVE, sign};
+use pandoras_forum_atp::commit::{Commit, CommitError, VERSION};
+use pandoras_forum_atp::dagcbor::validate_with;
+use pandoras_forum_atp::datamodel::Limits;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_fuzz::common::NOW;
+use pandoras_forum_fuzz::{FUZZ_DID, FUZZ_KEY, LIVE, sign};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

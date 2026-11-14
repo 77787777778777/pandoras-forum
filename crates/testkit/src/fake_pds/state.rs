@@ -6,8 +6,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use k256::ecdsa::SigningKey;
-use lessdugin_atp::Cid;
-use lessdugin_atp::syntax::{Did, Tid};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::syntax::{Did, Tid};
 use serde_json::Value;
 
 use super::faults::{ActiveFault, CursorMode, ForkSelector, RateState};
@@ -245,7 +245,7 @@ impl NetState {
     /// A deterministic opaque token.
     pub fn token(&mut self, kind: &str) -> String {
         let n = self.next();
-        let digest = lessdugin_atp::cid::sha256(format!("fake-pds-{kind}:{n}").as_bytes());
+        let digest = pandoras_forum_atp::cid::sha256(format!("fake-pds-{kind}:{n}").as_bytes());
         data_encoding::BASE32_NOPAD
             .encode(&digest[..15])
             .to_ascii_lowercase()

@@ -4,22 +4,22 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, Sources};
-use lessdugin_core::host::{
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, Sources};
+use pandoras_forum_core::host::{
     BlobHandle, Dir, Host, HostError, HttpRequest, HttpResponse, KeyRange, KvOp, KvStore,
     WebSocket, WsMessage,
 };
-use lessdugin_core::live::source::{Cursor, Subscription};
-use lessdugin_core::live::wire::{self, Wire};
-use lessdugin_core::live::{
+use pandoras_forum_core::live::source::{Cursor, Subscription};
+use pandoras_forum_core::live::wire::{self, Wire};
+use pandoras_forum_core::live::{
     Action, Context, EventFilter, FilterMode, Gap, LiveConfig, LiveSource, Operation, SourceStatus,
 };
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_core::store::schema;
-use lessdugin_core::sync::queue::Action as QueueAction;
-use lessdugin_core::sync::{DirtyItem, DirtyQueue, Priority, Reason};
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_core::store::schema;
+use pandoras_forum_core::sync::queue::Action as QueueAction;
+use pandoras_forum_core::sync::{DirtyItem, DirtyQueue, Priority, Reason};
+use pandoras_forum_testkit::{FakeNet, MemHost};
 use serde_json::json;
 
 const DID: &str = "did:plc:known";
@@ -246,7 +246,7 @@ impl WebSocket for BrowserLikeWs {
     fn next(
         &mut self,
     ) -> impl std::future::Future<Output = Option<Result<WsMessage, HostError>>>
-    + lessdugin_core::host::MaybeSend {
+    + pandoras_forum_core::host::MaybeSend {
         let (tx, rx) = futures::channel::oneshot::channel();
         {
             let mut st = self.feed.state.lock().unwrap();
@@ -407,14 +407,14 @@ fn v1_commit(did: &str, collection: &str, rkey: &str) -> String {
 }
 
 fn post() -> String {
-    lessdugin_lexicon::collection::nsid::POST.to_owned()
+    pandoras_forum_lexicon::collection::nsid::POST.to_owned()
 }
 
 fn membership() -> String {
-    lessdugin_lexicon::collection::nsid::MEMBERSHIP.to_owned()
+    pandoras_forum_lexicon::collection::nsid::MEMBERSHIP.to_owned()
 }
 
-fn point(output: &lessdugin_core::live::FilterOutput) -> (String, Option<String>, i64) {
+fn point(output: &pandoras_forum_core::live::FilterOutput) -> (String, Option<String>, i64) {
     match &output.actions[..] {
         [
             Action::PointFetch {
@@ -632,7 +632,7 @@ fn info_actions_restart_cursor() {
 #[test]
 fn subscription_modes_and_private_participant_filters() {
     let base = url::Url::parse("wss://jetstream.example/subscribe").unwrap();
-    let ns = lessdugin_lexicon::ns::NS;
+    let ns = pandoras_forum_lexicon::ns::NS;
     let dids = |n| {
         (0..n)
             .map(|i| format!("did:plc:user{i}"))
@@ -683,7 +683,7 @@ fn cursor_resume_inclusive_or_rewound() {
     let base = url::Url::parse("wss://one/subscribe").unwrap();
     let same = Subscription::plan(
         &base,
-        lessdugin_lexicon::ns::NS,
+        pandoras_forum_lexicon::ns::NS,
         false,
         false,
         &[],
@@ -699,7 +699,7 @@ fn cursor_resume_inclusive_or_rewound() {
     let other = url::Url::parse("wss://two/subscribe").unwrap();
     let moved = Subscription::plan(
         &other,
-        lessdugin_lexicon::ns::NS,
+        pandoras_forum_lexicon::ns::NS,
         false,
         false,
         &[],
@@ -1049,7 +1049,7 @@ fn account_status_failure_replays_before_advancing_cursor() {
         mem.script_websocket("wss://jetstream.example/", vec![WsMessage::Text(event)]);
         mem.park_sleeps(true);
         net.inject(
-            lessdugin_testkit::fake_pds::Fault::disconnect()
+            pandoras_forum_testkit::fake_pds::Fault::disconnect()
                 .on_repo(account.did().as_str())
                 .on_nsid("com.atproto.sync.getRepoStatus")
                 .once(),
@@ -1374,7 +1374,7 @@ fn a_frame_time_never_becomes_first_seen() {
         let day = 86_400_000;
         for shift in [-day, day] {
             let frame_us = (host.now() + shift) * 1_000;
-            let time = lessdugin_atp::syntax::Datetime::from_micros(frame_us)
+            let time = pandoras_forum_atp::syntax::Datetime::from_micros(frame_us)
                 .unwrap()
                 .to_string();
             host.script_websocket(
@@ -1614,7 +1614,7 @@ fn browser_filtered_mode_drives_a_membership_side_connection() {
         assert!(source.next(&cx).now_or_never().is_none());
         let urls = host.urls();
         assert_eq!(urls.len(), 2, "{urls:?}");
-        let ns = lessdugin_lexicon::ns::NS;
+        let ns = pandoras_forum_lexicon::ns::NS;
         let side_url = url::Url::parse(&urls[1]).unwrap();
         let pairs: Vec<(String, String)> = side_url.query_pairs().into_owned().collect();
         assert!(pairs.contains(&("collections".into(), format!("{ns}.membership"))));
@@ -1660,7 +1660,7 @@ fn browser_filtered_mode_drives_a_membership_side_connection() {
 async fn own_engine<H: Host>(
     host: H,
     net: &FakeNet,
-) -> (Engine<H>, lessdugin_testkit::fake_pds::AccountHandle) {
+) -> (Engine<H>, pandoras_forum_testkit::fake_pds::AccountHandle) {
     let account = net.add_account("alice.example.com");
     let engine = Engine::new(
         host,
@@ -1679,13 +1679,13 @@ async fn own_engine<H: Host>(
     (engine, account)
 }
 
-async fn stored_cursor<K: KvStore>(kv: &K) -> Option<lessdugin_core::store::blob::CursorRow> {
+async fn stored_cursor<K: KvStore>(kv: &K) -> Option<pandoras_forum_core::store::blob::CursorRow> {
     kv.get_many(vec![schema::cur_key("jetstream")])
         .await
         .unwrap()
         .pop()
         .flatten()
-        .map(|b| lessdugin_core::store::row::decode(&b).unwrap())
+        .map(|b| pandoras_forum_core::store::row::decode(&b).unwrap())
 }
 
 fn queued_uris<H: Host>(engine: &Engine<H>, did: &str) -> Vec<String> {
@@ -1758,7 +1758,7 @@ fn a_frame_that_keeps_failing_is_left_to_the_dirty_queue() {
         );
         // The participant's PDS keeps failing getRepoStatus.
         net.inject(
-            lessdugin_testkit::fake_pds::Fault::disconnect()
+            pandoras_forum_testkit::fake_pds::Fault::disconnect()
                 .on_repo(&did)
                 .on_nsid("com.atproto.sync.getRepoStatus"),
         );
@@ -1805,7 +1805,7 @@ fn a_deferred_reconcile_frame_still_reconciles() {
         engine
             .sync_forum(
                 key.uri.as_str(),
-                &lessdugin_core::discovery::SyncOpts::default(),
+                &pandoras_forum_core::discovery::SyncOpts::default(),
             )
             .await
             .unwrap();
@@ -1929,7 +1929,7 @@ const INDEX: &str = "https://index.example.com";
 fn index_endpoint(method: &str) -> String {
     format!(
         "{INDEX}/xrpc/{}",
-        lessdugin_core::indexer::contract::method_nsid(method)
+        pandoras_forum_core::indexer::contract::method_nsid(method)
     )
 }
 
@@ -1948,25 +1948,25 @@ fn index_meta(mut value: serde_json::Value, seq: i64) -> serde_json::Value {
 /// An open-mode forum of `owner`, declared an hour ago.
 fn open_forum(
     host: &MemHost,
-    owner: &lessdugin_testkit::fake_pds::AccountHandle,
-) -> lessdugin_core::discovery::ForumKey {
+    owner: &pandoras_forum_testkit::fake_pds::AccountHandle,
+) -> pandoras_forum_core::discovery::ForumKey {
     open_forum_slug(host, owner, "meta")
 }
 
 /// [`open_forum`] with the declaration rkey `slug`.
 fn open_forum_slug(
     host: &MemHost,
-    owner: &lessdugin_testkit::fake_pds::AccountHandle,
+    owner: &pandoras_forum_testkit::fake_pds::AccountHandle,
     slug: &str,
-) -> lessdugin_core::discovery::ForumKey {
-    use lessdugin_lexicon::collection::nsid;
-    use lessdugin_lexicon::records::{Forum, Membership};
-    let key = lessdugin_core::discovery::ForumKey::new(owner.did(), slug).unwrap();
-    let dt = lessdugin_atp::syntax::Datetime::from_millis(host.now() - 3_600_000).unwrap();
+) -> pandoras_forum_core::discovery::ForumKey {
+    use pandoras_forum_lexicon::collection::nsid;
+    use pandoras_forum_lexicon::records::{Forum, Membership};
+    let key = pandoras_forum_core::discovery::ForumKey::new(owner.did(), slug).unwrap();
+    let dt = pandoras_forum_atp::syntax::Datetime::from_millis(host.now() - 3_600_000).unwrap();
     let forum = Forum::create(
         slug,
         dt.clone(),
-        lessdugin_lexicon::values::MembershipMode::Open,
+        pandoras_forum_lexicon::values::MembershipMode::Open,
     );
     owner.put(nsid::FORUM, slug, &serde_json::to_value(forum).unwrap());
     let membership = Membership::new(key.uri.clone(), dt);
@@ -1987,7 +1987,7 @@ fn live_tail_polls_the_indexer_change_feed_from_its_head() {
         let key = open_forum(&host, &owner);
         host.respond_get(
             &index_endpoint("describeIndexer"),
-            lessdugin_testkit::resp::ok_json(&json!({
+            pandoras_forum_testkit::resp::ok_json(&json!({
                 "did": "did:web:index.example.com", "version": "1", "coreVersion": "test",
                 "policies": [], "features": ["getChanges"], "forums": [],
                 "asOf": {"seq": 500, "timeUs": TIME_US, "lagMs": 0},
@@ -1996,7 +1996,7 @@ fn live_tail_polls_the_indexer_change_feed_from_its_head() {
         );
         host.respond_get(
             &index_endpoint("getChanges"),
-            lessdugin_testkit::resp::ok_json(&index_meta(
+            pandoras_forum_testkit::resp::ok_json(&index_meta(
                 json!({"changes": [], "cursor": 500}),
                 500,
             )),
@@ -2004,7 +2004,7 @@ fn live_tail_polls_the_indexer_change_feed_from_its_head() {
         let engine = Engine::new(
             host.clone(),
             EngineConfig {
-                indexers: vec![lessdugin_core::engine::IndexerConsent {
+                indexers: vec![pandoras_forum_core::engine::IndexerConsent {
                     url: url::Url::parse(INDEX).unwrap(),
                 }],
                 jetstream: vec![url::Url::parse("wss://jetstream.example/subscribe").unwrap()],
@@ -2014,7 +2014,7 @@ fn live_tail_polls_the_indexer_change_feed_from_its_head() {
         engine
             .sync_forum(
                 key.uri.as_str(),
-                &lessdugin_core::discovery::SyncOpts::default(),
+                &pandoras_forum_core::discovery::SyncOpts::default(),
             )
             .await
             .unwrap();
@@ -2063,7 +2063,7 @@ fn live_tail_polls_the_indexer_change_feed_from_its_head() {
 #[test]
 fn rejected_and_unconfirmed_hints_are_not_synced_by_live_tail() {
     futures::executor::block_on(async {
-        use lessdugin_core::discovery::DiscRow;
+        use pandoras_forum_core::discovery::DiscRow;
         let host = MemHost::new();
         let net = FakeNet::on(&host);
         let owner = net.add_account("alice.example.com");
@@ -2072,7 +2072,7 @@ fn rejected_and_unconfirmed_hints_are_not_synced_by_live_tail() {
         engine
             .sync_forum(
                 key.uri.as_str(),
-                &lessdugin_core::discovery::SyncOpts::default(),
+                &pandoras_forum_core::discovery::SyncOpts::default(),
             )
             .await
             .unwrap();
@@ -2095,7 +2095,7 @@ fn rejected_and_unconfirmed_hints_are_not_synced_by_live_tail() {
                 (did, row)
             })
             .collect();
-        lessdugin_core::discovery::state::put_disc_rows(host.cache(), &key.fk, &rows)
+        pandoras_forum_core::discovery::state::put_disc_rows(host.cache(), &key.fk, &rows)
             .await
             .unwrap();
         host.clear_requests();
@@ -2124,7 +2124,7 @@ fn rejected_and_unconfirmed_hints_are_not_synced_by_live_tail() {
 fn serve_change_feed(host: &MemHost, changes: serde_json::Value, seq: i64) {
     host.respond_get(
         &index_endpoint("describeIndexer"),
-        lessdugin_testkit::resp::ok_json(&json!({
+        pandoras_forum_testkit::resp::ok_json(&json!({
             "did": "did:web:index.example.com", "version": "1", "coreVersion": "test",
             "policies": [], "features": ["getChanges"], "forums": [],
             "asOf": {"seq": seq, "timeUs": TIME_US, "lagMs": 0},
@@ -2133,7 +2133,7 @@ fn serve_change_feed(host: &MemHost, changes: serde_json::Value, seq: i64) {
     );
     host.respond_get(
         &index_endpoint("getChanges"),
-        lessdugin_testkit::resp::ok_json(&index_meta(
+        pandoras_forum_testkit::resp::ok_json(&index_meta(
             json!({"changes": changes, "cursor": seq}),
             seq,
         )),
@@ -2143,12 +2143,12 @@ fn serve_change_feed(host: &MemHost, changes: serde_json::Value, seq: i64) {
 /// An assisted engine with the indexer of [`serve_change_feed`] consented, following `keys`.
 async fn change_feed_engine(
     host: &MemHost,
-    keys: &[&lessdugin_core::discovery::ForumKey],
+    keys: &[&pandoras_forum_core::discovery::ForumKey],
 ) -> Engine<MemHost> {
     let engine = Engine::new(
         host.clone(),
         EngineConfig {
-            indexers: vec![lessdugin_core::engine::IndexerConsent {
+            indexers: vec![pandoras_forum_core::engine::IndexerConsent {
                 url: url::Url::parse(INDEX).unwrap(),
             }],
             jetstream: vec![url::Url::parse("wss://jetstream.example/subscribe").unwrap()],
@@ -2159,7 +2159,7 @@ async fn change_feed_engine(
         engine
             .sync_forum(
                 key.uri.as_str(),
-                &lessdugin_core::discovery::SyncOpts::default(),
+                &pandoras_forum_core::discovery::SyncOpts::default(),
             )
             .await
             .unwrap();
@@ -2261,8 +2261,8 @@ fn a_change_jetstream_handled_is_not_fetched_again() {
 #[test]
 fn a_change_feed_newcomer_is_handed_to_discovery_like_a_jetstream_candidate() {
     futures::executor::block_on(async {
-        use lessdugin_lexicon::collection::nsid;
-        use lessdugin_lexicon::records::Membership;
+        use pandoras_forum_lexicon::collection::nsid;
+        use pandoras_forum_lexicon::records::Membership;
         let host = MemHost::new();
         let net = FakeNet::on(&host);
         let owner = net.add_account("alice.example.com");
@@ -2271,7 +2271,7 @@ fn a_change_feed_newcomer_is_handed_to_discovery_like_a_jetstream_candidate() {
         let engine = change_feed_engine(&host, &[&key]).await;
         // A newcomer joins the open forum; only the indexer's change feed names it.
         let newbie = net.add_account("newbie.example.com");
-        let dt = lessdugin_atp::syntax::Datetime::from_millis(host.now()).unwrap();
+        let dt = pandoras_forum_atp::syntax::Datetime::from_millis(host.now()).unwrap();
         let cid = newbie.put(
             nsid::MEMBERSHIP,
             &key.fk,
@@ -2288,11 +2288,11 @@ fn a_change_feed_newcomer_is_handed_to_discovery_like_a_jetstream_candidate() {
         let tail = engine.live_tail();
         futures::pin_mut!(tail);
         let confirmed = || async {
-            lessdugin_core::discovery::state::disc_rows(host.cache(), &key.fk)
+            pandoras_forum_core::discovery::state::disc_rows(host.cache(), &key.fk)
                 .await
                 .unwrap()
                 .get(newbie.did().as_str())
-                .is_some_and(|r| r.state == lessdugin_core::discovery::DiscState::Confirmed)
+                .is_some_and(|r| r.state == pandoras_forum_core::discovery::DiscState::Confirmed)
         };
         for _ in 0..600 {
             assert!(futures::poll!(tail.as_mut()).is_pending());
@@ -2303,7 +2303,7 @@ fn a_change_feed_newcomer_is_handed_to_discovery_like_a_jetstream_candidate() {
         }
         // sync.md §6.6 and §15.4: a newcomer named by the feed is a candidate, confirmed by the
         // discovery pass a Jetstream candidate gets (§6.4), with its own source.
-        let rows = lessdugin_core::discovery::state::disc_rows(host.cache(), &key.fk)
+        let rows = pandoras_forum_core::discovery::state::disc_rows(host.cache(), &key.fk)
             .await
             .unwrap();
         let row = rows
@@ -2312,7 +2312,7 @@ fn a_change_feed_newcomer_is_handed_to_discovery_like_a_jetstream_candidate() {
         assert!(row.src.iter().any(|s| s == "hint:indexer"), "{row:?}");
         assert_eq!(
             row.state,
-            lessdugin_core::discovery::DiscState::Confirmed,
+            pandoras_forum_core::discovery::DiscState::Confirmed,
             "{row:?}"
         );
         engine.live_stop();

@@ -48,11 +48,11 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use futures::future::join_all;
-use lessdugin_atp::Cid;
-use lessdugin_atp::proof::{ProofCaps, verify_proof};
-use lessdugin_atp::syntax::{AtIdentifier, Did};
-use lessdugin_atp::xrpc::SyncGetRecord;
-use lessdugin_lexicon::records::Forum;
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::proof::{ProofCaps, verify_proof};
+use pandoras_forum_atp::syntax::{AtIdentifier, Did};
+use pandoras_forum_atp::xrpc::SyncGetRecord;
+use pandoras_forum_lexicon::records::Forum;
 
 use crate::discovery::forum_ref::{ForumKey, ForumRefError, parse_forum_ref};
 use crate::discovery::roster;

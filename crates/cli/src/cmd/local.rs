@@ -7,10 +7,12 @@
 //! shape; a `sources` that `config.toml` states is an explicit local pin (decision O-9): the
 //! stored setting is kept, and `config get` says which value is in effect and why.
 
-use lessdugin_core::dto::{BookmarkEntry, DTO_VERSION, Settings, Subscription, SubscriptionEntry};
-use lessdugin_core::engine::{Engine, EngineError};
-use lessdugin_core::host::Host;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::dto::{
+    BookmarkEntry, DTO_VERSION, Settings, Subscription, SubscriptionEntry,
+};
+use pandoras_forum_core::engine::{Engine, EngineError};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_native::host::NativeHost;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -46,7 +48,7 @@ struct SettingsView<'a> {
 // ---------------------------------------------------------------------------------------------
 // bookmarks
 
-/// `lessdugin bookmark [add|rm <ref>|ls]`.
+/// `pandoras-forum bookmark [add|rm <ref>|ls]`.
 pub async fn bookmark(ctx: &Ctx, args: BookmarkArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     match args.action.unwrap_or(BookmarkAction::Ls) {
@@ -183,7 +185,7 @@ fn describe(s: &Subscription) -> TermText {
     }
 }
 
-/// `lessdugin subscribe|unsubscribe post <ref>|forum [forum]|user <actor>|tag <slug>`.
+/// `pandoras-forum subscribe|unsubscribe post <ref>|forum [forum]|user <actor>|tag <slug>`.
 pub async fn subscribe(ctx: &Ctx, args: SubscribeArgs, on: bool) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let s = target(ctx, &engine, args.target).await?;
@@ -206,7 +208,7 @@ pub async fn subscribe(ctx: &Ctx, args: SubscribeArgs, on: bool) -> Result<(), C
     Ok(())
 }
 
-/// `lessdugin subs`.
+/// `pandoras-forum subs`.
 pub async fn subs(ctx: &Ctx) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let list = engine.subscriptions().await?;
@@ -346,7 +348,7 @@ async fn show(ctx: &Ctx, engine: &Engine<NativeHost>, key: Option<&str>) -> Resu
     Ok(())
 }
 
-/// `lessdugin config get [key] | set <key> [value]`.
+/// `pandoras-forum config get [key] | set <key> [value]`.
 pub async fn config(ctx: &Ctx, args: ConfigArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     match args.action {

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // A comment's labels name its author by display name AND verified handle or short DID, never by
 // the display name alone (threat-model ID-5, review finding sec-11).
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ActorView, CommentNode } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ActorView, CommentNode } from "@pandoras-forum/engine/types";
 import { screen, waitFor } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderWithApp } from "../test/render.tsx";

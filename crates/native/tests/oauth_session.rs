@@ -19,14 +19,14 @@ use axum::routing::{get, post};
 use base64::Engine as _;
 use jacquard_oauth::session::DpopReqData;
 use jacquard_oauth::types::OAuthAuthorizationServerMetadata;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{HostError, HttpRequest, Target};
-use lessdugin_native::auth::oauth::OAuthSession;
-use lessdugin_native::auth::redact::{Secret, SecretJson};
-use lessdugin_native::auth::store::{OAuthData, SESSION_VERSION};
-use lessdugin_native::auth::{SecretStore, StoredSession};
-use lessdugin_native::config::Paths;
-use lessdugin_native::host::{AuthSession, Net, NetPolicy};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{HostError, HttpRequest, Target};
+use pandoras_forum_native::auth::oauth::OAuthSession;
+use pandoras_forum_native::auth::redact::{Secret, SecretJson};
+use pandoras_forum_native::auth::store::{OAuthData, SESSION_VERSION};
+use pandoras_forum_native::auth::{SecretStore, StoredSession};
+use pandoras_forum_native::config::Paths;
+use pandoras_forum_native::host::{AuthSession, Net, NetPolicy};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use url::Url;
@@ -229,7 +229,7 @@ impl Fixture {
             dpop: SecretJson(serde_json::to_value(&dpop).unwrap()),
             dpop_host_nonce: None,
             created_ms: 1,
-            saved_ms: lessdugin_native::auth::store::next_saved_ms(0),
+            saved_ms: pandoras_forum_native::auth::store::next_saved_ms(0),
         };
         self.store
             .save(&StoredSession::Oauth(data.clone()))

@@ -4,7 +4,7 @@
 // Requests that arrive while a dialog is open queue up behind it (one dialog at a time, every
 // promise settles); once a kind is acknowledged, queued requests for it pass without asking.
 
-import type { PublicActionKind } from "@lessdugin/engine/types";
+import type { PublicActionKind } from "@pandoras-forum/engine/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { createContext, type ReactNode, use, useCallback, useRef, useState } from "react";
 import { useEngine } from "../engine/context.tsx";

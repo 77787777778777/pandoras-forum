@@ -8,7 +8,7 @@
 //!   `# `, with editor modelines neutralised ([`neutralise_modelines`]), and is followed by six
 //!   fixed lines, so it never sits in the last five lines (vim modelines).
 //! - **Files** are created with mode 0600 in a 0700 directory with `O_EXCL` and `O_NOFOLLOW`
-//!   ([`lessdugin_native::fsutil`]), read back and removed after the editor exits.
+//!   ([`pandoras_forum_native::fsutil`]), read back and removed after the editor exits.
 //! - **The editor** is the first of `$VISUAL`, `$EDITOR`, `editor`, `nano`, `vi` that starts
 //!   (`notepad` on Windows). `$VISUAL`/`$EDITOR` are split into words like a POSIX shell would,
 //!   without any expansion ([`split_words`]); the file path is a separate argument. No shell.
@@ -20,7 +20,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use crate::text::tt;
 
 /// The scissors line (as git writes it).
-pub use lessdugin_native::template::SCISSORS;
+pub use pandoras_forum_native::template::SCISSORS;
 
 /// The most lines of remote text a template quotes below the scissors line.
 const QUOTED_LINES: usize = 40;
@@ -110,19 +110,19 @@ impl EditorConfig {
     }
 
     fn create(&self, template: &str) -> Result<PathBuf, String> {
-        lessdugin_native::fsutil::ensure_private_dir(&self.dir)
+        pandoras_forum_native::fsutil::ensure_private_dir(&self.dir)
             .map_err(|e| format!("cannot create {}: {e}", self.dir.display()))?;
         static N: AtomicU64 = AtomicU64::new(0);
         // the directory is private (0700) and the file is created with O_EXCL, so a predictable
         // name is safe; a name in use is skipped
         for _ in 0..64 {
             let name = format!(
-                "lessdugin-{}-{}.md",
+                "pandoras-forum-{}-{}.md",
                 std::process::id(),
                 N.fetch_add(1, Ordering::Relaxed)
             );
             let path = self.dir.join(name);
-            match lessdugin_native::fsutil::create_new_private(&path) {
+            match pandoras_forum_native::fsutil::create_new_private(&path) {
                 Ok(mut f) => {
                     f.write_all(template.as_bytes())
                         .and_then(|()| f.sync_all())
@@ -236,7 +236,7 @@ pub fn split_words(s: &str) -> Option<Vec<String>> {
     Some(words)
 }
 
-pub use lessdugin_native::template::neutralise_modelines;
+pub use pandoras_forum_native::template::neutralise_modelines;
 
 /// One line of remote text for a template: sanitised, on one line, modelines neutralised.
 fn remote(s: &str) -> String {
@@ -296,7 +296,7 @@ pub fn comment_template(prefill: &str, context: &[String], quoted: Option<&str>)
         "An empty text cancels: nothing is sent.",
         "Save and close the editor to send it.",
         "It is queued and sent in the background.",
-        "lessdugin",
+        "pandoras-forum",
     ]));
     s
 }
@@ -313,7 +313,7 @@ pub fn post_template(prefill: &str, forum: &str) -> String {
         "An empty file cancels: nothing is published.",
         "Save and close the editor to publish.",
         "It is queued and sent in the background.",
-        "lessdugin",
+        "pandoras-forum",
     ]));
     s
 }
@@ -352,7 +352,7 @@ pub fn wiki_template(prefill: &str, slug: &str, name: &str, current: Option<&str
         "An empty text cancels: nothing is sent.",
         "Save and close the editor to queue a new immutable revision.",
         "The name and other structured fields come from the command.",
-        "lessdugin",
+        "pandoras-forum",
     ]));
     s
 }
@@ -376,7 +376,7 @@ pub fn edit_template(prefill: &str, context: &[String], post: bool) -> String {
         "An empty text cancels: nothing is changed.",
         "Save and close the editor to send the edit.",
         "The old version is kept as a revision.",
-        "lessdugin",
+        "pandoras-forum",
     ]));
     s
 }

@@ -3,7 +3,7 @@
 //!
 //! - [`AppPassword`] accepts only the shape `xxxx-xxxx-xxxx-xxxx`; anything else (a main
 //!   password) is refused before any network call. It is read from a no-echo prompt (the CLI),
-//!   stdin ([`AppPassword::from_reader`]) or `LESSDUGIN_APP_PASSWORD` ([`AppPassword::from_env`]),
+//!   stdin ([`AppPassword::from_reader`]) or `PANDORAS_FORUM_APP_PASSWORD` ([`AppPassword::from_env`]),
 //!   never from argv, and never persisted.
 //! - [`create_session`] sends it to the PDS of the account's DID document, without redirects.
 //! - [`AppPasswordSession`] is the [`AuthSession`] for the account: bearer tokens to the PDS bound
@@ -16,12 +16,12 @@ use std::path::PathBuf;
 
 use base64::Engine as _;
 use futures::future::BoxFuture;
-use lessdugin_atp::syntax::Did;
-use lessdugin_atp::xrpc::{CreateSession, Session};
-use lessdugin_core::engine::{EngineError, ErrorCode, is_app_password_shape};
-use lessdugin_core::host::{HostError, HttpRequest, HttpResponse};
-use lessdugin_core::limits;
-use lessdugin_core::xrpc::XrpcCallError;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_atp::xrpc::{CreateSession, Session};
+use pandoras_forum_core::engine::{EngineError, ErrorCode, is_app_password_shape};
+use pandoras_forum_core::host::{HostError, HttpRequest, HttpResponse};
+use pandoras_forum_core::limits;
+use pandoras_forum_core::xrpc::XrpcCallError;
 use tokio::sync::Mutex;
 use url::Url;
 
@@ -32,7 +32,7 @@ use crate::config::FileLock;
 use crate::host::{AuthSession, Net, NetRequest, user_pds_url};
 
 /// Environment variable holding an app password (AUTH-3).
-pub const APP_PASSWORD_ENV: &str = "LESSDUGIN_APP_PASSWORD";
+pub const APP_PASSWORD_ENV: &str = "PANDORAS_FORUM_APP_PASSWORD";
 
 /// A validated app password. `Debug` redacts it.
 #[derive(Clone, Debug)]
@@ -41,7 +41,7 @@ pub struct AppPassword(Secret);
 /// The refusal for anything that is not app-password shaped.
 pub fn not_an_app_password() -> EngineError {
     EngineError::invalid_input(
-        "that is not an app password: lessdugin accepts only app passwords \
+        "that is not an app password: Pandora's Forum accepts only app passwords \
          (xxxx-xxxx-xxxx-xxxx, created in your PDS's settings), never your main password",
     )
     .with_detail("kind", "notAnAppPassword")
@@ -65,7 +65,7 @@ impl AppPassword {
         }
     }
 
-    /// `LESSDUGIN_APP_PASSWORD`, if set and non-empty.
+    /// `PANDORAS_FORUM_APP_PASSWORD`, if set and non-empty.
     pub fn from_env() -> Option<Result<Self, EngineError>> {
         let v = std::env::var(APP_PASSWORD_ENV).ok()?;
         (!v.is_empty()).then(|| Self::new(v))

@@ -2,7 +2,7 @@
 // One row of a post list (ForumMagnum style): score, title with kind badge and flags, byline,
 // tier and tags, comment count with unread replies, and the fixed badge column.
 
-import type { PostSummary } from "@lessdugin/engine/types";
+import type { PostSummary } from "@pandoras-forum/engine/types";
 import { useId } from "react";
 import { useActiveAccount } from "../engine/queries.ts";
 import { cx } from "../lib/cx.ts";

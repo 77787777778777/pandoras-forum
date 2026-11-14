@@ -15,7 +15,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use futures::lock::{Mutex as AsyncMutex, OwnedMutexGuard};
 
-use lessdugin_atp::syntax::Did;
+use pandoras_forum_atp::syntax::Did;
 
 /// `Send` on native targets; no bound on wasm32.
 #[cfg(not(target_arch = "wasm32"))]
@@ -475,8 +475,8 @@ pub trait Host: MaybeSendSync + 'static {
     /// other tabs of the origin. It is released when the guard is dropped and when its holder
     /// dies (process exit, tab close), so it is never left stale. Implementations:
     /// - native: an exclusive `fd-lock` file (`<data dir>/locks/outbox-<h(did)>.lock`, §10.6);
-    /// - browser: the Web Lock `lessdugin-<name>` with the first `:` replaced by `-` (for
-    ///   example `lessdugin-outbox-<did>`, the DID unchanged), requested in exclusive mode
+    /// - browser: the Web Lock `pandoras-forum-<name>` with the first `:` replaced by `-` (for
+    ///   example `pandoras-forum-outbox-<did>`, the DID unchanged), requested in exclusive mode
     ///   (`ifAvailable` when `!wait`), held until the guard is dropped;
     /// - tests (`MemHost`): an in-process lock shared by clones of the host.
     ///

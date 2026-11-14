@@ -6,7 +6,7 @@
 // as social.md §13.2 "History view" says. Only the page's own revisions are steps (§13.2 `par`).
 // Record JSON is untrusted: every field is checked.
 
-import type { MediaRef, RawView } from "@lessdugin/engine/types";
+import type { MediaRef, RawView } from "@pandoras-forum/engine/types";
 import { sameCid } from "./cid.ts";
 import { isSpilledBody, markdownOf, mediaRefsOf, objectField, stringField } from "./records.ts";
 import { parseAtUri } from "./uri.ts";

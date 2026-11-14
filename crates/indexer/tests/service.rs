@@ -10,21 +10,21 @@ use std::time::Duration;
 use axum::body::Body;
 use axum::http::{Request, StatusCode, header};
 use axum::response::IntoResponse;
-use lessdugin_atp::proof::ProofBundle;
-use lessdugin_atp::syntax::Datetime;
-use lessdugin_core::discovery::{ForumKey, SyncOpts};
-use lessdugin_core::host::Host;
-use lessdugin_indexer::host::PoliteHost;
-use lessdugin_indexer::store::Store;
-use lessdugin_indexer::{Indexer, IndexerConfig, NS, ingest, proofs};
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::nsid;
-use lessdugin_lexicon::records::{Forum, Membership, Post};
-use lessdugin_lexicon::values::MembershipMode;
-use lessdugin_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
-use lessdugin_native::host::NativeHost;
-use lessdugin_testkit::FakeNet;
-use lessdugin_testkit::fake_pds::{AccountHandle, SystemClock};
+use pandoras_forum_atp::proof::ProofBundle;
+use pandoras_forum_atp::syntax::Datetime;
+use pandoras_forum_core::discovery::{ForumKey, SyncOpts};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_indexer::host::PoliteHost;
+use pandoras_forum_indexer::store::Store;
+use pandoras_forum_indexer::{Indexer, IndexerConfig, NS, ingest, proofs};
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::nsid;
+use pandoras_forum_lexicon::records::{Forum, Membership, Post};
+use pandoras_forum_lexicon::values::MembershipMode;
+use pandoras_forum_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
+use pandoras_forum_native::host::NativeHost;
+use pandoras_forum_testkit::FakeNet;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, SystemClock};
 use serde_json::Value;
 use tempfile::TempDir;
 use tokio::time::Instant;
@@ -54,9 +54,9 @@ impl Fixture {
         let paths = Paths::under(dir);
         let config = devnet_config(&net, &owner, jetstream);
         let host = NativeHost::open(&paths, &config).unwrap();
-        let engine = lessdugin_core::engine::Engine::new(
+        let engine = pandoras_forum_core::engine::Engine::new(
             PoliteHost::new(host),
-            lessdugin_native::engine::engine_config(&config),
+            pandoras_forum_native::engine::engine_config(&config),
         );
         let store = Store::open(&paths.state_db()).unwrap();
         store.add_forum_seed(forum.uri.as_str()).unwrap();
@@ -65,7 +65,7 @@ impl Fixture {
             store,
             IndexerConfig {
                 did: "did:web:indexer.test".into(),
-                source_url: "https://source.test/lessdugin".into(),
+                source_url: "https://source.test/pandoras-forum".into(),
                 plc: Url::parse(&net.plc()).unwrap(),
                 relays: vec![],
                 jetstream: jetstream.to_vec(),
@@ -108,7 +108,7 @@ impl Fixture {
         let p = Post::article(self.forum.uri.clone(), title, "A real signed body.", now);
         let rkey = keys::post_rkey(
             self.forum.uri.as_str(),
-            lessdugin_testkit::repo::tid_at_ms(self.net.now_ms() + sequence).as_ref(),
+            pandoras_forum_testkit::repo::tid_at_ms(self.net.now_ms() + sequence).as_ref(),
         )
         .unwrap();
         self.owner
@@ -116,7 +116,7 @@ impl Fixture {
         self.owner.uri(nsid::POST, &rkey)
     }
     async fn request(&self, path: &str) -> (StatusCode, Value, axum::http::HeaderMap) {
-        let response = lessdugin_indexer::api::router(self.indexer.clone())
+        let response = pandoras_forum_indexer::api::router(self.indexer.clone())
             .oneshot(Request::builder().uri(path).body(Body::empty()).unwrap())
             .await
             .unwrap();
@@ -230,18 +230,19 @@ async fn rejected_relay_hint_does_not_block_a_new_member() {
     ingest::sync_forum(&fixture.indexer, fixture.forum.uri.as_str())
         .await
         .unwrap();
-    let membership =
-        lessdugin_core::store::records::RecordStore::new(fixture.indexer.engine.host().cache())
-            .get(
-                &lessdugin_atp::syntax::AtUri::parse(&format!(
-                    "at://{}/{}/{rkey}",
-                    accepted.did(),
-                    nsid::MEMBERSHIP
-                ))
-                .unwrap(),
-            )
-            .await
-            .unwrap();
+    let membership = pandoras_forum_core::store::records::RecordStore::new(
+        fixture.indexer.engine.host().cache(),
+    )
+    .get(
+        &pandoras_forum_atp::syntax::AtUri::parse(&format!(
+            "at://{}/{}/{rkey}",
+            accepted.did(),
+            nsid::MEMBERSHIP
+        ))
+        .unwrap(),
+    )
+    .await
+    .unwrap();
     assert!(membership.is_some_and(|row| row.valid));
     fixture
         .indexer
@@ -405,7 +406,7 @@ async fn a_failed_backfill_sync_retries_within_one_minute() {
         .add_forum_seed(broken.uri.as_str())
         .unwrap();
     fixture.net.inject(
-        lessdugin_testkit::fake_pds::Fault::status(500).on_repo(unreachable.did().as_str()),
+        pandoras_forum_testkit::fake_pds::Fault::status(500).on_repo(unreachable.did().as_str()),
     );
     let started = fixture.indexer.now_ms();
     let task = ingest::spawn(fixture.indexer.clone());
@@ -453,7 +454,7 @@ async fn a_failed_backfill_sync_retries_within_one_minute() {
 /// is logged.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn only_a_missing_declaration_quarantines_an_indexed_forum() {
-    use lessdugin_testkit::fake_pds::{AccountStatus, Fault};
+    use pandoras_forum_testkit::fake_pds::{AccountStatus, Fault};
     let f = Fixture::new().await;
     let post = f.post("kept");
     let forum = f.forum.uri.as_str();
@@ -482,7 +483,7 @@ async fn only_a_missing_declaration_quarantines_an_indexed_forum() {
 
     // A bare 404 (no XRPC error) for the declaration.
     let bare = f.net.inject(
-        Fault::respond(lessdugin_core::host::HttpResponse {
+        Fault::respond(pandoras_forum_core::host::HttpResponse {
             status: 404,
             headers: vec![("content-type".into(), "text/plain".into())],
             body: b"no such page".to_vec(),
@@ -561,7 +562,7 @@ async fn failed_repository_discovery_is_not_a_successful_backfill() {
         .map(|r| Url::parse(&r).unwrap())
         .collect();
     fixture.net.inject(
-        lessdugin_testkit::fake_pds::Fault::status(500)
+        pandoras_forum_testkit::fake_pds::Fault::status(500)
             .on_repo(member.did().as_str())
             .on_nsid("com.atproto.repo.listRecords"),
     );
@@ -765,7 +766,8 @@ async fn proof_omission_and_forgery_are_detectable() {
     ingest::sync_forum(&fixture.indexer, fixture.forum.uri.as_str())
         .await
         .unwrap();
-    let missing = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.post/aaaaaaaaaaaaa-3l2s5xxv2zaaa";
+    let missing =
+        "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.post/aaaaaaaaaaaaa-3l2s5xxv2zaaa";
     let bundle = proofs::bundle(&fixture.indexer, &[post.clone(), missing.into()])
         .await
         .unwrap();
@@ -821,7 +823,7 @@ async fn proof_bundles_stay_with_indexed_records_and_current_cids() {
             .is_empty()
     );
 
-    let rkey = lessdugin_atp::syntax::AtUri::parse(&post)
+    let rkey = pandoras_forum_atp::syntax::AtUri::parse(&post)
         .unwrap()
         .rkey()
         .to_string();
@@ -842,7 +844,7 @@ async fn proof_bundles_stay_with_indexed_records_and_current_cids() {
     assert_eq!(parsed.items.len(), 1);
     assert_ne!(
         parsed.car.blocks,
-        lessdugin_atp::car::read_car(&old, &Default::default())
+        pandoras_forum_atp::car::read_car(&old, &Default::default())
             .unwrap()
             .blocks
     );
@@ -958,7 +960,7 @@ async fn spawn_server(
     indexer: &Indexer,
     listener: tokio::net::TcpListener,
 ) -> tokio::task::JoinHandle<()> {
-    let app = lessdugin_indexer::api::router(indexer.clone());
+    let app = pandoras_forum_indexer::api::router(indexer.clone());
     tokio::spawn(async move {
         axum::serve(listener, app).await.unwrap();
     })
@@ -995,7 +997,7 @@ async fn serve_flaky_proofs(
                 )
                     .into_response();
             }
-            lessdugin_indexer::api::router(inner)
+            pandoras_forum_indexer::api::router(inner)
                 .oneshot(req)
                 .await
                 .unwrap()
@@ -1012,28 +1014,31 @@ fn client_engine(
     net: &FakeNet,
     owner: &AccountHandle,
     indexer: Url,
-    sources: lessdugin_native::config::Sources,
-) -> lessdugin_core::engine::Engine<NativeHost> {
+    sources: pandoras_forum_native::config::Sources,
+) -> pandoras_forum_core::engine::Engine<NativeHost> {
     let mut config = Config::devnet(Url::parse(&net.plc()).unwrap(), owner.pds().url());
     config.sources = Some(sources);
-    config.indexer = lessdugin_native::config::IndexerSetting::Urls(vec![indexer]);
+    config.indexer = pandoras_forum_native::config::IndexerSetting::Urls(vec![indexer]);
     let host = NativeHost::open(&Paths::under(dir), &config).unwrap();
-    lessdugin_core::engine::Engine::new(host, lessdugin_native::engine::engine_config(&config))
+    pandoras_forum_core::engine::Engine::new(
+        host,
+        pandoras_forum_native::engine::engine_config(&config),
+    )
 }
 
 /// Joint contract coverage over real TCP, real NativeHost HTTP and the actual service router.
 /// No MemHost or in-process service shortcut is used by the client.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn native_service_and_client_have_proof_and_view_parity() {
-    use lessdugin_atp::syntax::AtUri;
-    use lessdugin_core::discovery::SyncOpts;
-    use lessdugin_core::dto::{ListPostsQuery, PostSort};
-    use lessdugin_core::host::Host;
-    use lessdugin_core::indexer::{Client, Consent, EndpointPolicy, ProofStatus};
-    use lessdugin_core::store::records::RecordStore;
-    use lessdugin_core::store::{Level, Source};
-    use lessdugin_core::sync::{Priority, Stats};
-    use lessdugin_native::config::Sources;
+    use pandoras_forum_atp::syntax::AtUri;
+    use pandoras_forum_core::discovery::SyncOpts;
+    use pandoras_forum_core::dto::{ListPostsQuery, PostSort};
+    use pandoras_forum_core::host::Host;
+    use pandoras_forum_core::indexer::{Client, Consent, EndpointPolicy, ProofStatus};
+    use pandoras_forum_core::store::records::RecordStore;
+    use pandoras_forum_core::store::{Level, Source};
+    use pandoras_forum_core::sync::{Priority, Stats};
+    use pandoras_forum_native::config::Sources;
 
     let fixture = Fixture::new().await;
     let post = fixture.post("Joint client");
@@ -1061,7 +1066,7 @@ async fn native_service_and_client_have_proof_and_view_parity() {
     // Direct mode has explicit configuration available but still makes no indexer request.
     let query = ListPostsQuery {
         sort: PostSort::New,
-        filter: lessdugin_core::dto::PostFilter::All,
+        filter: pandoras_forum_core::dto::PostFilter::All,
         ..ListPostsQuery::new(fixture.forum.uri.as_str())
     };
     let before = fixture.indexer.metrics.requests.load(Ordering::Relaxed);
@@ -1135,7 +1140,7 @@ async fn native_service_and_client_have_proof_and_view_parity() {
     )
     .await
     .unwrap();
-    for feature in lessdugin_indexer::FEATURES {
+    for feature in pandoras_forum_indexer::FEATURES {
         assert!(client.supports(feature), "missing feature {feature}");
     }
     assert_eq!(
@@ -1295,13 +1300,13 @@ async fn native_service_and_client_have_proof_and_view_parity() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn live_proof_batches_replay_failures_without_losing_frames() {
-    use lessdugin_atp::syntax::AtUri;
-    use lessdugin_core::discovery::SyncOpts;
-    use lessdugin_core::host::Host;
-    use lessdugin_core::store::Level;
-    use lessdugin_core::store::records::RecordStore;
-    use lessdugin_native::config::Sources;
-    use lessdugin_testkit::jetstream::{Jetstream, Wire};
+    use pandoras_forum_atp::syntax::AtUri;
+    use pandoras_forum_core::discovery::SyncOpts;
+    use pandoras_forum_core::host::Host;
+    use pandoras_forum_core::store::Level;
+    use pandoras_forum_core::store::records::RecordStore;
+    use pandoras_forum_native::config::Sources;
+    use pandoras_forum_testkit::jetstream::{Jetstream, Wire};
 
     let fixture = Fixture::new().await;
     ingest::sync_forum(&fixture.indexer, fixture.forum.uri.as_str())
@@ -1315,15 +1320,17 @@ async fn live_proof_batches_replay_failures_without_losing_frames() {
         fixture.owner.pds().url(),
     );
     config.sources = Some(Sources::Assisted);
-    config.indexer = lessdugin_native::config::IndexerSetting::Urls(vec![endpoint]);
+    config.indexer = pandoras_forum_native::config::IndexerSetting::Urls(vec![endpoint]);
     let NetworkProfile::Devnet(devnet) = &mut config.network else {
         unreachable!()
     };
     devnet.jetstream = Some(Url::parse(jetstream.base_url()).unwrap());
     let client_dir = TempDir::new().unwrap();
     let host = NativeHost::open(&Paths::under(client_dir.path()), &config).unwrap();
-    let engine =
-        lessdugin_core::engine::Engine::new(host, lessdugin_native::engine::engine_config(&config));
+    let engine = pandoras_forum_core::engine::Engine::new(
+        host,
+        pandoras_forum_native::engine::engine_config(&config),
+    );
     engine.forum_open(fixture.forum.uri.as_str()).await.unwrap();
     engine
         .sync_forum(
@@ -1413,7 +1420,7 @@ async fn live_proof_batches_replay_failures_without_losing_frames() {
     assert!(
         !point_fetches.iter().any(|r| {
             r.did.as_deref() == Some(fixture.owner.did().as_str())
-                && r.url.contains("lessdugin.temp.post")
+                && r.url.contains("pandoras-forum.temp.post")
         }),
         "successful live proofs must not fall back to post point fetches: {point_fetches:?}"
     );
@@ -1453,14 +1460,14 @@ fn devnet_config(net: &FakeNet, owner: &AccountHandle, jetstream: &[Url]) -> Con
 }
 
 fn urlencoding(s: &str) -> String {
-    lessdugin_atp::xrpc::percent_encode(s)
+    pandoras_forum_atp::xrpc::percent_encode(s)
 }
 
 // ---------------------------------------------------------------------------------------------
 // Live ingest over the testkit mini-Jetstream (sync.md §15.1).
 
-use lessdugin_indexer::live;
-use lessdugin_testkit::jetstream::{Jetstream, Wire as JetstreamWire};
+use pandoras_forum_indexer::live;
+use pandoras_forum_testkit::jetstream::{Jetstream, Wire as JetstreamWire};
 
 /// The fixture forum, followed live from two mini-Jetstream endpoints (no polling).
 async fn live_fixture() -> (Fixture, Vec<Jetstream>, Vec<Url>) {
@@ -1539,7 +1546,7 @@ fn post_by(f: &Fixture, author: &AccountHandle, title: &str) -> String {
     let p = Post::article(f.forum.uri.clone(), title, "A live signed body.", now);
     let rkey = keys::post_rkey(
         f.forum.uri.as_str(),
-        lessdugin_testkit::repo::tid_at_ms(f.net.now_ms() + sequence).as_ref(),
+        pandoras_forum_testkit::repo::tid_at_ms(f.net.now_ms() + sequence).as_ref(),
     )
     .unwrap();
     author.put(nsid::POST, &rkey, &serde_json::to_value(p).unwrap());
@@ -1693,8 +1700,8 @@ async fn a_live_write_in_a_large_forum_costs_no_forum_wide_sync() {
             &serde_json::to_value(membership).unwrap(),
         );
         for m in &members {
-            use lessdugin_lexicon::records::{AccessAction, Action, ModAction};
-            use lessdugin_lexicon::values::AccessLevel;
+            use pandoras_forum_lexicon::records::{AccessAction, Action, ModAction};
+            use pandoras_forum_lexicon::values::AccessLevel;
             let grant = ModAction::new(
                 forum.uri.clone(),
                 m.did().as_str(),
@@ -1703,7 +1710,7 @@ async fn a_live_write_in_a_large_forum_costs_no_forum_wide_sync() {
             );
             let value = serde_json::to_value(grant).unwrap();
             let rkey = keys::mod_action_rkey(
-                lessdugin_lexicon::ns::NS,
+                pandoras_forum_lexicon::ns::NS,
                 forum.uri.as_str(),
                 None,
                 m.did().as_str(),
@@ -1719,9 +1726,9 @@ async fn a_live_write_in_a_large_forum_costs_no_forum_wide_sync() {
     {
         let config = devnet_config(&net, &owner, &[]);
         let host = NativeHost::open(&Paths::under(&dir), &config).unwrap();
-        let engine = lessdugin_core::engine::Engine::new(
+        let engine = pandoras_forum_core::engine::Engine::new(
             host,
-            lessdugin_native::engine::engine_config(&config),
+            pandoras_forum_native::engine::engine_config(&config),
         );
         engine
             .sync_forum(
@@ -1830,12 +1837,12 @@ async fn failing_live_events_are_handed_off_and_never_wedge_ingest() {
 
     // 1. The member's PDS refuses every read of its repository: its post cannot be fetched,
     //    and neither can its retry until the PDS recovers.
-    let refused = f
-        .net
-        .inject(lessdugin_testkit::fake_pds::Fault::status(500).on_repo(member.did().as_str()));
+    let refused = f.net.inject(
+        pandoras_forum_testkit::fake_pds::Fault::status(500).on_repo(member.did().as_str()),
+    );
     // 2. No proof can be fetched for the owner's next post.
     let no_proof = f.net.inject(
-        lessdugin_testkit::fake_pds::Fault::status(500)
+        pandoras_forum_testkit::fake_pds::Fault::status(500)
             .on_repo(f.owner.did().as_str())
             .on_nsid("com.atproto.sync.getRecord"),
     );
@@ -2202,7 +2209,7 @@ async fn record_proofs_use_cached_identities_and_a_bounded_pool() {
     let fetch = |indexer: Indexer| {
         let path = path.clone();
         async move {
-            let response = lessdugin_indexer::api::router(indexer)
+            let response = pandoras_forum_indexer::api::router(indexer)
                 .oneshot(Request::builder().uri(&path).body(Body::empty()).unwrap())
                 .await
                 .unwrap();
@@ -2219,11 +2226,11 @@ async fn record_proofs_use_cached_identities_and_a_bounded_pool() {
     // Pool busy for longer than the request's bound: omitted when the bound passes, nothing
     // sent to the author's PDS or to PLC.
     let held = Arc::clone(&fixture.indexer.api_proofs)
-        .try_acquire_many_owned(lessdugin_indexer::API_PROOF_FETCHES as u32)
+        .try_acquire_many_owned(pandoras_forum_indexer::API_PROOF_FETCHES as u32)
         .unwrap();
     fixture.net.clear_requests();
     let busy = tokio::time::timeout(
-        lessdugin_indexer::API_PROOF_WAIT + Duration::from_secs(20),
+        pandoras_forum_indexer::API_PROOF_WAIT + Duration::from_secs(20),
         fetch(fixture.indexer.clone()),
     )
     .await
@@ -2267,7 +2274,7 @@ async fn record_proofs_use_cached_identities_and_a_bounded_pool() {
 /// budget that every other origin needs.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_slow_origin_never_holds_the_global_request_budget() {
-    use lessdugin_core::host::{HttpRequest, Target};
+    use pandoras_forum_core::host::{HttpRequest, Target};
     let net = FakeNet::serve_http(SystemClock);
     let slow = net.add_pds("slow.test");
     let fast = net.add_pds("fast.test");
@@ -2275,7 +2282,7 @@ async fn a_slow_origin_never_holds_the_global_request_budget() {
     let forum = ForumKey::new(owner.did(), "m6").unwrap();
     let f = Fixture::with(&TempDir::new().unwrap().keep(), net, owner, forum, &[]).await;
     f.net
-        .inject(lessdugin_testkit::fake_pds::Fault::latency(3_000).on_host(slow.base()));
+        .inject(pandoras_forum_testkit::fake_pds::Fault::latency(3_000).on_host(slow.base()));
     let get = |base: Url| {
         let host = f.indexer.engine.host().clone();
         async move {
@@ -2317,15 +2324,17 @@ async fn daily_gc_drops_expired_tombstones_and_orphaned_proofs() {
     ingest::sync_forum(&fixture.indexer, fixture.forum.uri.as_str())
         .await
         .unwrap();
-    let uri = lessdugin_atp::syntax::AtUri::parse(&post).unwrap();
-    let records =
-        lessdugin_core::store::records::RecordStore::new(fixture.indexer.engine.host().cache());
+    let uri = pandoras_forum_atp::syntax::AtUri::parse(&post).unwrap();
+    let records = pandoras_forum_core::store::records::RecordStore::new(
+        fixture.indexer.engine.host().cache(),
+    );
     assert!(records.tombstone_of(&uri).await.unwrap().is_some());
     // Within the retention nothing is dropped.
     ingest::gc(&fixture.indexer, fixture.indexer.now_ms()).await;
     assert!(records.tombstone_of(&uri).await.unwrap().is_some());
     assert!(fixture.indexer.store.proof(&post).is_some());
-    let later = fixture.indexer.now_ms() + lessdugin_core::limits::TOMBSTONE_MIN_RETENTION_MS + 1;
+    let later =
+        fixture.indexer.now_ms() + pandoras_forum_core::limits::TOMBSTONE_MIN_RETENTION_MS + 1;
     ingest::gc(&fixture.indexer, later).await;
     assert!(records.tombstone_of(&uri).await.unwrap().is_none());
     assert!(fixture.indexer.store.proof(&post).is_none());
@@ -2333,7 +2342,7 @@ async fn daily_gc_drops_expired_tombstones_and_orphaned_proofs() {
     let before = fixture.indexer.now_ms();
     ingest::tick(&fixture.indexer).await;
     let next = fixture.indexer.store.scheduled_at("gc").unwrap();
-    assert!(next >= before + lessdugin_core::limits::TOMBSTONE_GC_EVERY_MS);
+    assert!(next >= before + pandoras_forum_core::limits::TOMBSTONE_GC_EVERY_MS);
 }
 
 /// security-net-11: one account's memberships cannot seed more than its quota of forums.
@@ -2342,7 +2351,7 @@ async fn discovery_caps_the_forum_seeds_of_one_account() {
     let mut fixture = Fixture::new().await;
     let spammer = fixture.owner.pds().add_account("spammer.test");
     let at = Datetime::from_millis(fixture.net.now_ms() - 3_600_000).unwrap();
-    let names = (0..lessdugin_indexer::store::SEEDS_PER_DID + 8)
+    let names = (0..pandoras_forum_indexer::store::SEEDS_PER_DID + 8)
         .map(|n| format!("nowhere{n}"))
         .collect::<Vec<_>>();
     spammer.batch(|repo| {
@@ -2368,7 +2377,7 @@ async fn discovery_caps_the_forum_seeds_of_one_account() {
         .iter()
         .filter(|s| s.contains(spammer.did().as_str()))
         .count() as i64;
-    assert_eq!(from_spammer, lessdugin_indexer::store::SEEDS_PER_DID);
+    assert_eq!(from_spammer, pandoras_forum_indexer::store::SEEDS_PER_DID);
     // The real forum is still discovered.
     assert!(seeds.contains(&fixture.forum.uri.to_string()));
 }
@@ -2474,7 +2483,7 @@ fn plc(tag: char, mut n: usize) -> String {
 /// Accounts of one host therefore cannot take every pending slot of a forum.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn live_membership_hints_count_against_their_host() {
-    use lessdugin_indexer::store::{CANDIDATES_PER_HOST, UNKNOWN_HOST};
+    use pandoras_forum_indexer::store::{CANDIDATES_PER_HOST, UNKNOWN_HOST};
     let (f, _jetstreams, urls) = live_fixture().await;
     let forum = f.forum.uri.as_str();
     ingest::sync_forum(&f.indexer, forum).await.unwrap();
@@ -2565,7 +2574,7 @@ async fn live_membership_hints_count_against_their_host() {
 /// of the account whose membership first named it.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn an_indexed_forum_counts_against_its_owners_host() {
-    use lessdugin_indexer::store::{SEEDS_PER_DID, SEEDS_PER_HOST};
+    use pandoras_forum_indexer::store::{SEEDS_PER_DID, SEEDS_PER_HOST};
     let f = Fixture::new().await;
     let store = &f.indexer.store;
     let named = ForumKey::new(f.owner.did(), "named").unwrap();

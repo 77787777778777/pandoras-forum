@@ -13,12 +13,12 @@ otherwise, so each of their votes has power 1 in every stage.
 
 from __future__ import annotations
 
-from lessdugin_ref.build import DAY, MIN, T0, Forum, at, did, dt, rec
-from lessdugin_ref.common import h16, rkey_of
-from lessdugin_ref.karma import LADDER, power, small, strong
-from lessdugin_ref.scores import self_score
-from lessdugin_ref.fold import fold_vector_input
-from lessdugin_ref.cids import upper_spelling
+from pandoras_forum_ref.build import DAY, MIN, T0, Forum, at, did, dt, rec
+from pandoras_forum_ref.common import h16, rkey_of
+from pandoras_forum_ref.karma import LADDER, power, small, strong
+from pandoras_forum_ref.scores import self_score
+from pandoras_forum_ref.fold import fold_vector_input
+from pandoras_forum_ref.cids import upper_spelling
 
 from . import kcast
 from .util import file_doc, vector

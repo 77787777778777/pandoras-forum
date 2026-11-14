@@ -14,8 +14,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use futures::future::join_all;
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_lexicon::collection::nsid;
 use serde_json::Value;
 
 use crate::discovery::forum_ref::ForumKey;

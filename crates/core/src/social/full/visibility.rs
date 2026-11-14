@@ -26,7 +26,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::values::{MembershipMode, NewUsers};
+use pandoras_forum_lexicon::values::{MembershipMode, NewUsers};
 
 use crate::social::full::cx::Cx;
 use crate::social::full::karma::Karma;

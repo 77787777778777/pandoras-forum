@@ -16,12 +16,12 @@ test("a CSP violation inside the engine worker reaches the watcher", async ({ pa
   const w = await watchStrict(page);
   await withDevnet(page, s, { cspProbe: true });
   await page.goto(`${s.app}/#/`);
-  await page.evaluate(() => window.__lessduginE2E?.ready());
+  await page.evaluate(() => window.__pandorasForumE2E?.ready());
   await expect
     .poll(() => w.problems(), { timeout: 15_000 })
     .toContainEqual(
       expect.stringMatching(
-        /^console: lessdugin engine worker: csp-violation (require-trusted-types-for blocked=trusted-types-sink|script-src blocked=eval)$/,
+        /^console: pandoras-forum engine worker: csp-violation (require-trusted-types-for blocked=trusted-types-sink|script-src blocked=eval)$/,
       ),
     );
 });
@@ -30,7 +30,7 @@ test("without the probe the same start-up has no violation", async ({ page }) =>
   const w = await watchStrict(page);
   await withDevnet(page, s);
   await page.goto(`${s.app}/#/`);
-  await page.evaluate(() => window.__lessduginE2E?.ready());
+  await page.evaluate(() => window.__pandorasForumE2E?.ready());
   // give a late worker report the time the first test needed
   await page.waitForTimeout(1000);
   expect(await w.problems()).toEqual([]);

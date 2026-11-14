@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Tests of admission (`sync.md` §5.5).
 
-use lessdugin_atp::datamodel;
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_atp::datamodel;
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_lexicon::ns::NS;
 use serde_json::{Value, json};
 
 use super::*;
 use crate::store::records::{Level, OrderKey, Source};
 
 const DID: &str = "did:plc:ewvi7nxzyoun6zhxrhs64oiz";
-const FK: &str = "uetjixxr3a33";
+const FK: &str = "nkglkm5wsp3d";
 
 fn post() -> String {
     format!("{NS}.post")
@@ -59,7 +59,7 @@ fn get_record_happy_path() {
     let r = get(&get_body(&uri(), &cid_of(&v), &text)).unwrap();
     assert_eq!(r.uri.as_str(), uri());
     assert_eq!(r.cid.to_string(), cid_of(&v));
-    assert_eq!(lessdugin_atp::cid::for_dag_cbor(&r.cbor), r.cid);
+    assert_eq!(pandoras_forum_atp::cid::for_dag_cbor(&r.cbor), r.cid);
     assert_eq!(r.value, v);
     assert!(r.validity.is_valid());
     // the same CID in another multibase (base32 upper) compares equal in binary
@@ -77,7 +77,7 @@ fn cid_checks() {
         Err(AdmitError::CidMismatch { .. })
     ));
     // a raw-codec CID, a CIDv0 and garbage are not record CIDs
-    let raw = lessdugin_atp::cid::for_raw(b"x").to_string();
+    let raw = pandoras_forum_atp::cid::for_raw(b"x").to_string();
     for bad in [
         raw.as_str(),
         "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
@@ -208,20 +208,20 @@ fn cid_of_with_depth(v: &Value) -> String {
 fn oversized_cbor_is_invalid_g6() {
     let v = json!({"$type": post(), "s": "x".repeat(1_000_100)});
     let cbor = datamodel::record_to_cbor_with(&v, &RECORD_LIMITS).unwrap();
-    let cid = lessdugin_atp::cid::for_dag_cbor(&cbor);
+    let cid = pandoras_forum_atp::cid::for_dag_cbor(&cbor);
     let u = AtUri::parse(&uri()).unwrap();
     let r = admit_block(&u, &cid, &cbor, &NoValidator).unwrap();
     assert_eq!(r.validity.rule.as_deref(), Some("G6"));
     assert_eq!(r.value, v);
     // a block that does not hash to the CID is refused
-    let other = lessdugin_atp::cid::for_dag_cbor(b"\xa0");
+    let other = pandoras_forum_atp::cid::for_dag_cbor(b"\xa0");
     assert!(matches!(
         admit_block(&u, &other, &cbor, &NoValidator),
         Err(AdmitError::CidMismatch { .. })
     ));
     // so is non-canonical CBOR
     let noncanon = [0xb9, 0x00, 0x00]; // empty map, 2-byte length
-    let c = lessdugin_atp::cid::for_dag_cbor(&noncanon);
+    let c = pandoras_forum_atp::cid::for_dag_cbor(&noncanon);
     assert!(matches!(
         admit_block(&u, &c, &noncanon, &NoValidator),
         Err(AdmitError::DataModel(_))
@@ -251,7 +251,7 @@ fn lexicon_validity_is_recorded_not_dropped() {
     assert!(!r.validity.violations.is_empty());
     // a well-formed post is valid under every rule
     let forum = format!("at://{DID}/{NS}.forum/rationality");
-    let fk = lessdugin_lexicon::keys::fk(&forum).unwrap();
+    let fk = pandoras_forum_lexicon::keys::fk(&forum).unwrap();
     let good_uri = format!("at://{DID}/{}/{fk}-3l2s5xxv2ze2c", post());
     let good = json!({"$type": post(), "forum": forum, "title": "Hello",
                       "createdAt": "2024-01-01T00:00:00.000Z"});

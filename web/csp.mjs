@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The SPA's Content Security Policy, from one source (docs/spec/threat-model.md §6):
 // - PRODUCTION_CSP is the §6.1 header text, sent by `deploy/site/_headers` (Cloudflare Pages,
-//   Netlify) and by `lessdugin web`; src/lib/csp.test.ts asserts it equals the spec text and
+//   Netlify) and by `pandoras-forum web`; src/lib/csp.test.ts asserts it equals the spec text and
 //   the `_headers` file exactly;
 // - DEV_CSP is the §6.2 development policy (devnet e2e), never served by release builds;
 // - META_CSP is the GitHub Pages fallback of §6.3: the §6.1 text minus `frame-ancestors`
@@ -22,7 +22,7 @@ export const PRODUCTION_CSP_DIRECTIVES = Object.freeze([
   "form-action 'none'",
   "frame-ancestors 'none'",
   "require-trusted-types-for 'script'",
-  "trusted-types lessdugin-md lessdugin-worker dompurify",
+  "trusted-types pandoras-forum-md pandoras-forum-worker dompurify",
 ]);
 
 export const PRODUCTION_CSP = PRODUCTION_CSP_DIRECTIVES.join("; ");

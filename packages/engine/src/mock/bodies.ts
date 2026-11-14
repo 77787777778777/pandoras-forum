@@ -30,7 +30,7 @@ function mention(did: Did): string {
 
 export function welcomeHtml(r: WelcomeRefs): string {
   return `<div class="lfm" dir="auto">
-<p dir="auto">Welcome to <strong>LessDugin</strong>, a forum where <em>your own PDS is the database</em>. This post is a tour of what LFM/1 markdown renders to.<sup id="md-fnref-1-1"><a data-anchor="md-fn-1">1</a></sup></p>
+<p dir="auto">Welcome to <strong>Pandora's Forum</strong>, a forum where <em>your own PDS is the database</em>. This post is a tour of what LFM/1 markdown renders to.<sup id="md-fnref-1-1"><a data-anchor="md-fn-1">1</a></sup></p>
 <h2 id="md-h-how-it-works" dir="auto">How it works</h2>
 <p dir="auto">Every post, comment and vote is a record in its author's repository, and every client folds the same records into the same view.<sup id="md-fnref-2-1"><a data-anchor="md-fn-2">2</a></sup> Read ${recordLink(r.policyUri, "the moderation policy")} before posting, skim ${recordLink(r.linkPostUri, "the decision theory paper")}, and ask ${mention(r.mention)} if anything is unclear.</p>
 <div class="alert-note">
@@ -117,7 +117,7 @@ export function welcomeHtml(r: WelcomeRefs): string {
 `;
 }
 
-export const WELCOME_MARKDOWN = `Welcome to **LessDugin**, a forum where *your own PDS is the database*. This post is a tour of what LFM/1 markdown renders to.[^1]
+export const WELCOME_MARKDOWN = `Welcome to **Pandora's Forum**, a forum where *your own PDS is the database*. This post is a tour of what LFM/1 markdown renders to.[^1]
 
 ## How it works
 

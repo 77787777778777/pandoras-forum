@@ -4,9 +4,9 @@ expression: posts
 ---
 [
   {
-    "uri": "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/online.7778777.lessdugin.temp.post/mn7i7x7lksub-3m2qyhzem2222",
-    "cid": "bafyreiewks4k45ufaxentrsoz3eut3hdgdm3dt6dqktyo77k27lj3fflfy",
-    "forum": "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.temp.forum/meta",
+    "uri": "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/forum.pandoras.temp.post/5hx2awnx5gr5-3m2qyhzem2222",
+    "cid": "bafyreidpnwatvp4vldlhcybfq7oboams7yi26iywkrvd4ui5xa3couiyqu",
+    "forum": "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.temp.forum/meta",
     "author": {
       "did": "did:plc:bbbbbbbbbbbbbbbbbbbbbbbb",
       "handleState": "unverified",
@@ -35,9 +35,9 @@ expression: posts
     "labels": []
   },
   {
-    "uri": "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.temp.post/mn7i7x7lksub-3m2qv4q5d2222",
-    "cid": "bafyreifgexm6pokwptlfvjvepouxjpxfx27b6rartbh74vruioaenp2zki",
-    "forum": "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.temp.forum/meta",
+    "uri": "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.temp.post/5hx2awnx5gr5-3m2qv4q5d2222",
+    "cid": "bafyreihloyfsli3xrewu7eisn4y6si32qkihrnlronnqybscwerxfwzadm",
+    "forum": "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.temp.forum/meta",
     "author": {
       "did": "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa",
       "handleState": "unverified",

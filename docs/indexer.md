@@ -1,6 +1,6 @@
 # Operating the optional indexer (M6)
 
-`lessdugin-indexer` is a native, unauthenticated read service. It uses the same core admission,
+`pandoras-forum-indexer` is a native, unauthenticated read service. It uses the same core admission,
 record store and full social fold as the native client. It is **not** an authority for forum
 content: every JSON field is a discovery/ordering hint, and only the CAR proofs are independently
 verifiable. Clients must recompute displayed values and must not display hint text as attributed
@@ -10,15 +10,15 @@ karma, tally or `getRecords` methods.
 ## Configuration
 
 ```sh
-lessdugin-indexer \
+pandoras-forum-indexer \
   --listen 127.0.0.1:2584 \
-  --data-dir /var/lib/lessdugin-indexer \
+  --data-dir /var/lib/pandoras-forum-indexer \
   --did did:web:indexer.example.org \
-  --source-url https://code.example.org/lessdugin/tree/v0.0.1 \
+  --source-url https://code.example.org/pandoras-forum/tree/v0.0.1 \
   --relay https://relay.example.org \
   --jetstream wss://jetstream1.example.org \
   --jetstream wss://jetstream2.example.org \
-  --blocklist /etc/lessdugin/indexer-blocklist
+  --blocklist /etc/pandoras-forum/indexer-blocklist
 ```
 
 Use the ordinary native `config.toml` in the data directory for PLC/devnet settings. Repeat
@@ -84,7 +84,7 @@ directory for gap-free restarts. The cache can be rebuilt from authors' PDSes.
 ## HTTP surface
 
 The nine GET methods are under
-`/xrpc/online.7778777.lessdugin.index.` (or the build's staging namespace):
+`/xrpc/forum.pandoras.index.` (or the build's staging namespace):
 
 - `describeIndexer`, `listForums`, `listParticipants`, `getRepoHeads`, `getChanges`
 - `listPosts`, `listRecentDiscussion`, `getThread`, `getRecordProofs`
@@ -110,7 +110,7 @@ Operational endpoints:
 
 Set `--source-url` to the exact corresponding AGPL source for the running build, not merely a
 project home page. To make the service discoverable, an operator may publish a `did:web` document
-with a `#lessdugin_index` service of type `LessduginIndex`; publication and deployment are outside
+with a `#pandoras_forum_index` service of type `PandorasForumIndex`; publication and deployment are outside
 M6.
 
 ## Container
@@ -120,15 +120,15 @@ whose user is non-root. Build it with the repository root as context and mount p
 at `/data`. Pass `SOURCE_URL` as a build argument so `/` links to the exact corresponding source.
 
 `.github/workflows/indexer.yml` builds and smoke-tests the image without publishing on pull
-requests and on pushes to `claude/**` branches. An explicit workflow dispatch publishes `ghcr.io/<owner>/lessdugin-indexer:sha-<full
+requests and on pushes to `claude/**` branches. An explicit workflow dispatch publishes `ghcr.io/<owner>/pandoras-forum-indexer:sha-<full
 commit>`; a push to the default branch also publishes `latest`. This is the M6 image pipeline,
 not the M7 release workflow. The workflow has only `contents: read` and `packages: write`.
 
 ## Checks
 
 ```sh
-nix develop --impure -c cargo test -p lessdugin-indexer
-nix develop --impure -c cargo clippy -p lessdugin-indexer --all-targets -- -D warnings
+nix develop --impure -c cargo test -p pandoras-forum-indexer
+nix develop --impure -c cargo clippy -p pandoras-forum-indexer --all-targets -- -D warnings
 ```
 
 The integration tests use signed repositories, real loopback HTTP PDS/PLC fixtures and the

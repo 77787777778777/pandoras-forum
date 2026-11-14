@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The MST proof walk (`lessdugin_atp::mst::prove`, `list_entries`; `sync.md` §8.5) and the whole
+//! The MST proof walk (`pandoras_forum_atp::mst::prove`, `list_entries`; `sync.md` §8.5) and the whole
 //! `proofs/1` pipeline over structured repos: random bytes almost never hash to the CIDs that link
 //! a repo together, so this target builds the blocks from a structured input and computes every
 //! link itself. The tree is either the canonical tree of a key set (`mst::build`) or hand-built
@@ -18,16 +18,16 @@
 use std::collections::BTreeMap;
 
 use arbitrary::Arbitrary;
-use lessdugin_atp::car::write_car;
-use lessdugin_atp::commit::UnsignedCommit;
-use lessdugin_atp::mst::{self, Proof};
-use lessdugin_atp::proof::{
+use pandoras_forum_atp::car::write_car;
+use pandoras_forum_atp::commit::UnsignedCommit;
+use pandoras_forum_atp::mst::{self, Proof};
+use pandoras_forum_atp::proof::{
     BundleCaps, ProofBundle, ProofCaps, ProofErrorKind, ReadCaps, verify_proof, verify_proof_in,
 };
-use lessdugin_atp::syntax::{AtUri, Did, Nsid, RecordKey, Tid};
-use lessdugin_atp::{Cid, Ipld, cid, dagcbor, datamodel::Limits};
-use lessdugin_fuzz::common::{COLLECTIONS, NOW, OTHER_DID, REV_MICROS, RKEY_ALPHABET, rkey_from};
-use lessdugin_fuzz::{FUZZ_DID, FUZZ_KEY, sign};
+use pandoras_forum_atp::syntax::{AtUri, Did, Nsid, RecordKey, Tid};
+use pandoras_forum_atp::{Cid, Ipld, cid, dagcbor, datamodel::Limits};
+use pandoras_forum_fuzz::common::{COLLECTIONS, NOW, OTHER_DID, REV_MICROS, RKEY_ALPHABET, rkey_from};
+use pandoras_forum_fuzz::{FUZZ_DID, FUZZ_KEY, sign};
 use libfuzzer_sys::fuzz_target;
 
 const MAX_KEYS: usize = 256;
@@ -377,7 +377,7 @@ fn build(input: &Input) -> Repo {
     let rev_micros = (REV_MICROS as i64).saturating_add(i64::from(c.rev_offset) * 1_000_000);
     let rev = Tid::from_parts(rev_micros.clamp(0, (1 << 53) - 1) as u64, 0)
         .unwrap_or_else(|_| Tid::from_u64(0));
-    if rev.timestamp_micros() as i64 > NOW + lessdugin_atp::commit::MAX_FUTURE_SKEW_MICROS {
+    if rev.timestamp_micros() as i64 > NOW + pandoras_forum_atp::commit::MAX_FUTURE_SKEW_MICROS {
         clean = false;
     }
     let data = match c.data {

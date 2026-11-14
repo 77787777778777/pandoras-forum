@@ -13,7 +13,7 @@
 //!   remaining inline field until it fits ([`largest_inline`], [`spill`]). A spilled post body
 //!   requires `excerpt` (PO6).
 
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_lexicon::collection::nsid;
 use serde_json::{Map, Value, json};
 
 use crate::engine::EngineError;
@@ -123,7 +123,7 @@ impl BlobData {
 
     fn with_mime(bytes: Vec<u8>, mime: &str) -> Self {
         Self {
-            cid: lessdugin_atp::cid::for_raw(&bytes).to_string(),
+            cid: pandoras_forum_atp::cid::for_raw(&bytes).to_string(),
             mime: mime.to_owned(),
             bytes,
         }

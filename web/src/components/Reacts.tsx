@@ -6,9 +6,15 @@
 // creator, how many seconded it and how many oppose it (§9.2 "Display"), and offers both stances.
 // Reacts are public; the first one shows an interstitial, and each is held for the undo window.
 
-import { DEFAULT_PALETTE } from "@lessdugin/engine/palette";
-import type { ActorView, ReactTally, Stance, TextQuote, ViewerCaps } from "@lessdugin/engine/types";
-import { isOrphanAnchor, OPINION_UNDO_WINDOW_MS } from "@lessdugin/engine/types";
+import { DEFAULT_PALETTE } from "@pandoras-forum/engine/palette";
+import type {
+  ActorView,
+  ReactTally,
+  Stance,
+  TextQuote,
+  ViewerCaps,
+} from "@pandoras-forum/engine/types";
+import { isOrphanAnchor, OPINION_UNDO_WINDOW_MS } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { type RefObject, useEffect, useId, useRef, useState } from "react";

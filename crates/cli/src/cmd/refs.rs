@@ -5,12 +5,12 @@
 //! links, `<handle>/<rkey>` in the current forum). Forums are also accepted by alias or slug
 //! when they are followed.
 
-use lessdugin_atp::syntax::{AtIdentifier, Did};
-use lessdugin_core::discovery::{ForumKey, parse_forum_ref};
-use lessdugin_core::dto::{Ref, RefContext};
-use lessdugin_core::engine::{Engine, EngineError};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_atp::syntax::{AtIdentifier, Did};
+use pandoras_forum_core::discovery::{ForumKey, parse_forum_ref};
+use pandoras_forum_core::dto::{Ref, RefContext};
+use pandoras_forum_core::engine::{Engine, EngineError};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_native::host::NativeHost;
 
 use crate::ctx::{CliError, Ctx};
 
@@ -23,10 +23,10 @@ fn nth(list: &[String], n: usize, what: &str, again: &str) -> Result<String, Cli
     match n.checked_sub(1).and_then(|i| list.get(i)) {
         Some(u) => Ok(u.clone()),
         None if list.is_empty() => Err(bad(format!(
-            "there is no {what} listing in this terminal yet; run `lessdugin {again}` first"
+            "there is no {what} listing in this terminal yet; run `pandoras-forum {again}` first"
         ))),
         None => Err(bad(format!(
-            "the last {what} listing in this terminal has {} entries, not {n}; run `lessdugin {again}` again",
+            "the last {what} listing in this terminal has {} entries, not {n}; run `pandoras-forum {again}` again",
             list.len()
         ))),
     }
@@ -66,7 +66,7 @@ pub async fn item(ctx: &Ctx, engine: &Engine<NativeHost>, input: &str) -> Result
         let Some(nav) = ctx.state.listings().sequence_nav else {
             return Err(bad(format!(
                 "the post last read in this terminal is in no sequence, so it has no {t} post; \
-                 `lessdugin sequence read <sequence>` lists one"
+                 `pandoras-forum sequence read <sequence>` lists one"
             )));
         };
         let step = if next { nav.next } else { nav.prev };
@@ -109,7 +109,7 @@ pub async fn post_or_comment(
         Ref::Post { uri } => Ok((uri, false)),
         Ref::Comment { uri } => Ok((uri, true)),
         Ref::Forum { .. } => Err(bad(format!(
-            "{input:?} is a forum; list its posts with `lessdugin ls {input}`"
+            "{input:?} is a forum; list its posts with `pandoras-forum ls {input}`"
         ))),
         _ => Err(bad(format!("{input:?} is not a post or a comment"))),
     }
@@ -193,7 +193,7 @@ pub async fn forum_or_current(
         return Ok(one.uri.clone());
     }
     Err(CliError::usage(
-        "which forum? Name one, pass --forum, or set the current forum with `lessdugin forum use \
+        "which forum? Name one, pass --forum, or set the current forum with `pandoras-forum forum use \
          <forum>`",
     ))
 }

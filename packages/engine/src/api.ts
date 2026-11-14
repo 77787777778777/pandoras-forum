@@ -2,7 +2,7 @@
 //
 // The engine's public operations (docs/spec/engine-api.md §3: engine API v0, frozen at M3; only
 // compatible changes from here on), one async method per operation, camelCased:
-// `lessdugin-wasm` dispatches each name (`WasmEngine.call(op, argsJson)`, crates/wasm/src/ops.rs,
+// `pandoras-forum-wasm` dispatches each name (`WasmEngine.call(op, argsJson)`, crates/wasm/src/ops.rs,
 // whose native test checks this list and the arity of each). Every method resolves with a DTO
 // from `./types.ts` or rejects with an `EngineError`. The operations of later milestones reject
 // with code `unsupported` and `detail.milestone` (engine-api.md §3.9): `tags`, `tag`,

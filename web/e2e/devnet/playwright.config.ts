@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // End-to-end tests of the SPA on the real wasm engine against the local devnet (ADR 0006):
-// `pnpm --filter @lessdugin/web e2e:devnet` builds the e2e bundle (`VITE_E2E=1`, into
+// `pnpm --filter @pandoras-forum/web e2e:devnet` builds the e2e bundle (`VITE_E2E=1`, into
 // web/dist-e2e) and runs these. The global setup starts `packages/e2e/devnet.mjs` (PLC + PDS,
 // alice/bob/carol), seeds a forum through the PDS API and serves dist-e2e with the §6.2
 // development CSP (Trusted Types enforced). Uses the preinstalled Chromium
 // (PLAYWRIGHT_BROWSERS_PATH, never `playwright install`).
 //
-// `LESSDUGIN_DEVNET_JSON=<file>` reuses a running devnet (the JSON devnet.mjs wrote);
-// `LESSDUGIN_BIN=<path>` names the `lessdugin` binary of the bridge test and the parity
-// scenario (default target/debug/lessdugin; the bridge test needs one that embeds an e2e build,
-// see bridge.spec.ts); `LESSDUGIN_TUI_DRIVER=<path>` the TUI driver of the parity scenario
+// `PANDORAS_FORUM_DEVNET_JSON=<file>` reuses a running devnet (the JSON devnet.mjs wrote);
+// `PANDORAS_FORUM_BIN=<path>` names the `pandoras-forum` binary of the bridge test and the parity
+// scenario (default target/debug/pandoras-forum; the bridge test needs one that embeds an e2e build,
+// see bridge.spec.ts); `PANDORAS_FORUM_TUI_DRIVER=<path>` the TUI driver of the parity scenario
 // (scenario.spec.ts; default target/debug/examples/parity_driver). `cargo xtask e2e --web`
 // builds everything and runs this suite (packages/e2e/README.md).
 

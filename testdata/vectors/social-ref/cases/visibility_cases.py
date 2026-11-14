@@ -11,10 +11,10 @@ from __future__ import annotations
 
 import json
 
-from lessdugin_ref.build import HOUR, MIN, T0, Forum, did, nsid, rec
-from lessdugin_ref.fold import fold_vector_input
-from lessdugin_ref.projections import project
-from lessdugin_ref.visibility import lens
+from pandoras_forum_ref.build import HOUR, MIN, T0, Forum, did, nsid, rec
+from pandoras_forum_ref.fold import fold_vector_input
+from pandoras_forum_ref.projections import project
+from pandoras_forum_ref.visibility import lens
 
 from .util import file_doc, vector
 

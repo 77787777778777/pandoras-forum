@@ -5,8 +5,8 @@
 //! (both directions are not required here: the result names the DID the handle points to).
 //! Listing indices (`3`, `c12`) are the CLI's to resolve before calling.
 
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did, LooseAtUri};
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did, LooseAtUri};
+use pandoras_forum_lexicon::collection::nsid;
 
 use crate::discovery::forum_ref::ForumKey;
 use crate::dto::{ModScope, Ref, RefContext, RkeyInput, ValidationReport};
@@ -135,7 +135,7 @@ impl<H: Host> Engine<H> {
                     let did = self.authority_did(input, a).await?;
                     record(coll, did, b)
                 }
-                _ => Err(bad(input, "not a lessdugin link")),
+                _ => Err(bad(input, "not a Pandora's Forum link")),
             };
         }
         if raw.starts_with("at://") {
@@ -191,7 +191,7 @@ impl<H: Host> Engine<H> {
         collection: &str,
         value: &serde_json::Value,
     ) -> Result<ValidationReport, EngineError> {
-        let ns = lessdugin_lexicon::ns::NS;
+        let ns = pandoras_forum_lexicon::ns::NS;
         let coll = if collection.contains('.') {
             collection.to_owned()
         } else {
@@ -201,7 +201,7 @@ impl<H: Host> Engine<H> {
             .me()
             .await?
             .unwrap_or_else(|| PLACEHOLDER_DID.to_owned());
-        let tid = lessdugin_atp::tid::Tid::from_parts(
+        let tid = pandoras_forum_atp::tid::Tid::from_parts(
             u64::try_from(self.host.now_ms())
                 .unwrap_or(0)
                 .saturating_mul(1000),
@@ -213,7 +213,7 @@ impl<H: Host> Engine<H> {
         let uri = AtUri::parse(&format!("at://{did}/{coll}/{rkey}"))
             .or_else(|_| AtUri::parse(&format!("at://{did}/{coll}/x")))
             .map_err(|e| EngineError::invalid_input(format!("{collection}: {e}")))?;
-        let v = lessdugin_lexicon::validity::check(&coll, &uri, value);
+        let v = pandoras_forum_lexicon::validity::check(&coll, &uri, value);
         let mut ids = v.rule_ids();
         ids.sort_unstable();
         ids.dedup();
@@ -224,12 +224,12 @@ impl<H: Host> Engine<H> {
     }
 
     /// `derive_rkey(RkeyInput)` (`engine-api.md` §3.7): the canonical record key
-    /// (`data-model.md` §3), by [`lessdugin_lexicon::keys::derive`]. `invalid_input` when the
+    /// (`data-model.md` §3), by [`pandoras_forum_lexicon::keys::derive`]. `invalid_input` when the
     /// input names no valid key (a non-canonical uri, a root that is not a post keyed `FK-TID`,
     /// a malformed TID, an `actionKey` no action has).
     pub fn derive_rkey(&self, input: &RkeyInput) -> Result<String, EngineError> {
-        use lessdugin_lexicon::keys::{self, KeyError, RkeyInput as K};
-        let ns = lessdugin_lexicon::ns::NS;
+        use pandoras_forum_lexicon::keys::{self, KeyError, RkeyInput as K};
+        let ns = pandoras_forum_lexicon::ns::NS;
         let derive = |k: &K<'_>| keys::derive(ns, k).map(|d| d.rkey);
         let r = match input {
             RkeyInput::Membership { forum } => derive(&K::Membership { forum }),
@@ -239,8 +239,8 @@ impl<H: Host> Engine<H> {
             RkeyInput::Comment { root, tid } => keys::split_uri(root).and_then(|(_, rc, rk)| {
                 let (fk, t) = keys::split_fk_tid(rk)
                     .filter(|_| {
-                        lessdugin_lexicon::Collection::from_nsid_in(ns, rc)
-                            == Some(lessdugin_lexicon::Collection::Post)
+                        pandoras_forum_lexicon::Collection::from_nsid_in(ns, rc)
+                            == Some(pandoras_forum_lexicon::Collection::Post)
                     })
                     .ok_or(KeyError::Undefined)?;
                 if !keys::is_tid(tid) {
@@ -280,7 +280,7 @@ fn action_with_key(ns: &str, k: &str) -> Option<serde_json::Map<String, serde_js
     [format!("{ns}.modAction#{k}"), k.to_owned()]
         .into_iter()
         .map(|t| serde_json::Map::from_iter([("$type".to_owned(), t.into())]))
-        .find(|a| lessdugin_lexicon::keys::action_key(ns, a).is_ok_and(|ak| ak == k))
+        .find(|a| pandoras_forum_lexicon::keys::action_key(ns, a).is_ok_and(|ak| ak == k))
 }
 
 /// The repo of a record `validate_record` checks when no account is active.
@@ -288,8 +288,8 @@ const PLACEHOLDER_DID: &str = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
 
 /// The key a record value of `coll` would be written under (see [`Engine::validate_record`]).
 fn draft_rkey(ns: &str, coll: &str, v: &serde_json::Value, tid: &str) -> Option<String> {
-    use lessdugin_lexicon::Collection;
-    use lessdugin_lexicon::keys::{self, RkeyInput as K};
+    use pandoras_forum_lexicon::Collection;
+    use pandoras_forum_lexicon::keys::{self, RkeyInput as K};
     let s = |k: &str| v.get(k).and_then(serde_json::Value::as_str);
     let r = |k: &str| v.get(k)?.get("uri")?.as_str();
     let input = match Collection::from_nsid_in(ns, coll)? {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `lessdugin web`: the embedded SPA and the bridge on `127.0.0.1` — the zero-trust path
+//! `pandoras-forum web`: the embedded SPA and the bridge on `127.0.0.1` — the zero-trust path
 //! (`threat-model.md` §7, `docs/design/synthesis-v1.md` §6.13).
 //!
 //! The CLI keeps the sessions; the browser holds no long-lived secret. The tab proves it was
@@ -7,7 +7,7 @@
 //! an in-memory session token, and then reaches the bridge:
 //!
 //! - [`server`]: the listener, the Host check, the §7.3 checks, static files and
-//!   `lessdugin-config.json` (`{"oauth":"bridge"}`), `POST /bridge/session`;
+//!   `pandoras-forum-config.json` (`{"oauth":"bridge"}`), `POST /bridge/session`;
 //! - [`xrpc`]: `POST /bridge/xrpc/<nsid>?account=<did>`, the allowlisted writes;
 //! - [`kv`]: `POST /bridge/kv`, the SPA's `state` store in native `state.sqlite`;
 //! - [`lock`]: `POST /bridge/lock`, the native `outbox:<did>` lock held for a tab;
@@ -36,8 +36,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use axum::Router;
-use lessdugin_core::dto::DTO_VERSION;
-use lessdugin_core::engine::{EngineError, ErrorCode};
+use pandoras_forum_core::dto::DTO_VERSION;
+use pandoras_forum_core::engine::{EngineError, ErrorCode};
 use serde_json::json;
 
 use self::assets::Assets;
@@ -63,7 +63,7 @@ pub struct WebArgs {
 fn bind_error(port: u16, e: &std::io::Error) -> CliError {
     let msg = if e.kind() == std::io::ErrorKind::AddrInUse {
         format!(
-            "port {port} on 127.0.0.1 is in use; lessdugin web never picks another port (the \
+            "port {port} on 127.0.0.1 is in use; pandoras-forum web never picks another port (the \
              port is part of the web app's origin). Stop the program using it, or choose a \
              port with --port or web.port in config.toml"
         )
@@ -117,7 +117,7 @@ fn stdin_lines() -> tokio::sync::mpsc::UnboundedReceiver<String> {
     rx
 }
 
-/// `lessdugin web`.
+/// `pandoras-forum web`.
 pub async fn run(ctx: &Ctx, args: WebArgs) -> Result<(), CliError> {
     let port = config::port(args.port, &ctx.paths.config_file).map_err(CliError::usage)?;
     let engine = ctx.engine()?.clone();
@@ -141,7 +141,7 @@ pub async fn run(ctx: &Ctx, args: WebArgs) -> Result<(), CliError> {
     });
     let out = &ctx.out;
     out.note(&[
-        (lit("lessdugin web is serving on "), Style::Plain),
+        (lit("pandoras-forum web is serving on "), Style::Plain),
         (tt(&web.origin()), Style::Bold),
         (lit(" (127.0.0.1 only)."), Style::Plain),
     ]);
@@ -214,7 +214,7 @@ pub async fn run(ctx: &Ctx, args: WebArgs) -> Result<(), CliError> {
     web.login.cancel();
     match result {
         Ok(Ok(())) => {
-            out.note(&[(lit("lessdugin web stopped."), Style::Dim)]);
+            out.note(&[(lit("pandoras-forum web stopped."), Style::Dim)]);
             Ok(())
         }
         Ok(Err(e)) => {

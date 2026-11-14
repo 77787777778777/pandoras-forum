@@ -705,7 +705,7 @@ mod tests {
     use std::collections::BTreeMap;
 
     const NOW: i64 = 1_760_000_000_000_000;
-    const POST: &str = "online.7778777.lessdugin.post";
+    const POST: &str = "forum.pandoras.post";
 
     enum Sk {
         K(k256::ecdsa::SigningKey),
@@ -756,13 +756,13 @@ mod tests {
             };
             for i in 0..50 {
                 r.put_json(
-                    &format!("{POST}/uetjixxr3a33-3l2s5xxv2z{i:03}"),
+                    &format!("{POST}/nkglkm5wsp3d-3l2s5xxv2z{i:03}"),
                     &json!({"$type": POST, "text": format!("post {i}"), "n": i}),
                 );
             }
             r.put_json(
-                "online.7778777.lessdugin.profile/self",
-                &json!({"$type": "online.7778777.lessdugin.profile", "displayName": "x"}),
+                "forum.pandoras.profile/self",
+                &json!({"$type": "forum.pandoras.profile", "displayName": "x"}),
             );
             r
         }
@@ -871,7 +871,7 @@ mod tests {
     }
 
     fn path7() -> String {
-        format!("{POST}/uetjixxr3a33-3l2s5xxv2z007")
+        format!("{POST}/nkglkm5wsp3d-3l2s5xxv2z007")
     }
 
     #[test]
@@ -896,7 +896,7 @@ mod tests {
             assert_eq!(out.rev.timestamp_micros(), NOW as u64);
             assert_eq!(out.commit_cid, repo.build(&path, NOW, vec![]).commit);
             // the legacy entry point agrees
-            let rkey = RecordKey::parse("uetjixxr3a33-3l2s5xxv2z007").unwrap();
+            let rkey = RecordKey::parse("nkglkm5wsp3d-3l2s5xxv2z007").unwrap();
             let legacy = verify_record_proof(
                 &car,
                 &repo.did,
@@ -933,12 +933,12 @@ mod tests {
     #[test]
     fn end_to_end_absent() {
         let repo = k256_repo();
-        let path = format!("{POST}/uetjixxr3a33-3l2s5xxv2z007x");
+        let path = format!("{POST}/nkglkm5wsp3d-3l2s5xxv2z007x");
         let out = repo.verify(&repo.proof_car(&path, NOW), &path).unwrap();
         assert!(!out.is_present());
         assert!(out.record_cid().is_none() && out.value().is_none());
         // another collection entirely
-        let path = "online.7778777.lessdugin.comment/x";
+        let path = "forum.pandoras.comment/x";
         let out = repo.verify(&repo.proof_car(path, NOW), path).unwrap();
         assert!(!out.is_present());
     }
@@ -1018,7 +1018,7 @@ mod tests {
                 &car,
                 &repo.did,
                 &coll(),
-                &RecordKey::parse("uetjixxr3a33-3l2s5xxv2z007").unwrap(),
+                &RecordKey::parse("nkglkm5wsp3d-3l2s5xxv2z007").unwrap(),
                 &repo.key(),
                 NOW,
                 &caps,
@@ -1062,7 +1062,7 @@ mod tests {
         let path = path7();
         let built = repo.build(&path, NOW, vec![]);
         let car = &built.car;
-        let rkey = RecordKey::parse("uetjixxr3a33-3l2s5xxv2z007").unwrap();
+        let rkey = RecordKey::parse("nkglkm5wsp3d-3l2s5xxv2z007").unwrap();
         let caps = ProofCaps::default();
         let run = |car: &[u8], did: &Did, key: &PublicKey, now: i64| {
             verify_proof(car, did, &coll(), &rkey, key, now, &caps)
@@ -1094,7 +1094,7 @@ mod tests {
         let f = run(car, &did2, &repo.key(), NOW).unwrap_err();
         assert_eq!(f.kind(), ProofErrorKind::DidMismatch);
         // a key whose path nodes are not included
-        let far = format!("{POST}/uetjixxr3a33-3l2s5xxv2z049");
+        let far = format!("{POST}/nkglkm5wsp3d-3l2s5xxv2z049");
         let f = repo.verify(car, &far).unwrap_err();
         assert!(matches!(
             *f.error,
@@ -1302,14 +1302,14 @@ mod tests {
     fn bundles() {
         let repo = k256_repo();
         let p7 = path7();
-        let absent = format!("{POST}/uetjixxr3a33-3l2s5xxv2z007x");
+        let absent = format!("{POST}/nkglkm5wsp3d-3l2s5xxv2z007x");
         let b7 = repo.build(&p7, NOW, vec![]);
         let ba = repo.build(&absent, NOW, vec![]);
         let mut blocks = b7.blocks.clone();
         blocks.extend(ba.blocks.iter().cloned());
         let uri = |p: &str| format!("at://{}/{p}", repo.did);
         let c7 = repo.records[&p7].0;
-        let wrong = repo.records[&format!("{POST}/uetjixxr3a33-3l2s5xxv2z008")].0;
+        let wrong = repo.records[&format!("{POST}/nkglkm5wsp3d-3l2s5xxv2z008")].0;
         let items = vec![
             item(&uri(&p7), Some(c7), b7.commit),     // 0: ok, present
             item(&uri(&absent), None, ba.commit),     // 1: ok, absent

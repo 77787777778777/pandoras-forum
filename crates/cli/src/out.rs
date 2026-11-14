@@ -14,11 +14,11 @@
 
 use std::io::{IsTerminal, Write};
 
-use lessdugin_core::dto::DTO_VERSION;
-use lessdugin_core::engine::EngineError;
+use pandoras_forum_core::dto::DTO_VERSION;
+use pandoras_forum_core::engine::EngineError;
 use serde::Serialize;
 
-pub use lessdugin_markdown::term::{
+pub use pandoras_forum_markdown::term::{
     RunKind, TermCtx, TermText, escape_json_for_tty, term_sanitize,
 };
 
@@ -69,7 +69,7 @@ pub fn redact_app_passwords(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut word = String::new();
     let flush = |word: &mut String, out: &mut String| {
-        if lessdugin_core::engine::is_app_password_shape(word) {
+        if pandoras_forum_core::engine::is_app_password_shape(word) {
             out.push_str("<redacted>");
         } else {
             out.push_str(word);
@@ -322,7 +322,7 @@ impl Printer {
             let _ = writeln!(std::io::stderr().lock(), "{text}");
             return;
         }
-        let msg = lessdugin_native::auth::redact::redact_secrets(&e.message);
+        let msg = pandoras_forum_native::auth::redact::redact_secrets(&e.message);
         self.err_line(&[(lit("error: "), Style::Bad), (tt(&msg), Style::Plain)]);
         if let Some(hint) = hint_for(e) {
             self.err_line(&[(lit("hint: "), Style::Dim), (lit(hint), Style::Plain)]);
@@ -346,10 +346,10 @@ impl Printer {
     }
 }
 
-/// The pager command: `$LESSDUGIN_PAGER`, else `$PAGER`, else `less -R -F -X`, split into
+/// The pager command: `$PANDORAS_FORUM_PAGER`, else `$PAGER`, else `less -R -F -X`, split into
 /// words without a shell (as `$EDITOR` is). `None`: do not page (an empty value, or `cat`).
 pub fn pager_command(var: impl Fn(&str) -> Option<String>) -> Option<Vec<String>> {
-    let chosen = var("LESSDUGIN_PAGER")
+    let chosen = var("PANDORAS_FORUM_PAGER")
         .or_else(|| var("PAGER"))
         .unwrap_or_else(|| "less -R -F -X".to_owned());
     let words: Vec<String> = chosen.split_whitespace().map(str::to_owned).collect();
@@ -415,7 +415,7 @@ impl IgnoreInterrupts {
 }
 
 fn hint_for(e: &EngineError) -> Option<&'static str> {
-    use lessdugin_core::engine::ErrorCode as C;
+    use pandoras_forum_core::engine::ErrorCode as C;
     let kind = e
         .detail
         .as_ref()
@@ -423,13 +423,13 @@ fn hint_for(e: &EngineError) -> Option<&'static str> {
         .and_then(|k| k.as_str());
     match (e.code, kind) {
         (_, Some("issuerChanged")) => {
-            Some("run `lessdugin login` interactively to confirm the new authorization server")
+            Some("run `pandoras-forum login` interactively to confirm the new authorization server")
         }
         (_, Some("notAnAppPassword")) => {
             Some("create an app password in your PDS's settings (Settings > App passwords)")
         }
-        (C::AuthRequired, _) => Some("log in with `lessdugin login <handle>`"),
-        (C::Network, _) => Some("check your connection, or run `lessdugin doctor`"),
+        (C::AuthRequired, _) => Some("log in with `pandoras-forum login <handle>`"),
+        (C::Network, _) => Some("check your connection, or run `pandoras-forum doctor`"),
         _ => None,
     }
 }
@@ -502,7 +502,7 @@ mod tests {
             Some(vec!["most".into(), "-s".into()])
         );
         assert_eq!(
-            pager_command(env(&[("PAGER", "most"), ("LESSDUGIN_PAGER", "less")])),
+            pager_command(env(&[("PAGER", "most"), ("PANDORAS_FORUM_PAGER", "less")])),
             Some(vec!["less".into()])
         );
         assert_eq!(pager_command(env(&[("PAGER", "")])), None);

@@ -7,9 +7,9 @@
 //! - PURE-RUST decoders only (`image-defaults`): no C library is linked for this path.
 //! - At most 64 MiB of input, 8192 pixels per side, a 256 MiB decode allocation and 200 GIF frames
 //!   (`limits.md` §6). The pixel caps are checked from the HEADER, through
-//!   [`lessdugin_core::media::decoding_allowed`], BEFORE any pixels are allocated (a header it
+//!   [`pandoras_forum_core::media::decoding_allowed`], BEFORE any pixels are allocated (a header it
 //!   cannot measure is refused), and again by the decoder's own limits, in
-//!   [`lessdugin_core::media::decode_image`]. A GIF is shown as its first frame: one of the at
+//!   [`pandoras_forum_core::media::decode_image`]. A GIF is shown as its first frame: one of the at
 //!   most 200 decoded.
 //! - The decode and the resize happen OFF the UI thread. A supervisor thread gives each decode
 //!   [`limits::DECODE_TIMEOUT`]; past it the image is abandoned (its placeholder says so) and
@@ -29,7 +29,7 @@
 //! `ratatui-image`'s own query leaves such a reader behind (a thread blocked in `read`, which
 //! eats the next keystroke before it dies), so it is not used. Instead:
 //!
-//! 1. [`detection`] decides, from the `LESSDUGIN_TUI_IMAGES` setting ([`Setting`]) and the
+//! 1. [`detection`] decides, from the `PANDORAS_FORUM_TUI_IMAGES` setting ([`Setting`]) and the
 //!    environment, whether the terminal is worth asking at all. `auto` (the default) asks only a
 //!    terminal the environment names (`TERM_PROGRAM`, `KITTY_WINDOW_ID`, `WEZTERM_*`,
 //!    `ITERM_SESSION_ID`, `TMUX` and the like, or a `TERM` of a known emulator) or one that
@@ -67,7 +67,7 @@ use ratatui_image::thread::{ResizeRequest, ResizeResponse, ThreadProtocol};
 /// a round trip; one that never answers costs a forced `query` this much at startup).
 pub const QUERY_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// The `LESSDUGIN_TUI_IMAGES` setting: whether the terminal is asked for its graphics protocol.
+/// The `PANDORAS_FORUM_TUI_IMAGES` setting: whether the terminal is asked for its graphics protocol.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Setting {
     /// Ask a terminal the environment names, or one that reports its cell size; halfblocks
@@ -84,7 +84,7 @@ pub enum Setting {
 
 impl Setting {
     /// The environment variable.
-    pub const VAR: &'static str = "LESSDUGIN_TUI_IMAGES";
+    pub const VAR: &'static str = "PANDORAS_FORUM_TUI_IMAGES";
 
     /// `auto`, `query`, `halfblocks` or `off` (case does not matter); `None` for anything else.
     pub fn parse(s: &str) -> Option<Self> {
@@ -97,7 +97,7 @@ impl Setting {
         }
     }
 
-    /// The setting from `$LESSDUGIN_TUI_IMAGES` (`auto` when unset or unknown).
+    /// The setting from `$PANDORAS_FORUM_TUI_IMAGES` (`auto` when unset or unknown).
     pub fn from_env() -> Self {
         Self::from_var(|k| std::env::var(k).ok())
     }
@@ -501,7 +501,7 @@ pub enum Placeholder {
     Loading,
     /// Decoding failed (corrupt, or past the timeout).
     Failed,
-    /// Images are off (`LESSDUGIN_TUI_IMAGES=off`).
+    /// Images are off (`PANDORAS_FORUM_TUI_IMAGES=off`).
     Off,
 }
 
@@ -521,7 +521,7 @@ impl Placeholder {
 /// Decodes `bytes` under the caps, on the CALLER's thread ([`Images`] calls it on a worker).
 ///
 /// Only PNG, JPEG, GIF and WebP are handed on, to the core's decode
-/// ([`lessdugin_core::media::decode_image`]): SUP-9's header check, then the decoder under the
+/// ([`pandoras_forum_core::media::decode_image`]): SUP-9's header check, then the decoder under the
 /// same caps as its own limits, the one policy every surface that decodes media uses.
 ///
 /// # Errors
@@ -542,11 +542,11 @@ pub fn decode(bytes: &[u8]) -> Result<DynamicImage, Placeholder> {
         return Err(Placeholder::Unsupported);
     }
     // the header check before any decoder sees the bytes (`decode_image` makes it again)
-    if !lessdugin_core::media::decoding_allowed(bytes) {
+    if !pandoras_forum_core::media::decoding_allowed(bytes) {
         return Err(Placeholder::TooLarge);
     }
     // a GIF decodes to its first frame here
-    let img = lessdugin_core::media::decode_image(bytes).ok_or(Placeholder::Failed)?;
+    let img = pandoras_forum_core::media::decode_image(bytes).ok_or(Placeholder::Failed)?;
     if img.width() > limits::MAX_SIDE || img.height() > limits::MAX_SIDE {
         return Err(Placeholder::TooLarge);
     }
@@ -644,7 +644,7 @@ impl Images {
         Self::with(None, Arc::new(|| {}))
     }
 
-    /// A client whose user turned images off (`LESSDUGIN_TUI_IMAGES=off`): nothing is decoded,
+    /// A client whose user turned images off (`PANDORAS_FORUM_TUI_IMAGES=off`): nothing is decoded,
     /// and the cells say so.
     pub fn off() -> Self {
         Self {

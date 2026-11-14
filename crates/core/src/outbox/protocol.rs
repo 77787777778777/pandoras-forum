@@ -14,12 +14,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::{Datetime, Did};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::records::{Action, Opinion, OpinionIntent, StrongRef, TextQuote, qkey};
-use lessdugin_lexicon::values::{Agreement, RevisionOp, Stance, Tier, VoteValue};
+use pandoras_forum_atp::syntax::{Datetime, Did};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::{Action, Opinion, OpinionIntent, StrongRef, TextQuote, qkey};
+use pandoras_forum_lexicon::values::{Agreement, RevisionOp, Stance, Tier, VoteValue};
 use serde_json::Value;
 
 use crate::discovery::roster::{RANK_ADMIN, RANK_MODERATOR, RANK_OWNER};
@@ -342,7 +342,8 @@ impl<'a, H: Host> Runner<'a, H> {
             let c: ChunkRow = row::decode(&r).map_err(storage)?;
             out.extend_from_slice(&c.b);
         }
-        if out.len() as u64 != b.size || lessdugin_atp::cid::for_raw(&out).to_string() != b.cid {
+        if out.len() as u64 != b.size || pandoras_forum_atp::cid::for_raw(&out).to_string() != b.cid
+        {
             return Err(rejected(EngineError::internal(
                 "a stored blob does not match its CID",
             )));
@@ -357,7 +358,7 @@ impl<'a, H: Host> Runner<'a, H> {
         // The PDS may have downscaled on a 413 (§8.8), which gives the stored bytes a different
         // CID. The record must then refer to the CID that was ACTUALLY stored, so compare
         // against the returned bytes rather than the ones we meant to send.
-        let stored_cid = lessdugin_atp::cid::for_raw(&stored).to_string();
+        let stored_cid = pandoras_forum_atp::cid::for_raw(&stored).to_string();
         if blob::blob_link(&object) != Some(stored_cid.as_str()) {
             return Err(rejected(
                 EngineError::invalid_input("the PDS stored the blob under another CID")
@@ -2007,17 +2008,17 @@ mod tests {
         assert!(!role_may_issue("moderator", &curated));
         assert!(role_may_issue("admin", &curated));
         assert!(!role_may_issue("owner", &unknown));
-        let k = "uetjixxr3a33-ckjbz7a2pjeplbao";
+        let k = "nkglkm5wsp3d-jf2rkp6oclilez2z";
         assert!(is_adoptable(k, &serde_json::json!({}), 0));
         assert!(!is_adoptable(k, &serde_json::json!({"scope": "author"}), 0));
         assert!(!is_adoptable(
-            "uetjixxr3a33-3l2s5xxv2ze2c",
+            "nkglkm5wsp3d-3l2s5xxv2ze2c",
             &serde_json::json!({}),
             0
         ));
         let lapsed = serde_json::json!({"until": "2020-01-01T00:00:00.000Z"});
         assert!(!is_adoptable(k, &lapsed, 1_700_000_000_000_000));
-        let p = "uetjixxr3a33-3l2s5xxv2ze2c";
+        let p = "nkglkm5wsp3d-3l2s5xxv2ze2c";
         let of_p = |k: &str| keys::split_revision_key(k).is_some_and(|(rp, _)| rp == p);
         assert!(of_p(&format!("{p}-3l2s6aaaaaaa2")));
         assert!(!of_p(&format!("{p}-3l2s6aaaaaaa2-3l2s6aaaaaaa2")));

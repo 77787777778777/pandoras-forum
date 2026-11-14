@@ -7,8 +7,8 @@
 
 /// Strings found only in src/host/e2e.ts and the e2e branch of src/engine/real.ts.
 pub const E2E_MARKERS: &[&str] = &[
-    "__lessduginE2E",
-    "__LESSDUGIN_E2E__",
+    "__pandorasForumE2E",
+    "__PANDORAS_FORUM_E2E__",
     "End-to-end test build",
 ];
 

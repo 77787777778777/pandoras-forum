@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! End-to-end: identity resolution, login binding and `verify` against the local devnet
-//! (`packages/e2e/devnet.mjs`, ADR 0006). Runs only with `LESSDUGIN_E2E=1`; otherwise every test
+//! (`packages/e2e/devnet.mjs`, ADR 0006). Runs only with `PANDORAS_FORUM_E2E=1`; otherwise every test
 //! returns immediately so plain `cargo test` stays offline.
 //!
-//! `LESSDUGIN_DEVNET_JSON=<file>` reuses a running devnet; otherwise the test starts one with
+//! `PANDORAS_FORUM_DEVNET_JSON=<file>` reuses a running devnet; otherwise the test starts one with
 //! `node packages/e2e/devnet.mjs --json <tmp>` and kills it at the end.
 //!
 //! The host here is a minimal reqwest host (no SSRF guard; loopback only), standing in for the
@@ -17,16 +17,16 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use lessdugin_atp::syntax::{AtIdentifier, Did, Nsid};
-use lessdugin_atp::xrpc::{CreateRecord, CreateSession, Session, WriteRecordOutput};
-use lessdugin_core::dto::{HandleState, VerifyOutcome};
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, PinStatus};
-use lessdugin_core::host::{
+use pandoras_forum_atp::syntax::{AtIdentifier, Did, Nsid};
+use pandoras_forum_atp::xrpc::{CreateRecord, CreateSession, Session, WriteRecordOutput};
+use pandoras_forum_core::dto::{HandleState, VerifyOutcome};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, PinStatus};
+use pandoras_forum_core::host::{
     BlobHandle, Host, HostError, HttpRequest, HttpResponse, ProcessLock, ProcessLocks, Redirects,
     Target, WebSocket, WsMessage,
 };
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_core::xrpc::{CallOpts, Service};
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_core::xrpc::{CallOpts, Service};
 use serde_json::{Value, json};
 
 struct NoWs;
@@ -204,22 +204,22 @@ impl Host for NetHost {
 
 struct Devnet {
     info: Value,
-    _child: Option<lessdugin_testkit::node_devnet::NodeDevnet>,
+    _child: Option<pandoras_forum_testkit::node_devnet::NodeDevnet>,
 }
 
 impl Devnet {
     fn start() -> Option<Self> {
-        if std::env::var("LESSDUGIN_E2E").ok().as_deref() != Some("1") {
-            eprintln!("skipped: set LESSDUGIN_E2E=1 to run against the devnet");
+        if std::env::var("PANDORAS_FORUM_E2E").ok().as_deref() != Some("1") {
+            eprintln!("skipped: set PANDORAS_FORUM_E2E=1 to run against the devnet");
             return None;
         }
-        if let Ok(path) = std::env::var("LESSDUGIN_DEVNET_JSON") {
+        if let Ok(path) = std::env::var("PANDORAS_FORUM_DEVNET_JSON") {
             let info = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             return Some(Self { info, _child: None });
         }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         // one devnet per test: the tests of a binary run in parallel
-        let (child, info) = lessdugin_testkit::node_devnet::NodeDevnet::start(root, "testkit");
+        let (child, info) = pandoras_forum_testkit::node_devnet::NodeDevnet::start(root, "testkit");
         Some(Self {
             info,
             _child: Some(child),
@@ -247,7 +247,9 @@ async fn devnet_identity_login_and_verify() {
     let did = devnet.s(&["accounts", "alice", "did"]);
     let handle = devnet.s(&["accounts", "alice", "handle"]);
     let app_password = devnet.s(&["accounts", "alice", "appPassword"]);
-    assert!(lessdugin_core::engine::is_app_password_shape(&app_password));
+    assert!(pandoras_forum_core::engine::is_app_password_shape(
+        &app_password
+    ));
 
     let host = std::sync::Arc::new(NetHost::new());
     let cfg = EngineConfig::devnet(
@@ -309,11 +311,11 @@ async fn devnet_identity_login_and_verify() {
             &user,
             &CreateRecord {
                 repo: AtIdentifier::Did(Did::parse(&did).unwrap()),
-                collection: Nsid::parse("online.7778777.lessdugin.post").unwrap(),
+                collection: Nsid::parse("forum.pandoras.post").unwrap(),
                 rkey: None,
                 validate: None,
                 record: json!({
-                    "$type": "online.7778777.lessdugin.post",
+                    "$type": "forum.pandoras.post",
                     "title": "e2e",
                     "tags": ["a", "b"],
                     "n": 42,
@@ -340,13 +342,13 @@ async fn devnet_identity_login_and_verify() {
     }
     // The same record by handle URI.
     let rkey = created.uri.rsplit('/').next().unwrap();
-    let by_handle = format!("at://{handle}/online.7778777.lessdugin.post/{rkey}");
+    let by_handle = format!("at://{handle}/forum.pandoras.post/{rkey}");
     assert_eq!(
         e.verify(&by_handle, true).await.unwrap().result,
         VerifyOutcome::Proven
     );
     // A record that does not exist is proven absent.
-    let absent = format!("at://{did}/online.7778777.lessdugin.post/3l2s5xxv2zzzz");
+    let absent = format!("at://{did}/forum.pandoras.post/3l2s5xxv2zzzz");
     let r = e.verify(&absent, false).await.unwrap();
     assert_eq!(r.result, VerifyOutcome::Absent, "{:#?}", r.checks);
 }

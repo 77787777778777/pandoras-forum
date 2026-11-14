@@ -10,8 +10,8 @@
 //! - The loopback `client_id` is `http://localhost?redirect_uri=<pct>&scope=<pct(SUPERSET)>`:
 //!   no port, an empty path, RFC 3986 percent-encoding.
 
-use lessdugin_atp::xrpc::percent_encode;
-use lessdugin_lexicon::ns::{NS, NS_FINAL};
+use pandoras_forum_atp::xrpc::percent_encode;
+use pandoras_forum_lexicon::ns::{NS, NS_FINAL};
 
 pub use crate::auth::allowlist::COLLECTIONS;
 
@@ -22,8 +22,7 @@ pub const BLOB_SCOPES: &str =
 /// The hosted native client metadata (`deploy/site/oauth/cli-client-metadata.json`): the
 /// default; `config.toml` `oauth_client_id` or `login --oauth-client-id` names a preview or
 /// self-hosted origin's (decision O-6).
-pub const HOSTED_CLIENT_ID: &str =
-    "https://lessdugin.7778777.online/oauth/cli-client-metadata.json";
+pub const HOSTED_CLIENT_ID: &str = "https://pandoras.forum/oauth/cli-client-metadata.json";
 
 /// True when this build writes the final (published) namespace.
 pub fn is_final_ns() -> bool {
@@ -105,11 +104,11 @@ mod tests {
         if is_final_ns() {
             assert_eq!(
                 include_scope().unwrap(),
-                format!("atproto include:online.7778777.lessdugin.authFull {BLOB_SCOPES}")
+                format!("atproto include:forum.pandoras.authFull {BLOB_SCOPES}")
             );
         } else {
             assert_eq!(scope_candidates(), vec![e.clone()]);
-            assert!(e.contains("collection=online.7778777.lessdugin.temp.wikiRevision&"));
+            assert!(e.contains("collection=forum.pandoras.temp.wikiRevision&"));
             assert!(!superset_scope().contains("include:"));
         }
     }
@@ -139,7 +138,7 @@ mod tests {
         let final_superset = superset_in(NS_FINAL, true);
         assert_eq!(superset, final_superset);
         // a `.temp` build has no `include:` token (§10.4)
-        let temp = superset_in(lessdugin_lexicon::ns::NS_TEMP, false);
+        let temp = superset_in(pandoras_forum_lexicon::ns::NS_TEMP, false);
         assert!(temp.starts_with("atproto repo?collection="), "{temp}");
         assert!(!temp.contains("include:"), "{temp}");
         if !is_final_ns() {
@@ -158,7 +157,7 @@ mod tests {
         }
         let native: serde_json::Value = serde_json::from_str(native).unwrap();
         assert_eq!(native["client_id"], HOSTED_CLIENT_ID);
-        assert_eq!(native["client_name"], "lessdugin CLI");
+        assert_eq!(native["client_name"], "Pandora's Forum CLI");
     }
 
     #[test]

@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin data model (normative)
+# Pandora's Forum data model (normative)
 
 **Status:** draft for the `.temp` namespace (M0). It is frozen at publication (M7).
 **Sources:** `docs/design/synthesis-v1.md` §2, §3.5 and §10, with every fix from `docs/design/completeness-review.md` and the approved plan applied.
@@ -40,13 +40,13 @@ It refers to six more: `mod/1`, `karma/1`, `magic/1`, `lfm/1`, `default/1` and `
 
 ### 1.1 Groups
 
-`NS` = `online.7778777.lessdugin`; the NSID authority is `lessdugin.7778777.online`.
+`NS` = `forum.pandoras`; the NSID authority is `pandoras.forum`.
 
 | Group | DNS TXT record | Contents |
 |---|---|---|
-| `online.7778777.lessdugin` | `_lexicon.lessdugin.7778777.online  "did=<publisher DID>"` | 10 record collections, `defs`, `markdown`, `authFull`, `authInteract` |
-| `online.7778777.lessdugin.index` | `_lexicon.index.lessdugin.7778777.online  "did=<publisher DID>"` | `index.defs` and the indexer queries (§11) |
-| `online.7778777.lessdugin.temp` | none; never published | development and dogfood builds (§1.3) |
+| `forum.pandoras` | `_lexicon.pandoras.forum  "did=<publisher DID>"` | 10 record collections, `defs`, `markdown`, `authFull`, `authInteract` |
+| `forum.pandoras.index` | `_lexicon.index.pandoras.forum  "did=<publisher DID>"` | `index.defs` and the indexer queries (§11) |
+| `forum.pandoras.temp` | none; never published | development and dogfood builds (§1.3) |
 
 ### 1.2 Lexicon inventory
 
@@ -73,8 +73,8 @@ The lexicon type of every record key is `any`, except `profile`, which is `liter
 
 **The prefix constant**
 - The prefix is a build-time constant, `NS`.
-  - Release builds (M7 and later) use `online.7778777.lessdugin`.
-  - Development, devnet, CI and dogfood builds use `online.7778777.lessdugin.temp`.
+  - Release builds (M7 and later) use `forum.pandoras`.
+  - Development, devnet, CI and dogfood builds use `forum.pandoras.temp`.
 - Lexicon files and this document always use the **final** NSIDs.
 - A `.temp` build MUST substitute its prefix in every NSID it reads or writes:
   - collection names;
@@ -84,7 +84,7 @@ The lexicon type of every record key is `any`, except `profile`, which is `liter
 - A build MUST NOT read or write records of the other prefix.
 
 **What does and does not change**
-- The hash domain tags (`lessdugin-fk/1`, `lessdugin-sk/1`) do not change.
+- The hash domain tags (`pandoras-forum-fk/1`, `pandoras-forum-sk/1`) do not change.
 - Every `fk` and every `h16` does change between prefixes, because they hash at-uris that contain the collection NSID.
 - `.temp` builds request the enumerated fallback scope (§10.3), because no permission set is ever published under `.temp`.
 
@@ -102,7 +102,7 @@ The lexicon type of every record key is `any`, except `profile`, which is `liter
 ### 1.4 Publisher account and governance
 
 **Publisher account**
-- A dedicated did:plc account with handle `lessdugin.7778777.online` and an offline rotation key.
+- A dedicated did:plc account with handle `pandoras.forum` and an offline rotation key.
 - It holds one `com.atproto.lexicon.schema` record per published NSID, with rkey = NSID.
 
 **Publishing**
@@ -136,7 +136,7 @@ The lexicon type of every record key is `any`, except `profile`, which is `liter
 | `[T]≤N` | array of at most N items | `{"type":"array","items":T,"maxLength":N}` |
 | `blob(accept; max)` | blob with accept list and maxSize in bytes | `{"type":"blob","accept":[…],"maxSize":max}` |
 | `blob(*/*; no max)` | blob, any type, no size limit | `{"type":"blob","accept":["*/*"]}` |
-| `md` | open union of `NS.markdown` | `{"type":"union","refs":["online.7778777.lessdugin.markdown"]}` |
+| `md` | open union of `NS.markdown` | `{"type":"union","refs":["forum.pandoras.markdown"]}` |
 | `slug` | `s(64b)` that the core checks against `^[a-z0-9]+(-[a-z0-9]+)*$` | `{"type":"string","maxLength":64}` |
 | `sref` | `com.atproto.repo.strongRef` `{uri, cid}` | `{"type":"ref","ref":"com.atproto.repo.strongRef"}` |
 | `atu` | at-uri, at most 3000 bytes | `{"type":"string","format":"at-uri","maxLength":3000}` |
@@ -244,8 +244,8 @@ b32s(bytes)    = base32, read MSB-first in 5-bit groups, alphabet "234567abcdefg
                  trailing partial group never matters. Sort order of the characters = bit order.
 H(tag, p1..pk) = sha256( UTF8(tag) ‖ (0x1F ‖ UTF8(NFC(p_i)))  for i = 1..k )
                  MUST reject (no key; the input is invalid) if any p_i contains U+001F.
-fk(forumUri)   = b32s(H("lessdugin-fk/1", forumUri))[0..12]                      // 60 bits     (fk/1)
-h16(name, p…)  = b32s(H("lessdugin-sk/1", name, p…))[0..16]                     // 80 bits     (sk/1)
+fk(forumUri)   = b32s(H("pandoras-forum-fk/1", forumUri))[0..12]                      // 60 bits     (fk/1)
+h16(name, p…)  = b32s(H("pandoras-forum-sk/1", name, p…))[0..16]                     // 80 bits     (sk/1)
                  name = the short collection name: "opinion" or "modAction"
 threadTid(uri) = let c = collection(uri), k = rkey(uri):
                    c = NS.post    ∧ k matches ^FK-TID$       → the TID segment
@@ -259,7 +259,7 @@ fkOf(rkey)     = the first 12 characters of rkey (for rkeys of the forum-scoped 
 ```
 
 **Notes**
-- `name` is hashed as a part, so the input is `"lessdugin-sk/1" 0x1F "opinion" 0x1F <uri>`.
+- `name` is hashed as a part, so the input is `"pandoras-forum-sk/1" 0x1F "opinion" 0x1F <uri>`.
 - `forumUri` and every at-uri part are canonical (§2.3). All v1 parts are ASCII, so NFC is a no-op; it is specified for robustness.
 
 **Token grammars**
@@ -323,17 +323,17 @@ So any code that selects records by key prefix (thread ranges, revisions of a su
 
 | Input | Output |
 |---|---|
-| `fk("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.forum/rationality")` | `uetjixxr3a33` |
-| the same forum under `.temp` (`…lessdugin.temp.forum/rationality`) | `2xbiijsnjtau` |
-| post with TID `3l2s5xxv2ze2c` in that forum: rkey | `uetjixxr3a33-3l2s5xxv2ze2c` |
-| `h16("opinion", "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c")` | `wcz54x7liy3jsh3g` |
-| opinion rkey on that post | `uetjixxr3a33-3l2s5xxv2ze2c-wcz54x7liy3jsh3g` |
-| comment by `did:plc:abcdefghijklmnopqrstuvwx` with TID `3l2s6aaaaaaa2` in that thread: rkey | `uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2` |
-| opinion rkey on that comment | `uetjixxr3a33-3l2s5xxv2ze2c-3mjfititlivah7tw` |
-| modAction `#access`, scope `forum`, subject `did:plc:abcdefghijklmnopqrstuvwx` | `uetjixxr3a33-ckjbz7a2pjeplbao` |
-| modAction `#hide`, scope `forum`, subject = the post uri | `uetjixxr3a33-jmsm5bwwzljcu2zo` |
-| modAction `#pin` (`pin:forum`), subject = the post uri | `uetjixxr3a33-4vdjzbg6ohwpa323` |
-| modAction `#tag`, subject `tag:decision-theory` | `uetjixxr3a33-yext7l62fmg5ufrt` |
+| `fk("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.forum/rationality")` | `nkglkm5wsp3d` |
+| the same forum under `.temp` (`…pandoras.temp.forum/rationality`) | `rij47lga3p74` |
+| post with TID `3l2s5xxv2ze2c` in that forum: rkey | `nkglkm5wsp3d-3l2s5xxv2ze2c` |
+| `h16("opinion", "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c")` | `liu73r73htncrny7` |
+| opinion rkey on that post | `nkglkm5wsp3d-3l2s5xxv2ze2c-liu73r73htncrny7` |
+| comment by `did:plc:abcdefghijklmnopqrstuvwx` with TID `3l2s6aaaaaaa2` in that thread: rkey | `nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2` |
+| opinion rkey on that comment | `nkglkm5wsp3d-3l2s5xxv2ze2c-yp4sp6qksmmqiqeu` |
+| modAction `#access`, scope `forum`, subject `did:plc:abcdefghijklmnopqrstuvwx` | `nkglkm5wsp3d-jf2rkp6oclilez2z` |
+| modAction `#hide`, scope `forum`, subject = the post uri | `nkglkm5wsp3d-z7jdhm6fkrboyadt` |
+| modAction `#pin` (`pin:forum`), subject = the post uri | `nkglkm5wsp3d-n3enyd5v2tw76a36` |
+| modAction `#tag`, subject `tag:decision-theory` | `nkglkm5wsp3d-jeniqv3np5jznwjp` |
 
 The same `b32s` implementation reproduces the superseded draft vectors (`ncepyaoj3bijw6li` and `q2swgvbea4gb2m6c`). Those used the full NSID as the name, a 10-byte truncation and no fk prefix, and they MUST NOT be used.
 
@@ -387,7 +387,7 @@ The same `b32s` implementation reproduces the superseded draft vectors (`ncepyao
 
 ## 5. `NS.markdown`
 
-`online.7778777.lessdugin.markdown` has a `main` def of type `object`. It is the only member of every `md` union, written with `"$type": "online.7778777.lessdugin.markdown"`. Other apps may embed it, for example as `site.standard.document.content`.
+`forum.pandoras.markdown` has a `main` def of type `object`. It is the only member of every `md` union, written with `"$type": "forum.pandoras.markdown"`. Other apps may embed it, for example as `site.standard.document.content`.
 
 ### 5.1 Fields
 
@@ -430,7 +430,7 @@ The same `b32s` implementation reproduces the superseded draft vectors (`ncepyao
 
 ## 6. Records (v1)
 
-Each table is the complete field list. `createdAt` is set once at creation and never changed. `updatedAt`, where a collection has it, is set on every update. Collections without `updatedAt` (membership, revision, wikiRevision) are never updated by lessdugin writers.
+Each table is the complete field list. `createdAt` is set once at creation and never changed. `updatedAt`, where a collection has it, is set on every update. Collections without `updatedAt` (membership, revision, wikiRevision) are never updated by Pandora's Forum writers.
 
 ### 6.1 `forum` (rkey `slug`; in the owner's repo)
 
@@ -646,7 +646,7 @@ There is one record per (actor, scope, subject, action key). It states moderatio
 | `createdAt` | `datetime` | ! | | |
 | `updatedAt` | `datetime` | | | |
 
-**Action definitions.** The `$type` of each is `online.7778777.lessdugin.modAction#<name>`.
+**Action definitions.** The `$type` of each is `forum.pandoras.modAction#<name>`.
 
 | Def | Fields | `actionKey` | Allowed subject | Positive (needs `subjectCid`) when | Allowed in `scope=author` |
 |---|---|---|---|---|---|
@@ -1166,27 +1166,27 @@ These are not written or published until they are final. v1 readers ignore them.
 ### 10.1 `authFull`
 
 ```json
-{"lexicon":1,"id":"online.7778777.lessdugin.authFull","defs":{"main":{"type":"permission-set",
- "title":"lessdugin (full access)",
- "detail":"Create, edit and delete your lessdugin forums, memberships, posts, comments, revisions, votes and reactions, wiki edits, sequences, profile and moderation actions.",
+{"lexicon":1,"id":"forum.pandoras.authFull","defs":{"main":{"type":"permission-set",
+ "title":"Pandora's Forum (full access)",
+ "detail":"Create, edit and delete your Pandora's Forum forums, memberships, posts, comments, revisions, votes and reactions, wiki edits, sequences, profile and moderation actions.",
  "permissions":[{"type":"permission","resource":"repo","collection":[
-  "online.7778777.lessdugin.forum","online.7778777.lessdugin.membership","online.7778777.lessdugin.post",
-  "online.7778777.lessdugin.comment","online.7778777.lessdugin.revision","online.7778777.lessdugin.opinion",
-  "online.7778777.lessdugin.modAction","online.7778777.lessdugin.wikiRevision","online.7778777.lessdugin.sequence",
-  "online.7778777.lessdugin.profile"]}]}}}
+  "forum.pandoras.forum","forum.pandoras.membership","forum.pandoras.post",
+  "forum.pandoras.comment","forum.pandoras.revision","forum.pandoras.opinion",
+  "forum.pandoras.modAction","forum.pandoras.wikiRevision","forum.pandoras.sequence",
+  "forum.pandoras.profile"]}]}}}
 ```
 
 ### 10.2 `authInteract`
 
-This set is meant for lightweight third-party clients. lessdugin's own clients request `authFull`.
+This set is meant for lightweight third-party clients. The Pandora's Forum clients request `authFull`.
 
 ```json
-{"lexicon":1,"id":"online.7778777.lessdugin.authInteract","defs":{"main":{"type":"permission-set",
- "title":"lessdugin (interact)",
- "detail":"Join lessdugin forums, write, edit and delete your comments, and vote and react.",
+{"lexicon":1,"id":"forum.pandoras.authInteract","defs":{"main":{"type":"permission-set",
+ "title":"Pandora's Forum (interact)",
+ "detail":"Join Pandora's Forum forums, write, edit and delete your comments, and vote and react.",
  "permissions":[{"type":"permission","resource":"repo","collection":[
-  "online.7778777.lessdugin.membership","online.7778777.lessdugin.comment",
-  "online.7778777.lessdugin.revision","online.7778777.lessdugin.opinion"]}]}}}
+  "forum.pandoras.membership","forum.pandoras.comment",
+  "forum.pandoras.revision","forum.pandoras.opinion"]}]}}}
 ```
 
 **Rules for both sets**
@@ -1199,8 +1199,8 @@ This set is meant for lightweight third-party clients. lessdugin's own clients r
 
 | Use | Exact scope string |
 |---|---|
-| **Default** (all clients, release builds) | `atproto include:online.7778777.lessdugin.authFull blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf` |
-| **Fallback** (chosen at PAR on `invalid_scope`, before the browser opens), the devnet, and every `.temp` build (with the `.temp` prefix) | `atproto repo?collection=online.7778777.lessdugin.forum&collection=online.7778777.lessdugin.membership&collection=online.7778777.lessdugin.post&collection=online.7778777.lessdugin.comment&collection=online.7778777.lessdugin.revision&collection=online.7778777.lessdugin.opinion&collection=online.7778777.lessdugin.modAction&collection=online.7778777.lessdugin.wikiRevision&collection=online.7778777.lessdugin.sequence&collection=online.7778777.lessdugin.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf` |
+| **Default** (all clients, release builds) | `atproto include:forum.pandoras.authFull blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf` |
+| **Fallback** (chosen at PAR on `invalid_scope`, before the browser opens), the devnet, and every `.temp` build (with the `.temp` prefix) | `atproto repo?collection=forum.pandoras.forum&collection=forum.pandoras.membership&collection=forum.pandoras.post&collection=forum.pandoras.comment&collection=forum.pandoras.revision&collection=forum.pandoras.opinion&collection=forum.pandoras.modAction&collection=forum.pandoras.wikiRevision&collection=forum.pandoras.sequence&collection=forum.pandoras.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf` |
 | **Never** | `transition:generic`; `blob:*/*` |
 | **P2 interop** (requested incrementally, only after the feature ships) | `repo:community.lexicon.calendar.event?action=create …`, `repo:site.standard.document …` |
 
@@ -1215,40 +1215,40 @@ This set is meant for lightweight third-party clients. lessdugin's own clients r
 `SUPERSET` is the scope string in both files, with the `.temp` substitutions of §1.3 for development builds:
 
 ```
-atproto include:online.7778777.lessdugin.authFull repo?collection=online.7778777.lessdugin.forum&collection=online.7778777.lessdugin.membership&collection=online.7778777.lessdugin.post&collection=online.7778777.lessdugin.comment&collection=online.7778777.lessdugin.revision&collection=online.7778777.lessdugin.opinion&collection=online.7778777.lessdugin.modAction&collection=online.7778777.lessdugin.wikiRevision&collection=online.7778777.lessdugin.sequence&collection=online.7778777.lessdugin.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf
+atproto include:forum.pandoras.authFull repo?collection=forum.pandoras.forum&collection=forum.pandoras.membership&collection=forum.pandoras.post&collection=forum.pandoras.comment&collection=forum.pandoras.revision&collection=forum.pandoras.opinion&collection=forum.pandoras.modAction&collection=forum.pandoras.wikiRevision&collection=forum.pandoras.sequence&collection=forum.pandoras.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf
 ```
 
 A `.temp` build's metadata omits the `include:` token, because `.temp` publishes no permission set.
 
-**Web client** (`deploy/site/oauth/client-metadata.json`, served at `https://lessdugin.7778777.online/oauth/client-metadata.json`):
+**Web client** (`deploy/site/oauth/client-metadata.json`, served at `https://pandoras.forum/oauth/client-metadata.json`):
 
 ```json
 {
-  "client_id": "https://lessdugin.7778777.online/oauth/client-metadata.json",
-  "client_name": "lessdugin",
-  "client_uri": "https://lessdugin.7778777.online/",
+  "client_id": "https://pandoras.forum/oauth/client-metadata.json",
+  "client_name": "Pandora's Forum",
+  "client_uri": "https://pandoras.forum/",
   "application_type": "web",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
-  "redirect_uris": ["https://lessdugin.7778777.online/"],
-  "scope": "atproto include:online.7778777.lessdugin.authFull repo?collection=online.7778777.lessdugin.forum&collection=online.7778777.lessdugin.membership&collection=online.7778777.lessdugin.post&collection=online.7778777.lessdugin.comment&collection=online.7778777.lessdugin.revision&collection=online.7778777.lessdugin.opinion&collection=online.7778777.lessdugin.modAction&collection=online.7778777.lessdugin.wikiRevision&collection=online.7778777.lessdugin.sequence&collection=online.7778777.lessdugin.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf",
+  "redirect_uris": ["https://pandoras.forum/"],
+  "scope": "atproto include:forum.pandoras.authFull repo?collection=forum.pandoras.forum&collection=forum.pandoras.membership&collection=forum.pandoras.post&collection=forum.pandoras.comment&collection=forum.pandoras.revision&collection=forum.pandoras.opinion&collection=forum.pandoras.modAction&collection=forum.pandoras.wikiRevision&collection=forum.pandoras.sequence&collection=forum.pandoras.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf",
   "token_endpoint_auth_method": "none",
   "dpop_bound_access_tokens": true
 }
 ```
 
-**Native client, hosted metadata** (`deploy/site/oauth/cli-client-metadata.json`, served at `https://lessdugin.7778777.online/oauth/cli-client-metadata.json`):
+**Native client, hosted metadata** (`deploy/site/oauth/cli-client-metadata.json`, served at `https://pandoras.forum/oauth/cli-client-metadata.json`):
 
 ```json
 {
-  "client_id": "https://lessdugin.7778777.online/oauth/cli-client-metadata.json",
-  "client_name": "lessdugin CLI",
-  "client_uri": "https://lessdugin.7778777.online/",
+  "client_id": "https://pandoras.forum/oauth/cli-client-metadata.json",
+  "client_name": "Pandora's Forum CLI",
+  "client_uri": "https://pandoras.forum/",
   "application_type": "native",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
   "redirect_uris": ["http://127.0.0.1/callback"],
-  "scope": "atproto include:online.7778777.lessdugin.authFull repo?collection=online.7778777.lessdugin.forum&collection=online.7778777.lessdugin.membership&collection=online.7778777.lessdugin.post&collection=online.7778777.lessdugin.comment&collection=online.7778777.lessdugin.revision&collection=online.7778777.lessdugin.opinion&collection=online.7778777.lessdugin.modAction&collection=online.7778777.lessdugin.wikiRevision&collection=online.7778777.lessdugin.sequence&collection=online.7778777.lessdugin.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf",
+  "scope": "atproto include:forum.pandoras.authFull repo?collection=forum.pandoras.forum&collection=forum.pandoras.membership&collection=forum.pandoras.post&collection=forum.pandoras.comment&collection=forum.pandoras.revision&collection=forum.pandoras.opinion&collection=forum.pandoras.modAction&collection=forum.pandoras.wikiRevision&collection=forum.pandoras.sequence&collection=forum.pandoras.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf",
   "token_endpoint_auth_method": "none",
   "dpop_bound_access_tokens": true
 }
@@ -1268,7 +1268,7 @@ The port of a loopback redirect is ignored when matching. The CLI listens on an 
 ### 10.5 Callback and login binding (normative here; the identity details are in `sync.md`)
 
 **Callback**
-- Every lessdugin client sends `response_mode=query` in its authorization request.
+- Every Pandora's Forum client sends `response_mode=query` in its authorization request.
 - Callback handlers accept both `?query` and `#fragment` responses.
 - The SPA handles the callback **before** its hash router mounts. It then removes the parameters with `history.replaceState`.
 
@@ -1285,7 +1285,7 @@ The port of a loopback redirect is ignored when matching. The CLI listens on an 
 ### 11.1 Common rules
 
 **Transport**
-- Every method is a `query`: an unauthenticated `GET /xrpc/online.7778777.lessdugin.index.<method>`, with `Access-Control-Allow-Origin: *` and no custom request headers.
+- Every method is a `query`: an unauthenticated `GET /xrpc/forum.pandoras.index.<method>`, with `Access-Control-Allow-Origin: *` and no custom request headers.
 - Errors use XRPC form, `{"error": <name>, "message": …}`.
   - Every method may return `InvalidRequest` and HTTP 429 `RateLimitExceeded`. These are generic XRPC errors and are not declared in the lexicons.
   - Methods that take `forum` or `forums`, and `getThread` (for the post's forum, or a post the indexer does not know), may return `NotIndexed`. The lexicons declare it, and `CursorTooOld` for `getChanges`.
@@ -1381,7 +1381,7 @@ getKarma#karmaEntry               { did!: did, k1!: sint, kp!: sint, k!: sint }
 
 ### 11.4 Indexer discovery
 
-- An indexer is a `did:web` whose DID document has the service `#lessdugin_index`, of type `LessduginIndex`, with an `https` `serviceEndpoint`.
+- An indexer is a `did:web` whose DID document has the service `#pandoras_forum_index`, of type `PandorasForumIndex`, with an `https` `serviceEndpoint`.
 - Clients also learn of indexers from `forum.discovery.indexers` (after one-time consent) and from user configuration.
 
 ---
@@ -1520,8 +1520,8 @@ These choices fill gaps or resolve ambiguities in the sources. Each takes the si
 
 23. **Lexicon implementation review (M1).**
     - MA7 takes precedence over MA3–MA6 (§7.3).
-    - Numbers: a JSON number with a fraction or exponent is never a valid integer, even when its value is integral (`123.0`, `1e3`). This deliberately diverges from the atproto interop fixture that accepts `123.0`; lessdugin never writes such numbers, and admission rejects them before the conversion (`sync.md` §5.5 step 2).
-    - A `revision` whose `record` is a snapshot of a record already at depth 32 is itself at depth 33 and therefore invalid (G10). Writers refuse such edits; this cannot happen with records lessdugin writes.
+    - Numbers: a JSON number with a fraction or exponent is never a valid integer, even when its value is integral (`123.0`, `1e3`). This deliberately diverges from the atproto interop fixture that accepts `123.0`; Pandora's Forum never writes such numbers, and admission rejects them before the conversion (`sync.md` §5.5 step 2).
+    - A `revision` whose `record` is a snapshot of a record already at depth 32 is itself at depth 33 and therefore invalid (G10). Writers refuse such edits; this cannot happen with records Pandora's Forum writes.
     - FO2: when a DID appears several times in `moderators`, the first entry wins even if that entry is itself ignored (owner, unknown role).
     - Validity reports list at most 16 violations per rule ID; the rest are counted. The first failing rule and the set of failing rule IDs are always exact.
 
@@ -1529,6 +1529,6 @@ These choices fill gaps or resolve ambiguities in the sources. Each takes the si
 - confirm item 1 (agreement value names);
 - confirm item 6 (quickTake requires a body);
 - confirm the opt-out in item 11;
-- `goat lex validate` rejects every record whose union holds `com.atproto.label.defs#selfLabels` ("NSID syntax didn't validate via regex"), `app.bsky.feed.post` included. This is a goat bug. Spike S4 should record it, and no lessdugin check may rely on `goat lex validate` for `post`.
+- `goat lex validate` rejects every record whose union holds `com.atproto.label.defs#selfLabels` ("NSID syntax didn't validate via regex"), `app.bsky.feed.post` included. This is a goat bug. Spike S4 should record it, and no Pandora's Forum check may rely on `goat lex validate` for `post`.
 - *(Orchestrator decision O-6, for the U7 review.)* The hosted native `client_id` is configurable (§10.4: `login --oauth-client-id`, then `config.toml` `oauth_client_id`), so a preview origin can serve `.temp` native metadata; the production default is unchanged.
 - *(Orchestrator decision O-10, for the U7 review.)* "Redact history" (§8) is decided by the listing made when the write is sent, so a client never refuses a redaction because its cached view shows no history (a sync that failed quietly, a device that never synced the item, invalid revisions): the CLI's `redact --yes` always sends it, and without `--yes` only reports what its view holds.

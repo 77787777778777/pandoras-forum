@@ -42,7 +42,7 @@ describe("Content Security Policy", () => {
 
   it("marks index.html and the config files no-cache (§6.3)", () => {
     const rules = parseHeadersFile(read("deploy/site/_headers"));
-    for (const path of ["/", "/index.html", "/lessdugin-config.json", "/oauth/*"]) {
+    for (const path of ["/", "/index.html", "/pandoras-forum-config.json", "/oauth/*"]) {
       expect(rules[path]?.["Cache-Control"]).toBe("no-cache");
     }
   });

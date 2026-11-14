@@ -2,7 +2,7 @@
 // Test helpers: render a component inside the app's providers (engine, query client, public-
 // action interstitials, toasts) and a memory-history router.
 
-import { MockEngine, type MockEngineOptions } from "@lessdugin/engine/mock";
+import { MockEngine, type MockEngineOptions } from "@pandoras-forum/engine/mock";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! LFM/1 (`lfm/1`): the lessdugin markdown profile.
+//! LFM/1 (`lfm/1`): the Pandora's Forum markdown profile.
 //!
 //! One event pipeline produces every output — sanitised HTML+MathML, the terminal
 //! [`StyledDoc`] made of [`TermText`] spans, the plain-text projection P used for quote
@@ -22,7 +22,7 @@
 //! | [`resolve_quote`], [`qkey`], [`build_quote`] | §11 |
 //!
 //! ```
-//! use lessdugin_markdown::{render, RenderOpts};
+//! use pandoras_forum_markdown::{render, RenderOpts};
 //! let r = render("# Hi\n\nSee [docs](https://example.com).", &[], &RenderOpts::ALL);
 //! assert!(r.html.starts_with("<div class=\"lfm\" dir=\"auto\">"));
 //! assert_eq!(r.text, "Hi See docs.");

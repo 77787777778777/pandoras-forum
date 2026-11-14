@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The small, normative `online.7778777.lessdugin.index.*` client contract.
+//! The small, normative `forum.pandoras.index.*` client contract.
 //!
 //! These are transport types, not engine views. In particular `PostHint.tally` and
 //! `PostHint.state` are never converted to DTOs or admitted to the record store. Keeping them in
 //! a separate module makes that trust boundary explicit (data-model.md §11).
 
-use lessdugin_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::syntax::{AtUri, Did};
 use serde::{Deserialize, Serialize};
 
 /// Builds the method NSID in this build's namespace (`NS` in the normative contract).
 pub fn method_nsid(method: &str) -> String {
-    format!("{}.index.{method}", lessdugin_lexicon::ns::NS)
+    format!("{}.index.{method}", pandoras_forum_lexicon::ns::NS)
 }
 
 pub const MAX_PROOF_URIS: usize = 25;

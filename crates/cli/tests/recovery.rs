@@ -4,7 +4,7 @@
 //!
 //! 1. A session the PDS refuses (an expired access token whose refresh is refused too): the
 //!    write is held in the outbox (`sync.md` §7.3, `needsLogin`), the command exits 3
-//!    (`auth_required`), and the write is sent once after `lessdugin login`.
+//!    (`auth_required`), and the write is sent once after `pandoras-forum login`.
 //! 2. A forum sync that fails for a repository is a warning (a JSON line under `--json`), and
 //!    it does not count as fresh: the next `read` syncs the forum again instead of skipping it
 //!    for `FORUM_FRESH_MS`.
@@ -13,8 +13,8 @@
 mod fakenet;
 
 use fakenet::{Net, s, text};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::Fault;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::Fault;
 use serde_json::Value;
 
 #[test]
@@ -52,7 +52,7 @@ fn a_refused_session_holds_the_write_until_the_next_login() {
     assert_eq!(w["state"]["needsLogin"], true, "{q}");
     assert_eq!(w["state"]["error"]["code"], "auth_required", "{q}");
     let human = alice.ok(&["outbox"]);
-    assert!(human.contains("lessdugin login"), "{human}");
+    assert!(human.contains("pandoras-forum login"), "{human}");
     let out = alice.run(&["--json", "outbox", "flush"]);
     assert_eq!(out.status.code(), Some(3), "{}", text(&out.stderr));
     assert!(alice.account.list(nsid::POST).is_empty());
@@ -175,7 +175,7 @@ fn a_failed_editor_keeps_only_drafts_with_text() {
     assert_eq!(drafts.len(), 1, "{d}");
     let id = drafts[0]["id"].as_str().unwrap();
     assert!(
-        stderr.contains(&format!("lessdugin draft edit {id}")),
+        stderr.contains(&format!("pandoras-forum draft edit {id}")),
         "the kept draft is named: {stderr}"
     );
     assert!(alice.account.list(nsid::COMMENT).is_empty());

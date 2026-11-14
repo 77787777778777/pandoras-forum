@@ -17,7 +17,7 @@
 //!                      builds the test-only KV conformance module into pkg/kvtest
 //!   e2e [--rust] [--web] [--parity] [--cold-start] [--no-build]
 //!                      the end-to-end tests against the local devnet (ADR 0006;
-//!                      packages/e2e/README.md): --rust the Rust e2e tests (LESSDUGIN_E2E=1),
+//!                      packages/e2e/README.md): --rust the Rust e2e tests (PANDORAS_FORUM_E2E=1),
 //!                      --web the SPA's devnet Playwright suite including the M2 parity
 //!                      scenario, --parity only that scenario; none of them: --rust and --web.
 //!                      --cold-start (opt in; minutes of pre-indexing) the M6 cold paint of a
@@ -37,7 +37,7 @@
 //!                      seed the cargo-fuzz corpora (fuzz/, its own workspace) from the vectors
 //!                      and fixtures, then run each target for N seconds (default: every target,
 //!                      600 s each, the M4 acceptance run) with cargo-fuzz on a nightly toolchain
-//!                      ($LESSDUGIN_FUZZ_TOOLCHAIN, default `nightly`); see fuzz/README.md
+//!                      ($PANDORAS_FORUM_FUZZ_TOOLCHAIN, default `nightly`); see fuzz/README.md
 
 use std::collections::BTreeMap;
 use std::env;
@@ -48,16 +48,20 @@ mod site;
 
 /// Crates that must compile for wasm32-unknown-unknown (no tokio, no clocks).
 const WASM_SAFE: &[&str] = &[
-    "lessdugin-atp",
-    "lessdugin-lexicon",
-    "lessdugin-markdown",
-    "lessdugin-core",
-    "lessdugin-wasm",
+    "pandoras-forum-atp",
+    "pandoras-forum-lexicon",
+    "pandoras-forum-markdown",
+    "pandoras-forum-core",
+    "pandoras-forum-wasm",
 ];
 
 /// Crates whose integration tests (interop, vector and property tests) also run on wasm32 under
 /// node (`test-wasm`); every integration test of these crates must build for wasm32.
-const WASM_TESTED: &[&str] = &["lessdugin-atp", "lessdugin-lexicon", "lessdugin-markdown"];
+const WASM_TESTED: &[&str] = &[
+    "pandoras-forum-atp",
+    "pandoras-forum-lexicon",
+    "pandoras-forum-markdown",
+];
 
 /// Single integration tests of other crates that also run on wasm32 under node (`test-wasm`), as
 /// (package, features, test targets): the social fold vectors (`social_vectors`, which holds the
@@ -65,9 +69,13 @@ const WASM_TESTED: &[&str] = &["lessdugin-atp", "lessdugin-lexicon", "lessdugin-
 /// build namespace and in the final one the vectors are written in (`social.md` §1.3 rule 6 and
 /// §6.3 P9, `engine-api.md` §3.9: native = wasm).
 const WASM_TESTED_TARGETS: &[(&str, &str, &[&str])] = &[
-    ("lessdugin-core", "", &["social_vectors", "social_parity"]),
     (
-        "lessdugin-core",
+        "pandoras-forum-core",
+        "",
+        &["social_vectors", "social_parity"],
+    ),
+    (
+        "pandoras-forum-core",
         "final-ns",
         &["social_vectors", "social_parity"],
     ),
@@ -101,7 +109,7 @@ fn wasm_selections() -> Vec<Vec<&'static str>> {
 const AMMONIA_TESTS: &[&str] = &[
     "test",
     "-p",
-    "lessdugin-markdown",
+    "pandoras-forum-markdown",
     "--features",
     "ammonia",
     "--test",
@@ -126,7 +134,7 @@ fn main() -> ExitCode {
         Some("site") => site::site(&args[1..]),
         Some("vectors") => run(
             "cargo",
-            &["test", "-p", "lessdugin-testkit", "--", "vectors"],
+            &["test", "-p", "pandoras-forum-testkit", "--", "vectors"],
         ),
         Some("fuzz") => fuzz(&args[1..]),
         _ => {
@@ -225,7 +233,7 @@ fn ci() -> Result<(), String> {
         &[
             "test",
             "-p",
-            "lessdugin-core",
+            "pandoras-forum-core",
             "--features",
             "final-ns",
             "--test",
@@ -245,7 +253,7 @@ fn ci() -> Result<(), String> {
         &[
             "test",
             "-p",
-            "lessdugin-wasm",
+            "pandoras-forum-wasm",
             "--features",
             "dto-decl",
             "--test",
@@ -266,15 +274,18 @@ fn ci() -> Result<(), String> {
             "test",
             "--release",
             "-p",
-            "lessdugin",
+            "pandoras-forum",
             "--features",
             "devnet",
             "--test",
             "cold_sync",
         ],
         &[
-            ("LESSDUGIN_WEB_DIST".into(), no_dist.display().to_string()),
-            ("LESSDUGIN_WEB_PLACEHOLDER".into(), "1".into()),
+            (
+                "PANDORAS_FORUM_WEB_DIST".into(),
+                no_dist.display().to_string(),
+            ),
+            ("PANDORAS_FORUM_WEB_PLACEHOLDER".into(), "1".into()),
         ],
     )?;
     if have(TEST_RUNNER) && have("node") {
@@ -318,7 +329,7 @@ fn ci() -> Result<(), String> {
 
 /// ci.yml's `web-e2e` job, using an already installed Chromium (the workflow installs its own).
 fn ci_web_e2e() -> Result<(), String> {
-    let mut vars = vec![("LESSDUGIN_KV_TEST".into(), "1".into())];
+    let mut vars = vec![("PANDORAS_FORUM_KV_TEST".into(), "1".into())];
     match env::var_os("PLAYWRIGHT_BROWSERS_PATH") {
         Some(path) if !path.is_empty() => {}
         _ if Path::new("/opt/pw-browsers").is_dir() => {
@@ -332,39 +343,43 @@ fn ci_web_e2e() -> Result<(), String> {
         }
     }
     wasm(&["--kv-test".to_owned()])?;
-    run_env("pnpm", &["--filter", "@lessdugin/web", "run", "e2e"], &vars)
+    run_env(
+        "pnpm",
+        &["--filter", "@pandoras-forum/web", "run", "e2e"],
+        &vars,
+    )
 }
 
 /// The Rust end-to-end tests against the devnet: (package, features, test targets). They run
-/// only with `LESSDUGIN_E2E=1`; each starts its own devnet (`packages/e2e/devnet.mjs`) unless
-/// `LESSDUGIN_DEVNET_JSON` names a running one.
+/// only with `PANDORAS_FORUM_E2E=1`; each starts its own devnet (`packages/e2e/devnet.mjs`) unless
+/// `PANDORAS_FORUM_DEVNET_JSON` names a running one.
 const RUST_E2E: &[(&str, &str, &[&str])] = &[
     // identity resolution, login binding and `verify`
-    ("lessdugin-testkit", "", &["e2e_devnet"]),
+    ("pandoras-forum-testkit", "", &["e2e_devnet"]),
     // the devnet's CORE+ services (firehose mirror, Jetstream both wires and noise,
     // Constellation, relay) that the parity scenario's assisted variant uses
-    ("lessdugin-testkit", "http", &["e2e_devnet_services"]),
+    ("pandoras-forum-testkit", "http", &["e2e_devnet_services"]),
     // the native host against the reference PDS
-    ("lessdugin-native", "", &["devnet"]),
+    ("pandoras-forum-native", "", &["devnet"]),
     // the CLI: app-password and OAuth logins, concurrent refresh, the forum scenario with
-    // parity mode, `lessdugin web`'s browser sign-in
+    // parity mode, `pandoras-forum web`'s browser sign-in
     (
-        "lessdugin",
+        "pandoras-forum",
         "",
         &["e2e_devnet", "e2e_forum", "web_e2e_devnet"],
     ),
     // the TUI's reply through $EDITOR and its parity capture
-    ("lessdugin-tui", "", &["e2e_devnet"]),
+    ("pandoras-forum-tui", "", &["e2e_devnet"]),
 ];
 
 /// `cargo xtask e2e`: the end-to-end tests against the local devnet (`docs/plan.md` §4.1,
 /// ADR 0006). `--rust`: [`RUST_E2E`]. `--web`: the SPA's devnet Playwright suite
-/// (`web/e2e/devnet`: hosted mode, parity mode, `lessdugin web`, and the M2 parity scenario
+/// (`web/e2e/devnet`: hosted mode, parity mode, `pandoras-forum web`, and the M2 parity scenario
 /// `scenario.spec.ts`). `--parity`: only the parity scenario. Without a selection, `--rust` and
 /// `--web`. The Playwright runs first build what they use (unless `--no-build`): the engine
-/// wasm, the e2e SPA (`web/dist-e2e`), the CLI embedding it (so the `lessdugin web` spec runs),
+/// wasm, the e2e SPA (`web/dist-e2e`), the CLI embedding it (so the `pandoras-forum web` spec runs),
 /// the TUI parity driver (`crates/tui/examples/parity_driver.rs`), the devnet's CORE+ services
-/// (`crates/testkit/examples/devnet_services.rs`) and `lessdugin-indexer`.
+/// (`crates/testkit/examples/devnet_services.rs`) and `pandoras-forum-indexer`.
 fn e2e(args: &[String]) -> Result<(), String> {
     if matches!(args, [a] if a == "--help" || a == "-h") {
         println!(
@@ -395,7 +410,7 @@ fn e2e(args: &[String]) -> Result<(), String> {
         rust = true;
         web = true;
     }
-    let mut vars: Vec<(String, String)> = vec![("LESSDUGIN_E2E".into(), "1".into())];
+    let mut vars: Vec<(String, String)> = vec![("PANDORAS_FORUM_E2E".into(), "1".into())];
     // Chromium: the preinstalled one when the environment names none
     if env::var_os("PLAYWRIGHT_BROWSERS_PATH").is_none() && Path::new("/opt/pw-browsers").exists() {
         vars.push(("PLAYWRIGHT_BROWSERS_PATH".into(), "/opt/pw-browsers".into()));
@@ -429,16 +444,25 @@ fn e2e(args: &[String]) -> Result<(), String> {
         let dist = root().join("web/dist-e2e").display().to_string();
         if build {
             wasm(&[])?;
-            run("pnpm", &["--filter", "@lessdugin/web", "run", "build:e2e"])?;
-            // the CLI embeds the e2e SPA, so bridge.spec.ts (`lessdugin web`) runs too
+            run(
+                "pnpm",
+                &["--filter", "@pandoras-forum/web", "run", "build:e2e"],
+            )?;
+            // the CLI embeds the e2e SPA, so bridge.spec.ts (`pandoras-forum web`) runs too
             run_env(
                 "cargo",
-                &["build", "-p", "lessdugin"],
-                &[("LESSDUGIN_WEB_DIST".into(), dist.clone())],
+                &["build", "-p", "pandoras-forum"],
+                &[("PANDORAS_FORUM_WEB_DIST".into(), dist.clone())],
             )?;
             run(
                 "cargo",
-                &["build", "-p", "lessdugin-tui", "--example", "parity_driver"],
+                &[
+                    "build",
+                    "-p",
+                    "pandoras-forum-tui",
+                    "--example",
+                    "parity_driver",
+                ],
             )?;
             // the parity scenario's CORE+ services and its indexer-on variant (M5, M6)
             run(
@@ -446,7 +470,7 @@ fn e2e(args: &[String]) -> Result<(), String> {
                 &[
                     "build",
                     "-p",
-                    "lessdugin-testkit",
+                    "pandoras-forum-testkit",
                     "--features",
                     "http",
                     "--example",
@@ -458,38 +482,38 @@ fn e2e(args: &[String]) -> Result<(), String> {
                 &[
                     "build",
                     "-p",
-                    "lessdugin-indexer",
+                    "pandoras-forum-indexer",
                     "--bin",
-                    "lessdugin-indexer",
+                    "pandoras-forum-indexer",
                 ],
             )?;
             eprintln!(
-                "note: the debug `lessdugin` now embeds the e2e SPA ({dist}); the next \
-                 `cargo build -p lessdugin` without LESSDUGIN_WEB_DIST embeds web/dist again"
+                "note: the debug `pandoras-forum` now embeds the e2e SPA ({dist}); the next \
+                 `cargo build -p pandoras-forum` without PANDORAS_FORUM_WEB_DIST embeds web/dist again"
             );
         }
         let debug = target_dir().join("debug");
         vars.push((
-            "LESSDUGIN_BIN".into(),
-            debug.join("lessdugin").display().to_string(),
+            "PANDORAS_FORUM_BIN".into(),
+            debug.join("pandoras-forum").display().to_string(),
         ));
         vars.push((
-            "LESSDUGIN_TUI_DRIVER".into(),
+            "PANDORAS_FORUM_TUI_DRIVER".into(),
             debug.join("examples/parity_driver").display().to_string(),
         ));
         vars.push((
-            "LESSDUGIN_DEVNET_SERVICES".into(),
+            "PANDORAS_FORUM_DEVNET_SERVICES".into(),
             debug.join("examples/devnet_services").display().to_string(),
         ));
         vars.push((
-            "LESSDUGIN_INDEXER_BIN".into(),
-            debug.join("lessdugin-indexer").display().to_string(),
+            "PANDORAS_FORUM_INDEXER_BIN".into(),
+            debug.join("pandoras-forum-indexer").display().to_string(),
         ));
         // the scenario fails instead of skipping when a binary is missing
-        vars.push(("LESSDUGIN_PARITY_REQUIRED".into(), "1".into()));
+        vars.push(("PANDORAS_FORUM_PARITY_REQUIRED".into(), "1".into()));
         let mut a = vec![
             "--filter",
-            "@lessdugin/web",
+            "@pandoras-forum/web",
             "exec",
             "playwright",
             "test",
@@ -507,7 +531,7 @@ fn e2e(args: &[String]) -> Result<(), String> {
         let results = root().join("test-results/m6-cold-start/results.json");
         let mut v = vars.clone();
         v.push((
-            "LESSDUGIN_COLD_START_RESULTS".into(),
+            "PANDORAS_FORUM_COLD_START_RESULTS".into(),
             results.display().to_string(),
         ));
         run_env("bash", &["scripts/m6-cold-start.sh"], &v)?;
@@ -797,7 +821,7 @@ struct WasmSize {
     optimised: bool,
 }
 
-/// `cargo xtask wasm`: builds `lessdugin-wasm` for wasm32 (profile `wasm`: opt-level 3, fat LTO,
+/// `cargo xtask wasm`: builds `pandoras-forum-wasm` for wasm32 (profile `wasm`: opt-level 3, fat LTO,
 /// panic=abort), runs `wasm-bindgen --target web` (the CLI must equal the workspace pin) into
 /// `packages/engine/pkg`, optimises with binaryen's `wasm-opt` (ADR 0002's flags) and reports the
 /// raw and `gzip -9` sizes. `--budget` fails above the host's per-file limit, [`WASM_HOST_LIMIT`].
@@ -821,7 +845,7 @@ fn wasm_build(args: &[String]) -> Result<Option<String>, String> {
         build_wasm(&["--features", "kv-conformance"], "dev", &out, false)?;
         eprintln!(
             "kv-conformance module: {}",
-            out.join("lessdugin_engine_bg.wasm").display()
+            out.join("pandoras_forum_engine_bg.wasm").display()
         );
         return Ok(None);
     }
@@ -935,14 +959,14 @@ fn check_wasm_bindgen_cli() -> Result<(), String> {
     Ok(())
 }
 
-/// ADR 0002 decision 3: ammonia must not be in the wasm32 dependency tree (lessdugin-wasm also
+/// ADR 0002 decision 3: ammonia must not be in the wasm32 dependency tree (pandoras-forum-wasm also
 /// fails to compile with it, see `ammonia_must_stay_out_of_wasm32`).
 fn check_no_ammonia() -> Result<(), String> {
     let out = Command::new("cargo")
         .args([
             "tree",
             "-p",
-            "lessdugin-wasm",
+            "pandoras-forum-wasm",
             "--target",
             "wasm32-unknown-unknown",
             "-e",
@@ -963,7 +987,7 @@ fn check_no_ammonia() -> Result<(), String> {
     for banned in ["ammonia ", "html5ever "] {
         if tree.lines().any(|l| l.starts_with(banned)) {
             return Err(format!(
-                "{}is in the wasm32 dependency tree of lessdugin-wasm (ADR 0002: native only)",
+                "{}is in the wasm32 dependency tree of pandoras-forum-wasm (ADR 0002: native only)",
                 banned
             ));
         }
@@ -980,8 +1004,8 @@ fn wasm_opt() -> Option<String> {
     local.exists().then(|| local.to_string_lossy().into_owned())
 }
 
-/// Builds lessdugin-wasm with `features` and `profile`, binds it into `out`
-/// (`lessdugin_engine.js` + `lessdugin_engine_bg.wasm`) and, if `optimise`, runs wasm-opt.
+/// Builds pandoras-forum-wasm with `features` and `profile`, binds it into `out`
+/// (`pandoras_forum_engine.js` + `pandoras_forum_engine_bg.wasm`) and, if `optimise`, runs wasm-opt.
 fn build_wasm(
     features: &[&str],
     profile: &str,
@@ -991,7 +1015,7 @@ fn build_wasm(
     let mut cargo = vec![
         "build",
         "-p",
-        "lessdugin-wasm",
+        "pandoras-forum-wasm",
         "--lib",
         "--target",
         "wasm32-unknown-unknown",
@@ -1002,7 +1026,7 @@ fn build_wasm(
     run("cargo", &cargo)?;
     let dir = if profile == "dev" { "debug" } else { profile };
     let wasm = root().join(format!(
-        "target/wasm32-unknown-unknown/{dir}/lessdugin_wasm.wasm"
+        "target/wasm32-unknown-unknown/{dir}/pandoras_forum_wasm.wasm"
     ));
     std::fs::create_dir_all(out).map_err(|e| format!("{}: {e}", out.display()))?;
     run(
@@ -1014,10 +1038,10 @@ fn build_wasm(
             "--out-dir",
             out.to_str().unwrap(),
             "--out-name",
-            "lessdugin_engine",
+            "pandoras_forum_engine",
         ],
     )?;
-    let bg = out.join("lessdugin_engine_bg.wasm");
+    let bg = out.join("pandoras_forum_engine_bg.wasm");
     let mut optimised = false;
     if optimise {
         match wasm_opt() {
@@ -1043,7 +1067,7 @@ fn build_wasm(
     Ok(WasmSize {
         raw,
         gz: gz_size(&bg)?,
-        glue_gz: gz_size(&out.join("lessdugin_engine.js"))?,
+        glue_gz: gz_size(&out.join("pandoras_forum_engine.js"))?,
         optimised,
     })
 }
@@ -1164,7 +1188,7 @@ fn fuzz(args: &[String]) -> Result<(), String> {
     }
     let toolchain = format!(
         "+{}",
-        env::var("LESSDUGIN_FUZZ_TOOLCHAIN").unwrap_or_else(|_| "nightly".into())
+        env::var("PANDORAS_FORUM_FUZZ_TOOLCHAIN").unwrap_or_else(|_| "nightly".into())
     );
     let has_fuzz = Command::new("cargo")
         .args([toolchain.as_str(), "fuzz", "--version"])
@@ -1190,7 +1214,7 @@ fn fuzz(args: &[String]) -> Result<(), String> {
         "--manifest-path",
         "fuzz/Cargo.toml",
         "-p",
-        "lessdugin-fuzz-seeds",
+        "pandoras-forum-fuzz-seeds",
         "--target-dir",
         &target,
         "--",
@@ -1314,7 +1338,7 @@ mod tests {
         let sels = wasm_selections();
         for features in [None, Some("final-ns")] {
             let found = sels.iter().any(|s| {
-                s.windows(2).any(|w| w == ["-p", "lessdugin-core"])
+                s.windows(2).any(|w| w == ["-p", "pandoras-forum-core"])
                     && s.windows(2).any(|w| w == ["--test", "social_vectors"])
                     && s.windows(2).any(|w| w == ["--test", "social_parity"])
                     && match features {
@@ -1380,8 +1404,8 @@ mod tests {
             .expect("the web-e2e counterpart");
         for command in [
             "wasm(&[\"--kv-test\".to_owned()])?",
-            "\"--filter\", \"@lessdugin/web\", \"run\", \"e2e\"",
-            "(\"LESSDUGIN_KV_TEST\".into(), \"1\".into())",
+            "\"--filter\", \"@pandoras-forum/web\", \"run\", \"e2e\"",
+            "(\"PANDORAS_FORUM_KV_TEST\".into(), \"1\".into())",
         ] {
             assert!(
                 web_e2e.contains(command),
@@ -1390,7 +1414,7 @@ mod tests {
         }
         let runs = job_runs(".github/workflows/ci.yml", "web-e2e");
         assert!(runs.contains(&"cargo xtask wasm --kv-test".into()));
-        assert!(runs.contains(&"pnpm --filter @lessdugin/web run e2e".into()));
+        assert!(runs.contains(&"pnpm --filter @pandoras-forum/web run e2e".into()));
     }
 
     /// The web job's `pnpm run check` runs the intended commands in every package, not merely

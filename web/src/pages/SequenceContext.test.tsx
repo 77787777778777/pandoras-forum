@@ -3,7 +3,7 @@
 // `get_post(uri, sequence)`, social.md §14, review finding m5-acceptance-8): its next and
 // previous links follow the sequence, and the sequence page offers "Continue reading" at the
 // post last opened from it.
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { createQueryClient } from "../App.tsx";

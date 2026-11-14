@@ -7,7 +7,7 @@
 ## Context
 
 End-to-end and cross-client parity tests (docs/plan.md, M2+) need a real PDS and PLC directory
-that CI can start in seconds, without touching production infrastructure. lessdugin needs no
+that CI can start in seconds, without touching production infrastructure. Pandora's Forum needs no
 AppView, so a PLC + PDS pair is sufficient.
 
 ## Method

@@ -78,12 +78,12 @@
       "name": "H-no-parts",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": []
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f31",
-        "digest": "619040e89a87f6234a8e74b1b1ff4993d150d5c531360d71eb8a1ea92dc1bd7b"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f31",
+        "digest": "2dd972e0fdf82dd3564ada2437f732ac9bc77a1b7dd65a159dc6061065681f89"
       },
       "note": "the tag alone"
     },
@@ -91,14 +91,14 @@
       "name": "H-one-empty-part",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           ""
         ]
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f311f",
-        "digest": "74827dcedcb86dd427a9ed72a9b293da203573f5d3f8a20e52d90ede61f3c02a"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f311f",
+        "digest": "50789d4bd392c1d4bbe3478a0fe092b9754650fe7212f95a5bd2f919a812509c"
       },
       "note": "tag \u2016 0x1F"
     },
@@ -106,29 +106,29 @@
       "name": "H-two-parts",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           "a",
           "b"
         ]
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f311f611f62",
-        "digest": "4864f23db93fc2a6e434124c47ff43b8945269ee29dca8b7c7a08d169e900a58"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f311f611f62",
+        "digest": "778a23af95f56b420a4d9100d0f9bdfe91c95bd96004bb2e54f98e55decab9fa"
       }
     },
     {
       "name": "H-joined-part-differs",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           "a\u001eb"
         ]
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f311f611e62",
-        "digest": "1fe2ff40d17a37857acf3dc2c843c9b930fd851578ee36744c0ba9586cf29de6"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f311f611e62",
+        "digest": "9f7894323221a96bbf49180b77271bb4e45d0f011610e715ddb4389a3307396d"
       },
       "note": "differs from H-two-parts: parts are separated by 0x1F, not concatenated"
     },
@@ -136,14 +136,14 @@
       "name": "H-concatenation-differs",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           "ab"
         ]
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f311f6162",
-        "digest": "df72759d87659671b548f02359efa02939a1e218e0adfb9f6c896c82815d79e3"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f311f6162",
+        "digest": "30ea1118a4805c023ece9123bdccefb2bc830a9127993431cc304a90011d8529"
       },
       "note": "differs from H-two-parts"
     },
@@ -151,14 +151,14 @@
       "name": "H-nfc-composed",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           "caf\u00e9"
         ]
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f311f636166c3a9",
-        "digest": "c8f50038eb4c95ab5d0e60efbdcb2044b893f9f7a35e35bb4d59dfa7d905b102"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f311f636166c3a9",
+        "digest": "da07c1fce4b063bad50b583073b642cfc8d095c8b476f6fd74a48a99a53d8417"
       },
       "raw": true
     },
@@ -166,14 +166,14 @@
       "name": "H-nfc-decomposed",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           "cafe\u0301"
         ]
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f311f636166c3a9",
-        "digest": "c8f50038eb4c95ab5d0e60efbdcb2044b893f9f7a35e35bb4d59dfa7d905b102"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f311f636166c3a9",
+        "digest": "da07c1fce4b063bad50b583073b642cfc8d095c8b476f6fd74a48a99a53d8417"
       },
       "raw": true,
       "note": "equals H-nfc-composed"
@@ -182,14 +182,14 @@
       "name": "H-cjk",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           "\u65e5\u672c\u8a9e"
         ]
       },
       "expected": {
-        "preimage": "6c657373647567696e2d736b2f311fe697a5e69cace8aa9e",
-        "digest": "9972385b42f7cedc749ec8c55b5f61226b3286f8b9465fc88abaf8ae65a74792"
+        "preimage": "70616e646f7261732d666f72756d2d736b2f311fe697a5e69cace8aa9e",
+        "digest": "2c34cadd64bf55dcf3d759871c25ad487568f07827093b1f90d6f31344f5ef29"
       },
       "raw": true,
       "note": "3-byte UTF-8"
@@ -198,7 +198,7 @@
       "name": "H-unit-separator-rejected",
       "input": {
         "fn": "H",
-        "tag": "lessdugin-sk/1",
+        "tag": "pandoras-forum-sk/1",
         "parts": [
           "opinion",
           "x\u001fy"
@@ -216,12 +216,12 @@
         "fn": "h16",
         "name": "opinion",
         "parts": [
-          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c"
+          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c"
         ]
       },
       "expected": {
-        "h16": "wcz54x7liy3jsh3g",
-        "digest": "e23e3174b17782fc342c6844d5cdb1db70db391bef6f17acbaa7a0b292cdf7af"
+        "h16": "liu73r73htncrny7",
+        "digest": "8bb450dca16e668bcfc5a2e4e57f93529ccfbb44d4cd5e2f91defa3f6c084e52"
       },
       "note": "data-model.md \u00a73.4"
     },
@@ -231,12 +231,12 @@
         "fn": "h16",
         "name": "opinion",
         "parts": [
-          "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.comment/uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
+          "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.comment/nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2"
         ]
       },
       "expected": {
-        "h16": "3mjfititlivah7tw",
-        "digest": "0c9eb765d98bb666973cb5522753cc94b9886509d012836c5ca82c5af5ffb04c"
+        "h16": "yp4sp6qksmmqiqeu",
+        "digest": "f5458a92d0c4a567595a20aaf4685f31b79263e2cf9a9bbf26e2a66d48fffcee"
       },
       "note": "data-model.md \u00a73.4"
     },
@@ -246,12 +246,12 @@
         "fn": "h16",
         "name": "opinion",
         "parts": [
-          "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.wikiRevision/uetjixxr3a33-3l2s7bbbbbbb2"
+          "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.wikiRevision/nkglkm5wsp3d-3l2s7bbbbbbb2"
         ]
       },
       "expected": {
-        "h16": "oyj6oz2ettxn7amu",
-        "digest": "a79e4a7c0ace7b329a5a18e73419481e1d90e9f3e91e1955752ea565cf363bd6"
+        "h16": "hdkhavf3dim6zqp5",
+        "digest": "6a60d36d614ba44fdaa3e93ca50a56106132deaf428d58dde3c10e691261ded5"
       }
     },
     {
@@ -260,12 +260,12 @@
         "fn": "h16",
         "name": "opinion",
         "parts": [
-          "at://did:web:forum.example.com/online.7778777.lessdugin.sequence/uetjixxr3a33-3l2s7bbbbbbb2"
+          "at://did:web:forum.example.com/forum.pandoras.sequence/nkglkm5wsp3d-3l2s7bbbbbbb2"
         ]
       },
       "expected": {
-        "h16": "h5ighkyrylzi64ru",
-        "digest": "68dcc6c3d7f47ee20afa44e30f4721d866a375da5e14e49115d5babe56356364"
+        "h16": "3dztgu4qhvedmqxb",
+        "digest": "0a7f9668566ed4995ba7f87facec44f1cf743396d22c7fbd1e8a196c1731dc64"
       }
     },
     {
@@ -274,12 +274,12 @@
         "fn": "h16",
         "name": "opinion",
         "parts": [
-          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.temp.post/2xbiijsnjtau-3l2s5xxv2ze2c"
+          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.temp.post/rij47lga3p74-3l2s5xxv2ze2c"
         ]
       },
       "expected": {
-        "h16": "qzjdvosxkyegut4w",
-        "digest": "b7de9dd31d8794cd645c733a4c7d847c3e5604ff6f6a64e7652e41e0d04c301d"
+        "h16": "3kune777bgsuxl4n",
+        "digest": "0c353514a53b31aec453779f5850550ea9739f837e7b26680c1954a5241a262a"
       },
       "note": "the .temp prefix changes every h16"
     },
@@ -289,12 +289,12 @@
         "fn": "h16",
         "name": "opinion",
         "parts": [
-          "at://did:web:xn--bcher-kva.example/online.7778777.lessdugin.comment/6c4fnwq6pd64-3lz7rb6tpt22a-3m2abcdefgh22"
+          "at://did:web:xn--bcher-kva.example/forum.pandoras.comment/435vphv5iqwk-3lz7rb6tpt22a-3m2abcdefgh22"
         ]
       },
       "expected": {
-        "h16": "cjb3ilfr3pelavov",
-        "digest": "43ce1745770d55136e9b101f2c946e0b9b4ed05d6eb75751e6a5b49956114ca6"
+        "h16": "lbitu2w6wzhbqtg5",
+        "digest": "89dd9d0384e7da7b6583e617b73befd6e4adad3f4723bbc59ab130c9d6af83df"
       }
     },
     {
@@ -307,8 +307,8 @@
         ]
       },
       "expected": {
-        "h16": "wxcfhxsqt7w6spmx",
-        "digest": "e750b6f716c9784c565de79c941a73c8c816326da9a5de06ad868e4c66452211"
+        "h16": "uohz6xwlt6fuoic5",
+        "digest": "d51bf27791c917aa390318324fa50c3c761919701297b656d821316882106b01"
       },
       "raw": true
     },
@@ -322,8 +322,8 @@
         ]
       },
       "expected": {
-        "h16": "wxcfhxsqt7w6spmx",
-        "digest": "e750b6f716c9784c565de79c941a73c8c816326da9a5de06ad868e4c66452211"
+        "h16": "uohz6xwlt6fuoic5",
+        "digest": "d51bf27791c917aa390318324fa50c3c761919701297b656d821316882106b01"
       },
       "raw": true,
       "note": "equals h16-opinion-nfc-composed"
@@ -334,7 +334,7 @@
         "fn": "h16",
         "name": "opinion",
         "parts": [
-          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c\u001f"
+          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c\u001f"
         ]
       },
       "expected": {
@@ -355,8 +355,8 @@
         ]
       },
       "expected": {
-        "h16": "ckjbz7a2pjeplbao",
-        "digest": "441e7f94c0abd5589cd4f410aacb0b7e7b2dbb61da1a3c1a73e333e9cc8e800a"
+        "h16": "jf2rkp6oclilez2z",
+        "digest": "7ac1785494445d157c1f9c9b6c886dbffdfe3553524567d6bc06e5271dc32012"
       },
       "note": "data-model.md \u00a73.4"
     },
@@ -367,13 +367,13 @@
         "name": "modAction",
         "parts": [
           "forum",
-          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c",
+          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c",
           "hide"
         ]
       },
       "expected": {
-        "h16": "jmsm5bwwzljcu2zo",
-        "digest": "7cb1219f9cfc5e8d03f4fbc7133ec337d9352e1e8e364eb9274049ae4708566a"
+        "h16": "z7jdhm6fkrboyadt",
+        "digest": "f95e96c88b85cf4f19395c80c350abe8fc8bbbc2d9de6a413c79abb52ad53b51"
       },
       "note": "data-model.md \u00a73.4"
     },
@@ -384,13 +384,13 @@
         "name": "modAction",
         "parts": [
           "forum",
-          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c",
+          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c",
           "pin:forum"
         ]
       },
       "expected": {
-        "h16": "4vdjzbg6ohwpa323",
-        "digest": "16d2ff9d84a379530401f67cd2189171ed278878aeff8fa77a2680bd6ae1ea32"
+        "h16": "n3enyd5v2tw76a36",
+        "digest": "98553f247b067852182461f42da52e07da739507d6d93423dfd010987c9deacb"
       },
       "note": "data-model.md \u00a73.4"
     },
@@ -406,8 +406,8 @@
         ]
       },
       "expected": {
-        "h16": "yext7l62fmg5ufrt",
-        "digest": "f2bb92c4805c983d2ef9829518f8d6e65e84e6940ff372a865a76e0c06bbe8ca"
+        "h16": "jeniqv3np5jznwjp",
+        "digest": "7aa6eb6c33a8dff9f1f518cc83e9456ec514d78cd0acbb116b918fb42b1c51db"
       },
       "note": "data-model.md \u00a73.4"
     },
@@ -418,13 +418,13 @@
         "name": "modAction",
         "parts": [
           "author",
-          "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.comment/uetjixxr3a33-3l2s5xxv2ze2c-3l2s6aaaaaaa2",
+          "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.comment/nkglkm5wsp3d-3l2s5xxv2ze2c-3l2s6aaaaaaa2",
           "hide"
         ]
       },
       "expected": {
-        "h16": "xgh6obo2yn7w2lcg",
-        "digest": "eb1a4a1e80f4cbc0450cd7e7193a100c67c6cc54922c77d59742454b58024c4c"
+        "h16": "wjl4zcer5ny6lezt",
+        "digest": "e3e22fa1571cfc48abf9566f28e59801b0dd25d53d0f01fa8f56883d11ed0acc"
       }
     },
     {
@@ -439,8 +439,8 @@
         ]
       },
       "expected": {
-        "h16": "4jz6ldzfwgnqjtjo",
-        "digest": "13fe48a7ebe32767e5f48a6e915eb342e7ce48ed5cbb3693f722d035b0f8cf1b"
+        "h16": "t7fw2qp7x626sx6h",
+        "digest": "c957c05aa5e9004c748d8935dcf985a54ce21709ec7f1df9b10dfaf5058dd5d8"
       }
     },
     {
@@ -455,8 +455,8 @@
         ]
       },
       "expected": {
-        "h16": "jeqgpaz76hc276ln",
-        "digest": "7aacca9be5235002923316e2d78bc84deb909e75def7e8d2f60b0df5f0e8423b"
+        "h16": "vuykqx7rt7dupztv",
+        "digest": "debd0b74b7c953aaff3b176cd3373076d8753cc026aebfbb630692c58eb9865d"
       }
     },
     {
@@ -466,13 +466,13 @@
         "name": "modAction",
         "parts": [
           "forum",
-          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c",
-          "online.7778777.lessdugin.modAction#feature"
+          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c",
+          "forum.pandoras.modAction#feature"
         ]
       },
       "expected": {
-        "h16": "rufvryzysl45lnsy",
-        "digest": "be97bbfbfec44438cf1eb87d5d8f28a66c091ae278dc56a9417a334acc8365e0"
+        "h16": "otkp2fvo6ssluqqj",
+        "digest": "a661502f7426311d5acf90c68d4217674b328333b849afd9372e62091cdc3b80"
       },
       "note": "an unknown action's key is its $type"
     },
@@ -483,13 +483,13 @@
         "name": "modAction",
         "parts": [
           "author",
-          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c",
+          "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c",
           "hide"
         ]
       },
       "expected": {
-        "h16": "ylx3u5vdlo45qpwb",
-        "digest": "f47a1d0f698d043b5787400d0273e6fa095146178b0070a6166b84605dff7c1a"
+        "h16": "7zry46nyd2mlpnkw",
+        "digest": "2fefe1127e48251ace1cbf5522b1ac007c418f9b5a91f17a7b6e0e743fe80821"
       },
       "note": "differs from h16-modAction-hide-post only in scope"
     },
@@ -505,8 +505,8 @@
         ]
       },
       "expected": {
-        "h16": "2xhyym5wwyfkmlcs",
-        "digest": "075bef487ce797094518cf6f7f34c01fbdc62decf5bed4ec4e800b9b5505e166"
+        "h16": "5lpljjthygrwnm2v",
+        "digest": "1c6b17bf2df32fc9c81bbf48f15fb9cc35320cebc5ab18d8a52217cd72e1bc7a"
       },
       "raw": true,
       "note": "not a valid slug; exercises NFC"
@@ -523,8 +523,8 @@
         ]
       },
       "expected": {
-        "h16": "2xhyym5wwyfkmlcs",
-        "digest": "075bef487ce797094518cf6f7f34c01fbdc62decf5bed4ec4e800b9b5505e166"
+        "h16": "5lpljjthygrwnm2v",
+        "digest": "1c6b17bf2df32fc9c81bbf48f15fb9cc35320cebc5ab18d8a52217cd72e1bc7a"
       },
       "raw": true,
       "note": "equals h16-modAction-tag-nfc-composed"

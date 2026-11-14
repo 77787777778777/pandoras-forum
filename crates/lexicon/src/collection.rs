@@ -2,7 +2,7 @@
 //! The ten record collections and this build's NSIDs (`data-model.md` §1.2, §1.3).
 //!
 //! Every NSID constant in [`nsid`] already carries this build's prefix ([`crate::ns::NS`]):
-//! `online.7778777.lessdugin.temp.*` by default, `online.7778777.lessdugin.*` with the `final-ns`
+//! `forum.pandoras.temp.*` by default, `forum.pandoras.*` with the `final-ns`
 //! feature. Lexicon files and the spec always use the final prefix; code never does.
 
 use crate::ns::NS;
@@ -12,10 +12,10 @@ macro_rules! build_nsid {
     ($(#[$m:meta])* $name:ident = $suffix:literal) => {
         $(#[$m])*
         #[cfg(feature = "final-ns")]
-        pub const $name: &str = concat!("online.7778777.lessdugin", $suffix);
+        pub const $name: &str = concat!("forum.pandoras", $suffix);
         $(#[$m])*
         #[cfg(not(feature = "final-ns"))]
-        pub const $name: &str = concat!("online.7778777.lessdugin.temp", $suffix);
+        pub const $name: &str = concat!("forum.pandoras.temp", $suffix);
     };
 }
 
@@ -126,7 +126,7 @@ pub fn type_matches(t: &str, reference: &str) -> bool {
     norm(t) == norm(reference)
 }
 
-/// A lessdugin record collection.
+/// A Pandora's Forum record collection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Collection {
     /// `forum` (§6.1)

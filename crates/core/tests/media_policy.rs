@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The autoload policy (synthesis-v1.md 3.9, threat-model.md F29).
 
-use lessdugin_core::media::policy::{
+use pandoras_forum_core::media::policy::{
     AUTOLOAD_MAX_BYTES, Autoload, HOST_SHARED_BY_PARTICIPANTS, LoadReason, MediaCandidate,
     autoload, host_of, is_bluesky_host,
 };

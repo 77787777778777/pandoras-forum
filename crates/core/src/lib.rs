@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The lessdugin engine, shared by the CLI, TUI, SPA (via wasm) and the optional indexer.
+//! The Pandora's Forum engine, shared by the CLI, TUI, SPA (via wasm) and the optional indexer.
 //!
 //! The core performs all I/O through the [`host::Host`] trait and never spawns tasks,
 //! reads clocks or sleeps by itself. Normative sources: `docs/spec/sync.md`,

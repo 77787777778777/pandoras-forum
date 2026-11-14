@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! [`HttpResponse`] builders for routes.
 
-use lessdugin_core::host::HttpResponse;
+use pandoras_forum_core::host::HttpResponse;
 
 /// A response with a body and content type.
 pub fn bytes(status: u16, content_type: &str, body: Vec<u8>) -> HttpResponse {

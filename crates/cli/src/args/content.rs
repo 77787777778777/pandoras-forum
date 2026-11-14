@@ -9,7 +9,7 @@
 use std::path::PathBuf;
 
 use clap::{Args, Subcommand, ValueEnum};
-use lessdugin_core::dto::{CommentSort, DefaultTier, MembershipMode, PostKind, PostSort};
+use pandoras_forum_core::dto::{CommentSort, DefaultTier, MembershipMode, PostKind, PostSort};
 
 /// `--sort` of `ls`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, ValueEnum)]

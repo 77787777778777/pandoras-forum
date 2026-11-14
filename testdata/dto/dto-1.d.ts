@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // GENERATED from the Rust DTOs (crates/core/src/dto.rs, plus EngineError, ErrorCode and
 // AccountInfo) by their tsify derives; do not edit. Regenerate with
-//   LESSDUGIN_BLESS=1 cargo test -p lessdugin-wasm --features dto-decl --test dto_decl
+//   PANDORAS_FORUM_BLESS=1 cargo test -p pandoras-forum-wasm --features dto-decl --test dto_decl
 // packages/engine/src/types.parity.test.ts compares packages/engine/src/types.ts with it.
 
 export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };

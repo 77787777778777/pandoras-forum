@@ -31,7 +31,7 @@ let
   ];
 
   # The nightly pinned by .github/workflows/fuzz.yml
-  # (LESSDUGIN_FUZZ_TOOLCHAIN: nightly-2026-10-22), used only for cargo-fuzz
+  # (PANDORAS_FORUM_FUZZ_TOOLCHAIN: nightly-2026-10-22), used only for cargo-fuzz
   # sanitizer builds; the xtask itself stays on the stable pin above.
   # withComponents (not .toolchain) so only rustc/cargo/std get built — the
   # full combine would drag in miri, cranelift, rust-analyzer, docs etc.

@@ -16,7 +16,7 @@
 //! that differ before their last character cannot decode to the same bytes (base32 is
 //! positional; only the last character carries padding bits).
 
-use lessdugin_atp::Cid;
+use pandoras_forum_atp::Cid;
 
 /// The canonical string form of a CIDv1 written in any multibase (`None`: not a CIDv1).
 pub fn canonical(s: &str) -> Option<String> {

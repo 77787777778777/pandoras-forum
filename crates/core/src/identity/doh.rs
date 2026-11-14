@@ -7,7 +7,7 @@
 //! are concatenated; otherwise `data` is taken as is. A response whose `Status` is neither 0
 //! (NOERROR) nor 3 (NXDOMAIN) is a transport failure.
 
-use lessdugin_atp::syntax::Did;
+use pandoras_forum_atp::syntax::Did;
 
 /// The CORS-safelisted `accept` value for DoH JSON.
 pub const DNS_JSON: &str = "application/dns-json";
@@ -30,7 +30,7 @@ pub enum DohError {
 
 /// The query URL `<endpoint>?name=<qname>&type=TXT` (parameters percent-encoded).
 pub fn query_url(endpoint: &url::Url, qname: &str) -> Result<url::Url, url::ParseError> {
-    let qs = lessdugin_atp::xrpc::query_string(&[("name", qname), ("type", "TXT")]);
+    let qs = pandoras_forum_atp::xrpc::query_string(&[("name", qname), ("type", "TXT")]);
     let sep = if endpoint.query().is_some() { '&' } else { '?' };
     url::Url::parse(&format!("{}{sep}{qs}", endpoint.as_str()))
 }
@@ -123,7 +123,7 @@ pub fn dids_from_txt(txts: &[String]) -> TxtDids {
             continue;
         };
         let Ok(did) = Did::parse(rest) else { continue };
-        if did.check_lessdugin_policy().is_err() {
+        if did.check_pandoras_forum_policy().is_err() {
             continue;
         }
         match &found {
@@ -210,7 +210,7 @@ mod tests {
             dids_from_txt(&s(&[&a, &format!("did={PLC2}")])),
             TxtDids::Many
         );
-        // exact prefix, valid lessdugin DIDs only
+        // exact prefix, valid Pandora's Forum DIDs only
         assert_eq!(dids_from_txt(&s(&[&format!("DID={PLC}")])), TxtDids::None);
         assert_eq!(dids_from_txt(&s(&["did=did:key:zQ3abc"])), TxtDids::None);
         assert_eq!(dids_from_txt(&s(&["did=did:plc:tooshort"])), TxtDids::None);

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Leaving the app for a sign-in page: the authorization server's URL from the OAuth client, or
-// the one `lessdugin web` returns from `/bridge/login`. The only place allowed to navigate the
+// the one `pandoras-forum web` returns from `/bridge/login`. The only place allowed to navigate the
 // tab through `location` (scripts/check-no-raw-href.mjs). The URL must be https, or http on a
-// loopback host (the devnet; `lessdugin web` serves on 127.0.0.1), never `javascript:` and
+// loopback host (the devnet; `pandoras-forum web` serves on 127.0.0.1), never `javascript:` and
 // friends, and it carries no credentials.
 
 const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);

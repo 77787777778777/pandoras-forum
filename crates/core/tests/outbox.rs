@@ -8,24 +8,24 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use common::block_on;
-use lessdugin_atp::syntax::{AtUri, Datetime};
-use lessdugin_atp::tid::Tid;
-use lessdugin_core::dto::{WriteState, WriteTicket};
-use lessdugin_core::engine::ErrorCode;
-use lessdugin_core::host::{KvOp, KvStore};
-use lessdugin_core::outbox::model::{self, OUTBOX_ROW_VERSION};
-use lessdugin_core::outbox::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_core::dto::{WriteState, WriteTicket};
+use pandoras_forum_core::engine::ErrorCode;
+use pandoras_forum_core::host::{KvOp, KvStore};
+use pandoras_forum_core::outbox::model::{self, OUTBOX_ROW_VERSION};
+use pandoras_forum_core::outbox::{
     BudgetRow, ContentOpts, Counted, EditOpts, Intent, NewWrite, Op, OpinionStep, Outbox,
     PendingWrite, Session, Step, WriteStage, records,
 };
-use lessdugin_core::store::records::RecordStore;
-use lessdugin_core::store::row;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::records::{Action, HideAction, ModAction, Post};
-use lessdugin_testkit::fake_pds::{AccountHandle, Fault};
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_core::store::row;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::{Action, HideAction, ModAction, Post};
+use pandoras_forum_testkit::fake_pds::{AccountHandle, Fault};
+use pandoras_forum_testkit::{FakeNet, MemHost};
 use serde_json::{Value, json};
 
 const APPLY: &str = "com.atproto.repo.applyWrites";
@@ -142,7 +142,7 @@ fn rkey_of(uri: &str) -> String {
 }
 
 fn tid(ms_ago: u64, n: u64) -> String {
-    let micros = (lessdugin_testkit::memhost::DEFAULT_NOW_MS as u64 - ms_ago) * 1000 + n;
+    let micros = (pandoras_forum_testkit::memhost::DEFAULT_NOW_MS as u64 - ms_ago) * 1000 + n;
     Tid::from_parts(micros, 7).unwrap().as_str().to_owned()
 }
 
@@ -228,7 +228,7 @@ fn first_content_500_retries_once_without_the_membership() {
                 // another device joined meanwhile: the batch's membership create fails the
                 // whole batch with a 500 (ADR 0005)
                 alice.put(nsid::MEMBERSHIP, &m.rkey, &m.value);
-                return Ok(lessdugin_testkit::resp::xrpc_error(
+                return Ok(pandoras_forum_testkit::resp::xrpc_error(
                     500,
                     "InternalServerError",
                     "Internal Server Error",
@@ -851,7 +851,7 @@ fn the_write_budget_throttles_before_sending() {
     let w = world();
     let did = w.alice.did().as_str().to_owned();
     let now = w.host.now();
-    let bucket = now - now.rem_euclid(lessdugin_core::outbox::budget::BUCKET_MS);
+    let bucket = now - now.rem_euclid(pandoras_forum_core::outbox::budget::BUCKET_MS);
     let row = BudgetRow {
         spent: vec![(bucket, 4_998)],
         ..BudgetRow::default()
@@ -874,10 +874,10 @@ fn the_write_budget_throttles_before_sending() {
     else {
         panic!()
     };
-    let hour = lessdugin_core::outbox::budget::HOUR_MS;
+    let hour = pandoras_forum_core::outbox::budget::HOUR_MS;
     assert_eq!(
         until,
-        bucket + lessdugin_core::outbox::budget::BUCKET_MS + hour
+        bucket + pandoras_forum_core::outbox::budget::BUCKET_MS + hour
     );
     assert_eq!(w.net.count(APPLY), 0);
     w.run();
@@ -951,8 +951,8 @@ fn long_bodies_spill_to_markdown_blobs_uploaded_at_send() {
     assert_eq!(v["excerpt"], "A long post.");
     // the blob chunks are gone once done
     let rows = block_on(w.host.state_kv().scan(
-        lessdugin_core::host::KeyRange::prefix(&lessdugin_core::key!(model::OUT_BLOB)),
-        lessdugin_core::host::Dir::Forward,
+        pandoras_forum_core::host::KeyRange::prefix(&pandoras_forum_core::key!(model::OUT_BLOB)),
+        pandoras_forum_core::host::Dir::Forward,
         10,
     ))
     .unwrap();
@@ -961,8 +961,8 @@ fn long_bodies_spill_to_markdown_blobs_uploaded_at_send() {
 
 #[test]
 fn blobs_are_uploaded_again_after_a_long_wait() {
-    use lessdugin_core::outbox::BlobData;
-    use lessdugin_lexicon::records::Profile;
+    use pandoras_forum_core::outbox::BlobData;
+    use pandoras_forum_lexicon::records::Profile;
 
     let w = world();
     let png = BlobData::media(b"\x89PNG\r\n\x1a\n\0\0\0\rIHDR avatar".to_vec()).unwrap();
@@ -1062,7 +1062,7 @@ fn mod_assertions_continue_as_updates_and_removals_snapshot() {
     let lock = ModAction::new(
         w.forum(),
         target.as_str(),
-        Action::Lock(lessdugin_lexicon::records::LockAction::new(allowed)),
+        Action::Lock(pandoras_forum_lexicon::records::LockAction::new(allowed)),
         w.now(),
     );
     let e = block_on(w.ob.mod_assert(&w.session, &lock)).unwrap_err();
@@ -1071,8 +1071,8 @@ fn mod_assertions_continue_as_updates_and_removals_snapshot() {
 
 #[test]
 fn mod_adopt_reissues_the_former_moderators_assertions() {
-    use lessdugin_lexicon::records::TierAction;
-    use lessdugin_lexicon::values::Tier;
+    use pandoras_forum_lexicon::records::TierAction;
+    use pandoras_forum_lexicon::values::Tier;
 
     let w = world();
     let carol = w.net.add_account("carol.example.com");
@@ -1171,8 +1171,8 @@ fn counted(former: &AccountHandle, rkeys: &[&str], roles: &[(&AccountHandle, &st
 /// moderator's ban of the owner) are reported; the report keeps 100 lines.
 #[test]
 fn mod_adopt_reissues_only_what_counted() {
-    use lessdugin_lexicon::records::AccessAction;
-    use lessdugin_lexicon::values::AccessLevel;
+    use pandoras_forum_lexicon::records::AccessAction;
+    use pandoras_forum_lexicon::values::AccessLevel;
 
     let w = world();
     let carol = w.net.add_account("carol.example.com");
@@ -1314,14 +1314,14 @@ fn retry_requeues_a_failed_write_and_events_are_reported() {
 
     #[derive(Default)]
     struct Rec(Mutex<Vec<WriteTicket>>, Mutex<Vec<String>>);
-    impl lessdugin_core::outbox::OutboxListener for Rec {
+    impl pandoras_forum_core::outbox::OutboxListener for Rec {
         fn on_write(&self, t: &WriteTicket) {
             self.0.lock().unwrap().push(t.clone());
         }
         fn on_applied(
             &self,
-            a: &lessdugin_core::outbox::AppliedWrite,
-            _: &lessdugin_core::outbox::ApplyReport,
+            a: &pandoras_forum_core::outbox::AppliedWrite,
+            _: &pandoras_forum_core::outbox::ApplyReport,
         ) {
             self.1.lock().unwrap().push(a.rev.clone());
         }
@@ -1373,7 +1373,7 @@ fn the_long_lived_pump_drains_and_stops() {
     use std::sync::OnceLock;
 
     struct StopWhenDone(OnceLock<Outbox<MemHost>>);
-    impl lessdugin_core::outbox::OutboxListener for StopWhenDone {
+    impl pandoras_forum_core::outbox::OutboxListener for StopWhenDone {
         fn on_write(&self, t: &WriteTicket) {
             if matches!(t.state, WriteState::Done { .. })
                 && let Some(ob) = self.0.get()
@@ -1404,7 +1404,7 @@ fn a_lost_response_is_recognised_by_its_cid_and_cached() {
             let r = net.request(req, "default");
             if calls.fetch_add(1, Ordering::SeqCst) == 0 {
                 // applied, but the answer is lost
-                return Ok(lessdugin_testkit::resp::xrpc_error(
+                return Ok(pandoras_forum_testkit::resp::xrpc_error(
                     502,
                     "UpstreamFailure",
                     "Bad Gateway",
@@ -1427,8 +1427,8 @@ fn a_lost_response_is_recognised_by_its_cid_and_cached() {
 
 #[test]
 fn with_a_syncer_own_writes_queue_the_own_repo() {
-    use lessdugin_core::engine::EngineConfig;
-    use lessdugin_core::sync::{Priority, Reason, SyncConfig, Syncer};
+    use pandoras_forum_core::engine::EngineConfig;
+    use pandoras_forum_core::sync::{Priority, Reason, SyncConfig, Syncer};
 
     let w = world();
     let sy = Syncer::new(
@@ -1481,7 +1481,7 @@ fn crash_after_apply(w: &World) {
 fn exhaust_budget(w: &World) {
     let did = w.alice.did().as_str().to_owned();
     let now = w.host.now();
-    let bucket = now - now.rem_euclid(lessdugin_core::outbox::budget::BUCKET_MS);
+    let bucket = now - now.rem_euclid(pandoras_forum_core::outbox::budget::BUCKET_MS);
     let row = BudgetRow {
         spent: vec![(bucket, 5_000)],
         ..BudgetRow::default()
@@ -1546,7 +1546,7 @@ fn a_crash_then_an_offline_restart_keeps_the_sent_mark() {
 fn a_429_with_a_past_reset_waits() {
     let w = world();
     let past = (w.host.now() / 1000 - 120).to_string();
-    let resp = lessdugin_core::host::HttpResponse {
+    let resp = pandoras_forum_core::host::HttpResponse {
         status: 429,
         headers: vec![
             ("ratelimit-limit".into(), "5000".into()),
@@ -1561,7 +1561,7 @@ fn a_429_with_a_past_reset_waits() {
     w.run();
     done(&w.ticket(&t));
     assert_eq!(w.net.count(APPLY), 4);
-    let wait = lessdugin_core::outbox::budget::DEFAULT_RATE_LIMIT_WAIT_MS;
+    let wait = pandoras_forum_core::outbox::budget::DEFAULT_RATE_LIMIT_WAIT_MS;
     assert!(w.host.now() - start >= 3 * wait, "{}", w.host.now() - start);
 }
 
@@ -1571,7 +1571,7 @@ fn a_pump_started_after_stop_runs() {
     use std::sync::OnceLock;
 
     struct StopWhenDone(OnceLock<Outbox<MemHost>>);
-    impl lessdugin_core::outbox::OutboxListener for StopWhenDone {
+    impl pandoras_forum_core::outbox::OutboxListener for StopWhenDone {
         fn on_write(&self, t: &WriteTicket) {
             if matches!(t.state, WriteState::Done { .. })
                 && let Some(ob) = self.0.get()
@@ -1639,7 +1639,7 @@ fn a_delete_never_works_from_an_incomplete_listing() {
         w.alice.put(nsid::REVISION, &rk, &v);
     }
     w.alice
-        .set_cursor_mode(Some(lessdugin_testkit::fake_pds::CursorMode::Stuck));
+        .set_cursor_mode(Some(pandoras_forum_testkit::fake_pds::CursorMode::Stuck));
     let d = block_on(w.ob.delete(&w.session, &uri)).unwrap();
     w.run();
     let _ = failed_code(&w.ticket(&d));
@@ -1711,7 +1711,7 @@ fn only_a_working_fallback_marks_a_host_without_null_swap() {
         )
         .times(2),
     );
-    let p = lessdugin_lexicon::records::Profile {
+    let p = pandoras_forum_lexicon::records::Profile {
         display_name: Some("Alice".into()),
         ..Default::default()
     };
@@ -1768,7 +1768,7 @@ fn a_record_found_by_a_re_read_is_not_exact() {
         w.host.on_post(&w.userpds(CREATE), move |req| {
             let r = net.request(req, "default");
             if calls.fetch_add(1, Ordering::SeqCst) == 0 {
-                return Ok(lessdugin_testkit::resp::xrpc_error(
+                return Ok(pandoras_forum_testkit::resp::xrpc_error(
                     502,
                     "UpstreamFailure",
                     "Bad Gateway",
@@ -1795,7 +1795,7 @@ fn a_run_keeps_points_another_pump_spent() {
     let did = w.alice.did().as_str().to_owned();
     let other_bucket = {
         let now = w.host.now() - 10 * 60_000;
-        now - now.rem_euclid(lessdugin_core::outbox::budget::BUCKET_MS)
+        now - now.rem_euclid(pandoras_forum_core::outbox::budget::BUCKET_MS)
     };
     {
         let net = w.net.clone();
@@ -1819,7 +1819,7 @@ fn a_run_keeps_points_another_pump_spent() {
     w.run();
     done(&w.ticket(&t));
     let b = block_on(w.ob.budget(&did)).unwrap();
-    let hour = lessdugin_core::outbox::budget::HOUR_MS;
+    let hour = pandoras_forum_core::outbox::budget::HOUR_MS;
     assert!(
         b.spent.iter().any(|(k, p)| *k == other_bucket && *p == 100),
         "{b:?}"

@@ -29,7 +29,7 @@ use std::pin::Pin;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll, Waker};
 
-use lessdugin_atp::syntax::Did;
+use pandoras_forum_atp::syntax::Did;
 
 use crate::host::{BlobHandle, Host, HostError, HttpRequest, HttpResponse, MaybeSend, Target};
 use crate::limits;
@@ -38,10 +38,10 @@ use crate::store::repo::{Breaker, BreakerState, Budget};
 /// The internal response header carrying the send time of the attempt that produced a response
 /// (ms; the order keys of `sync.md` §5.6.1 need it, and `HttpResponse` has no such field). It
 /// never goes over the network.
-pub const SENT_AT_HEADER: &str = "x-lessdugin-sent-at";
+pub const SENT_AT_HEADER: &str = "x-pandoras-forum-sent-at";
 /// The internal response header marking a response made up locally (an exhausted read budget):
 /// it was not sent and is not counted.
-pub const LOCAL_HEADER: &str = "x-lessdugin-local";
+pub const LOCAL_HEADER: &str = "x-pandoras-forum-local";
 
 /// Consecutive failures that open a host's breaker (`limits.md` §7 `BREAKER_FAILURES`).
 pub const BREAKER_FAILURES: u32 = 10;
@@ -1298,7 +1298,7 @@ impl<H: Host> Host for NetHost<H> {
     }
 }
 
-/// `true` for a header name of the `x-lessdugin-` family, which only this engine sets on
+/// `true` for a header name of the `x-pandoras-forum-` family, which only this engine sets on
 /// responses ([`SENT_AT_HEADER`], [`LOCAL_HEADER`]); the same names from the network are removed.
 pub fn is_internal_header(name: &str) -> bool {
     name.len() >= INTERNAL_HEADER_PREFIX.len()
@@ -1307,7 +1307,7 @@ pub fn is_internal_header(name: &str) -> bool {
 }
 
 /// The prefix of the internal response headers.
-pub const INTERNAL_HEADER_PREFIX: &str = "x-lessdugin-";
+pub const INTERNAL_HEADER_PREFIX: &str = "x-pandoras-forum-";
 
 /// The send time a [`Net`] stamped on a response, if any.
 pub fn sent_at(resp: &HttpResponse) -> Option<i64> {

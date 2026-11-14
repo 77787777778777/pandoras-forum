@@ -84,10 +84,10 @@
   - running both tsgo and tsc in CI.
 
 ### Critical Files for Implementation
-- /home/user/lessdugin/docs/spec/social.md
-- /home/user/lessdugin/docs/spec/data-model.md
-- /home/user/lessdugin/lexicons/online/7778777/lessdugin/modAction.json
-- /home/user/lessdugin/crates/core/src/social/fold.rs
-- /home/user/lessdugin/crates/core/src/host.rs
+- /home/user/pandoras-forum/docs/spec/social.md
+- /home/user/pandoras-forum/docs/spec/data-model.md
+- /home/user/pandoras-forum/lexicons/forum/pandoras/modAction.json
+- /home/user/pandoras-forum/crates/core/src/social/fold.rs
+- /home/user/pandoras-forum/crates/core/src/host.rs
 
 Sources: [Bluesky Jetstream SDK docs](https://bsky.network/ja/docs/jetstream-sdk), [crates.io aws-lc-sys](https://crates.io/api/v1/crates/aws-lc-sys)

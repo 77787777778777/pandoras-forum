@@ -2,10 +2,10 @@
 //! The shared record-store scenario over the in-memory stores.
 
 use futures::executor::block_on;
-use lessdugin_core::host::Host;
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_testkit::MemHost;
-use lessdugin_testkit::store::record_store_conformance;
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_testkit::MemHost;
+use pandoras_forum_testkit::store::record_store_conformance;
 
 #[test]
 fn record_store_over_memkv() {

@@ -6,7 +6,7 @@
 // `rel="nofollow ugc noopener noreferrer"`, no referrer, and show their real host; anything
 // else renders as plain text.
 
-import type { Href, HrefContext } from "@lessdugin/engine/types";
+import type { Href, HrefContext } from "@pandoras-forum/engine/types";
 import type { ReactNode } from "react";
 import { useSafeHref } from "../engine/queries.ts";
 import { cx } from "../lib/cx.ts";

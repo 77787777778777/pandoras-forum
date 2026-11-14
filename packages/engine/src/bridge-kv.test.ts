@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// The `lessdugin web` state store: the `POST /bridge/kv` wire format of crates/cli/src/web/kv.rs,
+// The `pandoras-forum web` state store: the `POST /bridge/kv` wire format of crates/cli/src/web/kv.rs,
 // served here by a fake bridge over the in-memory store.
 import { describe, expect, it } from "vitest";
 import { BridgeKv, fromBase64, toBase64 } from "./bridge-kv.ts";

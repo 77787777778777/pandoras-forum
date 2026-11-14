@@ -15,8 +15,8 @@ use std::path::Path;
 
 use super::policy::WEB_PORT_DEFAULT;
 
-/// Largest `config.toml` read (as `lessdugin_native::config::CONFIG_MAX_BYTES`).
-const CONFIG_MAX_BYTES: u64 = lessdugin_native::config::CONFIG_MAX_BYTES;
+/// Largest `config.toml` read (as `pandoras_forum_native::config::CONFIG_MAX_BYTES`).
+const CONFIG_MAX_BYTES: u64 = pandoras_forum_native::config::CONFIG_MAX_BYTES;
 
 /// `web.port` from TOML text: `Ok(None)` when absent, an error when it is not a port.
 pub fn port_from_toml(text: &str) -> Result<Option<u16>, String> {

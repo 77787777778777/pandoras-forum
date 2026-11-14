@@ -4,7 +4,7 @@
 // remove moderators (`mods_set`; a removed moderator's actions are adopted first, social.md
 // §4.10).
 
-import type { ActionTicket, ForumDraft, ModRole } from "@lessdugin/engine/types";
+import type { ActionTicket, ForumDraft, ModRole } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { Fragment, useId, useState } from "react";
 import { ActorName } from "../../components/ActorName.tsx";

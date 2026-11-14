@@ -4,14 +4,14 @@
 // bundle check (scripts/check-release-bundle.mjs, src/host/releaseBundle.test.ts) fails if any
 // of its marker strings appears there.
 //
-// - Options come from `window.__LESSDUGIN_E2E__`, which the test harness sets before the page
+// - Options come from `window.__PANDORAS_FORUM_E2E__`, which the test harness sets before the page
 //   loads (Playwright `addInitScript`): the devnet endpoints (ADR 0006; threat-model INFRA-9,
 //   §6.2) and the parity time (engine-api.md §2.1). Nothing reads them from the URL.
-// - The debug hook `window.__lessduginE2E` returns dto/1 JSON text exactly as the engine
+// - The debug hook `window.__pandorasForumE2E` returns dto/1 JSON text exactly as the engine
 //   serialises it (`callJson`, the bytes the CLI's `--json` prints) for the parity checks.
 
-import type { EngineClient, EngineConfigInput } from "@lessdugin/engine/client";
-import type { ListPostsQuery, ThreadOpts } from "@lessdugin/engine/types";
+import type { EngineClient, EngineConfigInput } from "@pandoras-forum/engine/client";
+import type { ListPostsQuery, ThreadOpts } from "@pandoras-forum/engine/types";
 
 export interface E2EOptions {
   /** The devnet's PLC directory and PDS (http, loopback). */
@@ -51,8 +51,8 @@ export interface E2EDebug {
 
 declare global {
   interface Window {
-    __LESSDUGIN_E2E__?: unknown;
-    __lessduginE2E?: E2EDebug;
+    __PANDORAS_FORUM_E2E__?: unknown;
+    __pandorasForumE2E?: E2EDebug;
   }
 }
 
@@ -78,7 +78,7 @@ function loopbackList(raw: unknown, protocols: readonly string[]): string[] | un
 }
 
 /** The harness's options (validated: devnet endpoints must be loopback http). */
-export function e2eOptions(raw: unknown = globalThis.window?.__LESSDUGIN_E2E__): E2EOptions {
+export function e2eOptions(raw: unknown = globalThis.window?.__PANDORAS_FORUM_E2E__): E2EOptions {
   if (typeof raw !== "object" || raw === null) return {};
   const v = raw as {
     devnet?: { plc?: unknown; pds?: unknown };
@@ -132,7 +132,7 @@ export function e2eEngineConfig(o: E2EOptions): EngineConfigInput {
 
 const DEFAULT_THREAD: ThreadOpts = { sort: "magic", unreadOnly: false };
 
-/** Installs `window.__lessduginE2E`. */
+/** Installs `window.__pandorasForumE2E`. */
 export function installDebugHook(client: EngineClient, options: E2EOptions): E2EDebug {
   const hook: E2EDebug = {
     ready: async () => {
@@ -149,6 +149,6 @@ export function installDebugHook(client: EngineClient, options: E2EOptions): E2E
     accounts: () => client.callJson("accounts", []),
     options,
   };
-  window.__lessduginE2E = hook;
+  window.__pandorasForumE2E = hook;
   return hook;
 }

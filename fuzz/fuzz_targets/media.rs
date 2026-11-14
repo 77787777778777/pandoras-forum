@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The media pipeline's container walks (`lessdugin_core::media`, `threat-model.md` §5.9.1).
+//! The media pipeline's container walks (`pandoras_forum_core::media`, `threat-model.md` §5.9.1).
 //!
 //! Fuzzing matters here because every walker parses attacker-supplied framing - segment lengths,
 //! chunk sizes, box sizes, sub-block chains - and a walk that loops, allocates without bound or
@@ -19,7 +19,7 @@
 
 #![no_main]
 
-use lessdugin_core::media::{Format, MAX_SCAN_BYTES, sniff, strip_metadata};
+use pandoras_forum_core::media::{Format, MAX_SCAN_BYTES, sniff, strip_metadata};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

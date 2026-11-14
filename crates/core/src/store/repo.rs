@@ -7,7 +7,7 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_atp::Cid;
+use pandoras_forum_atp::Cid;
 use serde::{Deserialize, Serialize};
 
 use crate::limits;
@@ -534,7 +534,7 @@ mod tests {
     use crate::store::row;
 
     fn cid() -> Cid {
-        lessdugin_atp::cid::for_dag_cbor(b"\xa0")
+        pandoras_forum_atp::cid::for_dag_cbor(b"\xa0")
     }
 
     #[test]

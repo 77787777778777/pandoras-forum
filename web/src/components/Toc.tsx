@@ -2,7 +2,7 @@
 // Table of contents from `RenderedBody.toc` (lfm-1.md §10.6). Entries scroll inside the post's
 // own rendered root; content ids are never looked up document-wide (§4.6).
 
-import type { TocEntry } from "@lessdugin/engine/types";
+import type { TocEntry } from "@pandoras-forum/engine/types";
 import { cleanName } from "../lib/text.ts";
 import styles from "../pages/pages.module.css";
 

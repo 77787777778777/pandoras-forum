@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `logout`, `whoami` and `accounts` (`threat-model.md` AUTH-11).
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_atp::xrpc::GetSession;
-use lessdugin_core::dto::{AccountView, AuthKind, DTO_VERSION};
-use lessdugin_core::engine::EngineError;
-use lessdugin_core::limits;
-use lessdugin_core::xrpc::{CallOpts, Service};
-use lessdugin_native::auth::logout_session;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_atp::xrpc::GetSession;
+use pandoras_forum_core::dto::{AccountView, AuthKind, DTO_VERSION};
+use pandoras_forum_core::engine::EngineError;
+use pandoras_forum_core::limits;
+use pandoras_forum_core::xrpc::{CallOpts, Service};
+use pandoras_forum_native::auth::logout_session;
 use serde::Serialize;
 
 use crate::args::{AccountsAction, AccountsArgs, LogoutArgs};
@@ -46,7 +46,7 @@ struct LogoutView {
     purged: bool,
 }
 
-/// `lessdugin logout [--purge]`.
+/// `pandoras-forum logout [--purge]`.
 pub async fn logout(ctx: &Ctx, args: LogoutArgs) -> Result<(), CliError> {
     let account = ctx.account().await?;
     if args.purge && !args.yes {
@@ -110,7 +110,7 @@ pub async fn logout(ctx: &Ctx, args: LogoutArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin whoami`: the account, after checking its session with `getSession`.
+/// `pandoras-forum whoami`: the account, after checking its session with `getSession`.
 pub async fn whoami(ctx: &Ctx) -> Result<(), CliError> {
     let account = ctx.account_with_session().await?;
     let engine = ctx.engine()?;
@@ -150,7 +150,7 @@ pub async fn whoami(ctx: &Ctx) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin accounts [use <account>]`.
+/// `pandoras-forum accounts [use <account>]`.
 pub async fn accounts(ctx: &Ctx, args: AccountsArgs) -> Result<(), CliError> {
     let engine = ctx.engine()?;
     if let Some(AccountsAction::Use { account }) = args.action {
@@ -177,7 +177,7 @@ pub async fn accounts(ctx: &Ctx, args: AccountsArgs) -> Result<(), CliError> {
     }
     if list.is_empty() {
         ctx.out.note(&[(
-            lit("No accounts. Log in with `lessdugin login <handle>`."),
+            lit("No accounts. Log in with `pandoras-forum login <handle>`."),
             Style::Dim,
         )]);
         return Ok(());

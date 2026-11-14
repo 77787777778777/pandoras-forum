@@ -12,7 +12,7 @@ import {
 
 describe("sequenceFormOf / sequenceDraftOf", () => {
   const record = {
-    forum: "at://did:plc:owner/online.7778777.lessdugin.forum/f",
+    forum: "at://did:plc:owner/forum.pandoras.forum/f",
     title: "Reading list",
     body: { text: "Start here", media: [] },
     chapters: [

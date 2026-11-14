@@ -9,10 +9,10 @@
 mod fakenet;
 
 use fakenet::{Net, User, s, text};
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     ForumView, HistoryView, PostList, PostView, RawView, SyncReport, ThreadView,
 };
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_lexicon::collection::nsid;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -167,7 +167,7 @@ fn a_forum_from_creation_to_deletion() {
     let rkey = post.rsplit('/').next().unwrap();
     let by_handle = json_out(&alice, &["read", &format!("alice.test/{rkey}")]);
     assert_eq!(by_handle, thread);
-    let link = format!("https://lessdugin.example/#/p/alice.test/{rkey}");
+    let link = format!("https://pandoras-forum.example/#/p/alice.test/{rkey}");
     assert_eq!(json_out(&alice, &["read", &link]), thread);
     let pv: PostView = exact(&json_out(&alice, &["read", &post, "--no-comments"]));
     assert_eq!(pv.post.uri, post);
@@ -250,7 +250,7 @@ fn a_forum_from_creation_to_deletion() {
 
 /// The rkey of `u`'s membership in its forum `slug` (`fk(F)`).
 fn forum_key_rkey(u: &User, slug: &str) -> String {
-    lessdugin_lexicon::keys::fk(&forum_of(u, slug)).unwrap()
+    pandoras_forum_lexicon::keys::fk(&forum_of(u, slug)).unwrap()
 }
 
 #[test]
@@ -367,7 +367,7 @@ fn references_and_error_paths() {
     let e = alice.fails(1, &["read", "1"]);
     assert_eq!(e["code"], "invalid_ref");
     assert!(
-        e["message"].as_str().unwrap().contains("lessdugin ls"),
+        e["message"].as_str().unwrap().contains("pandoras-forum ls"),
         "{e}"
     );
     let e = alice.fails(1, &["read", "c3"]);
@@ -393,7 +393,7 @@ fn references_and_error_paths() {
     );
     // listings are per terminal session
     let mut a2 = alice.cmd();
-    a2.env("LESSDUGIN_SESSION", "another-terminal");
+    a2.env("PANDORAS_FORUM_SESSION", "another-terminal");
     let out = a2.args(["--json", "read", "1"]).output().unwrap();
     assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));
 
@@ -630,7 +630,7 @@ fn every_command_documents_itself() {
 /// Asserts that terminal output carries no control sequence from record text: only the
 /// printer's own SGR (and OSC 8) forms, no BEL, no C1 control, no bidi override.
 fn clean_terminal_output(what: &str, out: &str, color: bool) {
-    if let Err(e) = lessdugin_markdown::printer::check_printer_output(out) {
+    if let Err(e) = pandoras_forum_markdown::printer::check_printer_output(out) {
         panic!("{what}: {e}:\n{out:?}");
     }
     if !color {
@@ -722,7 +722,7 @@ fn hostile_text_never_reaches_the_terminal() {
     clean_terminal_output("raw", &raw, false);
 }
 
-/// Runs `lessdugin --json <args>` with `stdin`; must succeed.
+/// Runs `pandoras-forum --json <args>` with `stdin`; must succeed.
 fn json_stdin(u: &User, args: &[&str], stdin: &str) -> Value {
     let out = u
         .cmd()
@@ -923,7 +923,7 @@ fn outbox_undo_retry_and_partial_sync() {
 
     // retry: a write the PDS refused is failed, and sent again on request
     alice.account.inject(
-        lessdugin_testkit::fake_pds::Fault::error(400, "InvalidRequest", "try again later")
+        pandoras_forum_testkit::fake_pds::Fault::error(400, "InvalidRequest", "try again later")
             .on_nsid("com.atproto.repo.createRecord")
             .once(),
     );
@@ -949,7 +949,7 @@ fn outbox_undo_retry_and_partial_sync() {
     // bob's repository fails before alice ever read it
     let fault = bob
         .account
-        .inject(lessdugin_testkit::fake_pds::Fault::status(500));
+        .inject(pandoras_forum_testkit::fake_pds::Fault::status(500));
     let out = alice.run(&["--json", "sync", "--full"]);
     assert_eq!(out.status.code(), Some(6), "{}", text(&out.stderr));
     let r: SyncReport = exact(&text(&out.stdout));
@@ -1052,7 +1052,7 @@ fn a_spilled_body_is_edited_as_its_text() {
 #[test]
 #[allow(clippy::disallowed_methods)] // a real clock for a real process
 fn read_waits_for_a_slow_spilled_body() {
-    use lessdugin_testkit::fake_pds::Fault;
+    use pandoras_forum_testkit::fake_pds::Fault;
     let net = Net::new();
     let alice = net.user("alice.test", true);
     alice.json(&["forum", "create", "meta", "--frontpage"]);
@@ -1074,7 +1074,7 @@ fn read_waits_for_a_slow_spilled_body() {
         let tv: ThreadView = serde_json::from_slice(&out.stdout)
             .unwrap_or_else(|e| panic!("{e}: {}", text(&out.stderr)));
         match tv.post {
-            lessdugin_core::dto::ThreadRoot::Post(p) => p.body.text,
+            pandoras_forum_core::dto::ThreadRoot::Post(p) => p.body.text,
             other => panic!("{other:?}"),
         }
     };
@@ -1145,8 +1145,8 @@ fn read_waits_for_a_slow_spilled_body() {
 #[test]
 #[allow(clippy::disallowed_methods)] // a real clock for a real process
 fn forum_show_waits_for_a_slow_spilled_about() {
-    use lessdugin_core::model::render::NOTICE_SPILLED;
-    use lessdugin_testkit::fake_pds::Fault;
+    use pandoras_forum_core::model::render::NOTICE_SPILLED;
+    use pandoras_forum_testkit::fake_pds::Fault;
     let net = Net::new();
     let alice = net.user("alice.test", true);
     let forum_of = |name: &str| {
@@ -1230,9 +1230,9 @@ fn forum_show_waits_for_a_slow_spilled_about() {
 #[test]
 #[allow(clippy::disallowed_methods)] // a real clock for a real process
 fn tag_and_sequence_wait_for_slow_spilled_bodies() {
-    use lessdugin_core::dto::{SequenceView, TagView};
-    use lessdugin_core::model::render::NOTICE_SPILLED;
-    use lessdugin_testkit::fake_pds::Fault;
+    use pandoras_forum_core::dto::{SequenceView, TagView};
+    use pandoras_forum_core::model::render::NOTICE_SPILLED;
+    use pandoras_forum_testkit::fake_pds::Fault;
     let net = Net::new();
     let alice = net.user("alice.test", true);
     alice.json(&["forum", "create", "meta", "--frontpage"]);

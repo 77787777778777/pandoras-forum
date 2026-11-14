@@ -33,14 +33,14 @@
 //! account the CLI writes as.
 //!
 //! **Deviation (M2).** §7.4 names the bridge's own port as the redirect target. The native
-//! OAuth facade (`lessdugin_native::auth::oauth::begin`) reserves its own ephemeral loopback
+//! OAuth facade (`pandoras_forum_native::auth::oauth::begin`) reserves its own ephemeral loopback
 //! port for the redirect URI, so the redirect goes to that port, which this process serves
 //! (a second listener on 127.0.0.1, only `GET /callback`, with the same Host check and
 //! headers) for the lifetime of the pending login. The tab returns to the bridge's origin with
 //! the 303, so its `sessionStorage` is kept as §7.4 intends. Once `begin` can take a given
 //! redirect URI, the callback can move to the bridge port without changing the SPA.
 //! An authorization server that changed since the account's last login is refused here (it
-//! needs the terminal's confirmation: `lessdugin login`).
+//! needs the terminal's confirmation: `pandoras-forum login`).
 
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -49,9 +49,9 @@ use axum::Router;
 use axum::extract::{Request, State};
 use axum::http::{HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use lessdugin_core::engine::{EngineError, ErrorCode};
-use lessdugin_native::auth::oauth::{self, ClientKind, OAuthOptions, PendingAuthorization};
-use lessdugin_native::auth::resolve_login_target;
+use pandoras_forum_core::engine::{EngineError, ErrorCode};
+use pandoras_forum_native::auth::oauth::{self, ClientKind, OAuthOptions, PendingAuthorization};
+use pandoras_forum_native::auth::resolve_login_target;
 use serde_json::json;
 use tokio::sync::Notify;
 
@@ -201,7 +201,7 @@ pub async fn start(web: &Arc<Web>, token: &str, body: &[u8]) -> Response {
 }
 
 async fn begin(web: &Arc<Web>, token: &str, actor: &str) -> Result<String, EngineError> {
-    if lessdugin_core::engine::is_app_password_shape(actor) {
+    if pandoras_forum_core::engine::is_app_password_shape(actor) {
         return Err(EngineError::invalid_input(
             "that looks like an app password, not a handle or DID",
         ));
@@ -301,8 +301,9 @@ fn redirect(to: &str) -> Response {
 }
 
 fn page(status: StatusCode, text: &'static str) -> Response {
-    let body =
-        format!("<!doctype html><meta charset=\"utf-8\"><title>lessdugin</title><p>{text}</p>");
+    let body = format!(
+        "<!doctype html><meta charset=\"utf-8\"><title>Pandora's Forum</title><p>{text}</p>"
+    );
     let mut r = (status, body).into_response();
     r.headers_mut().insert(
         header::CONTENT_TYPE,
@@ -435,7 +436,7 @@ async fn confirm(cb: &Callback, did: &str, as_host: &str) -> Result<(), EngineEr
     ]);
     web.out.err_line(&[(
         lit(
-            "lessdugin will keep this session and write as this account. Accept this sign-in? \
+            "Pandora's Forum will keep this session and write as this account. Accept this sign-in? \
              [y/N]",
         ),
         Style::Bold,
@@ -453,7 +454,7 @@ async fn confirm(cb: &Callback, did: &str, as_host: &str) -> Result<(), EngineEr
         None => Err(EngineError::new(
             ErrorCode::AuthRequired,
             "the sign-in was not confirmed in the terminal (no answer, or stdin is closed); \
-             `lessdugin login` signs in from a terminal",
+             `pandoras-forum login` signs in from a terminal",
         )),
     }
 }
@@ -468,7 +469,7 @@ fn detail_str(e: &EngineError, key: &str) -> String {
 }
 
 fn report_failure(cb: &Callback, e: &EngineError) {
-    let msg = lessdugin_native::auth::redact::redact_secrets(&e.message);
+    let msg = pandoras_forum_native::auth::redact::redact_secrets(&e.message);
     cb.web.out.err_line(&[
         (lit("warning: "), Style::Warn),
         (lit("the browser sign-in failed: "), Style::Plain),
@@ -477,7 +478,7 @@ fn report_failure(cb: &Callback, e: &EngineError) {
     if e.code == ErrorCode::Conflict && detail_str(e, "kind") == "issuerChanged" {
         cb.web.out.err_line(&[(
             lit(
-                "hint: the account's authorization server changed; run `lessdugin login` in a \
+                "hint: the account's authorization server changed; run `pandoras-forum login` in a \
                  terminal to review and confirm it",
             ),
             Style::Dim,

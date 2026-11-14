@@ -71,13 +71,16 @@ impl Generated {
     }
 
     /// Its CID (raw, sha2-256), hashed a chunk at a time.
-    pub fn cid(&self) -> lessdugin_atp::Cid {
+    pub fn cid(&self) -> pandoras_forum_atp::Cid {
         use k256::sha2::{Digest, Sha256};
         let mut h = Sha256::new();
         for i in 0..self.chunks() {
             h.update(self.chunk(i));
         }
-        lessdugin_atp::cid::from_sha256_digest(lessdugin_atp::cid::RAW, h.finalize().into())
+        pandoras_forum_atp::cid::from_sha256_digest(
+            pandoras_forum_atp::cid::RAW,
+            h.finalize().into(),
+        )
     }
 
     /// Every byte at once (the in-memory transport only; HTTP streams the chunks).
@@ -150,7 +153,7 @@ mod tests {
         assert_ne!(g.chunk(0), g.chunk(1));
         let all = g.bytes();
         assert_eq!(all.len() as u64, g.size);
-        assert_eq!(g.cid(), lessdugin_atp::cid::for_raw(&all));
+        assert_eq!(g.cid(), pandoras_forum_atp::cid::for_raw(&all));
         assert_ne!(g.cid(), Generated { seed: 8, ..g }.cid());
     }
 

@@ -20,7 +20,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::Collection;
+use pandoras_forum_lexicon::Collection;
 
 use crate::social::full::cids;
 use crate::social::full::cx::Cx;

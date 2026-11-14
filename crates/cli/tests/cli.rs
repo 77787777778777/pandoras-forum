@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Offline tests of the `lessdugin` binary: help, usage errors and exit codes, refusal of
+//! Offline tests of the `pandoras-forum` binary: help, usage errors and exit codes, refusal of
 //! passwords in argv and of main passwords, `--json` shapes (`"dto": 1`), terminal sanitising of
 //! error messages, parse errors and successful output, and devnet mode (explicit only, warned
 //! about, kept in its own directories). Network commands run against a "devnet" on a closed
@@ -21,14 +21,14 @@ const DEAD: [&str; 5] = [
 ];
 
 fn bin(dir: &Path) -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+    let mut c = Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
     for (k, _) in std::env::vars() {
-        if k.starts_with("LESSDUGIN_") {
+        if k.starts_with("PANDORAS_FORUM_") {
             c.env_remove(k);
         }
     }
-    c.env("LESSDUGIN_DATA_DIR", dir)
-        .env("LESSDUGIN_KEYRING", "off")
+    c.env("PANDORAS_FORUM_DATA_DIR", dir)
+        .env("PANDORAS_FORUM_KEYRING", "off")
         .env("NO_COLOR", "1")
         .env_remove("RUST_LOG")
         .env_remove("BROWSER");
@@ -77,7 +77,7 @@ fn help_lists_the_commands_and_no_password_option() {
     assert!(String::from_utf8_lossy(&out.stdout).contains("Usage"));
     // Version.
     let out = bin(dir.path()).arg("--version").output().unwrap();
-    assert!(String::from_utf8_lossy(&out.stdout).starts_with("lessdugin "));
+    assert!(String::from_utf8_lossy(&out.stdout).starts_with("pandoras-forum "));
 }
 
 /// The moderation help says what the actions do (`social.md` §4.2, §4.8): forum-wide locks
@@ -206,7 +206,10 @@ fn main_passwords_are_refused_before_any_network() {
     let out = bin(dir.path())
         .args(DEAD)
         .args(["--json", "login", "alice.test", "--app-password"])
-        .env("LESSDUGIN_APP_PASSWORD", "correct horse battery staple")
+        .env(
+            "PANDORAS_FORUM_APP_PASSWORD",
+            "correct horse battery staple",
+        )
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1));
@@ -418,18 +421,18 @@ fn completions_are_generated() {
             .output()
             .unwrap();
         assert!(out.status.success());
-        assert!(String::from_utf8_lossy(&out.stdout).contains("lessdugin"));
+        assert!(String::from_utf8_lossy(&out.stdout).contains("pandoras-forum"));
     }
 }
 
 #[test]
 fn devnet_mode_is_explicit_and_announced() {
     let dir = tempfile::tempdir().unwrap();
-    // LESSDUGIN_DEV is not read: the devnet URLs alone are a usage error.
+    // PANDORAS_FORUM_DEV is not read: the devnet URLs alone are a usage error.
     let out = bin(dir.path())
-        .env("LESSDUGIN_DEV", "1")
-        .env("LESSDUGIN_PLC_URL", "http://127.0.0.1:9")
-        .env("LESSDUGIN_PDS_URL", "http://127.0.0.1:9")
+        .env("PANDORAS_FORUM_DEV", "1")
+        .env("PANDORAS_FORUM_PLC_URL", "http://127.0.0.1:9")
+        .env("PANDORAS_FORUM_PDS_URL", "http://127.0.0.1:9")
         .args(["resolve", "alice.test"])
         .output()
         .unwrap();

@@ -1,7 +1,7 @@
 {
   "spdx": "CC0-1.0",
   "id": "default/1",
-  "description": "The default/1 react palette of lessdugin (docs/spec/social.md §9). Normative for the fold: the set of `id` values. Presentation defaults (clients SHOULD use them and MAY localise them): `label`, `description`, `glyph`, `group`, the order of `groups` and the order of `reacts`.",
+  "description": "The default/1 react palette of Pandora's Forum (docs/spec/social.md §9). Normative for the fold: the set of `id` values. Presentation defaults (clients SHOULD use them and MAY localise them): `label`, `description`, `glyph`, `group`, the order of `groups` and the order of `reacts`.",
   "groups": [
     { "id": "stance", "label": "Stance" },
     { "id": "value", "label": "Value" },

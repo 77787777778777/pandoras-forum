@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Owned serde structs for every lessdugin record type and shared definition
+//! Owned serde structs for every Pandora's Forum record type and shared definition
 //! (`data-model.md` §4–§6).
 //!
 //! **Writer rules (§2.5, §8.1).**
@@ -158,7 +158,7 @@ impl<'de, T: DeserializeOwned + UnionMember> Deserialize<'de> for OpenUnion<T> {
     }
 }
 
-/// Any lessdugin record, dispatched on its collection. Variants are boxed: record structs are
+/// Any Pandora's Forum record, dispatched on its collection. Variants are boxed: record structs are
 /// large (a forum declaration is over a kilobyte) and differ widely in size.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Record {

@@ -34,9 +34,9 @@ pub mod doh;
 
 use std::sync::Arc;
 
-use lessdugin_atp::crypto::PublicKey;
-use lessdugin_atp::syntax::{Did, DidMethod, Handle};
-use lessdugin_atp::xrpc::{ResolveHandle, query_string};
+use pandoras_forum_atp::crypto::PublicKey;
+use pandoras_forum_atp::syntax::{Did, DidMethod, Handle};
+use pandoras_forum_atp::xrpc::{ResolveHandle, query_string};
 use serde::{Deserialize, Serialize};
 
 use crate::dto::{ActorView, HandleState};
@@ -374,7 +374,7 @@ pub enum IdentityError {
     /// Not a handle or a DID.
     #[error("not a handle or DID: {0}")]
     InvalidInput(String),
-    /// A DID outside lessdugin's policy (`did:plc` and host-only `did:web`).
+    /// A DID outside the Pandora's Forum DID policy (`did:plc` and host-only `did:web`).
     #[error("unsupported DID {did}: {reason}")]
     UnsupportedDid {
         /// The DID string.
@@ -549,7 +549,7 @@ fn handle_key(handle: &str) -> Vec<u8> {
 fn policy_did(s: &str) -> Option<Did> {
     Did::parse(s)
         .ok()
-        .filter(|d| d.check_lessdugin_policy().is_ok())
+        .filter(|d| d.check_pandoras_forum_policy().is_ok())
 }
 
 /// The identity resolver. Cloning shares the host.
@@ -947,7 +947,7 @@ impl<H: Host> Resolver<H> {
         did: &Did,
         max_age_ms: i64,
     ) -> Result<ResolvedIdentity, IdentityError> {
-        did.check_lessdugin_policy()
+        did.check_pandoras_forum_policy()
             .map_err(|e| IdentityError::UnsupportedDid {
                 did: did.to_string(),
                 reason: e.reason.to_owned(),
@@ -991,7 +991,7 @@ impl<H: Host> Resolver<H> {
         did: &Did,
         max_age_ms: i64,
     ) -> Result<ResolvedIdentity, IdentityError> {
-        did.check_lessdugin_policy()
+        did.check_pandoras_forum_policy()
             .map_err(|e| IdentityError::UnsupportedDid {
                 did: did.to_string(),
                 reason: e.reason.to_owned(),
@@ -1313,8 +1313,8 @@ mod tests {
         assert_eq!(id.handle(), Some("alice.example.com"));
         assert_eq!(id.actor_view().short_did, "did:plc:ewvi7nxz…");
         // field names follow sync.md §10.5
-        let ipld = lessdugin_atp::dagcbor::decode(&bytes).unwrap();
-        let lessdugin_atp::Ipld::Map(m) = ipld else {
+        let ipld = pandoras_forum_atp::dagcbor::decode(&bytes).unwrap();
+        let pandoras_forum_atp::Ipld::Map(m) = ipld else {
             panic!()
         };
         for k in [

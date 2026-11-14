@@ -7,8 +7,8 @@ use std::net::{IpAddr, SocketAddr};
 use std::time::Duration;
 
 use futures::{SinkExt, StreamExt};
-use lessdugin_core::host::{HostError, WebSocket, WsMessage};
-use lessdugin_core::limits;
+use pandoras_forum_core::host::{HostError, WebSocket, WsMessage};
+use pandoras_forum_core::limits;
 use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::error::CapacityError;

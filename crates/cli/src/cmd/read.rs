@@ -18,12 +18,12 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     ActorView, CommentNode, ItemState, ListPostsQuery, PostFilter, PostKind, PostList, PostSummary,
     PostView, SyncOpts, ThreadOpts, ThreadRoot, ThreadView,
 };
-use lessdugin_core::engine::{Engine, EngineError};
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineError};
+use pandoras_forum_native::host::NativeHost;
 
 use crate::args::{LsArgs, ReadArgs, RefArgs};
 use crate::cmd::refs;
@@ -83,7 +83,7 @@ pub async fn sync_forum_quietly(ctx: &Ctx, engine: &Engine<NativeHost>, forum: &
                 tt(&r.repos_complete.to_string()),
                 lit(" of "),
                 tt(&r.repos_total.to_string()),
-                lit(" repositories); run `lessdugin sync` for the rest"),
+                lit(" repositories); run `pandoras-forum sync` for the rest"),
             ]),
             Style::Dim,
         )]),
@@ -163,7 +163,7 @@ fn filter_of(a: &LsArgs) -> PostFilter {
     }
 }
 
-/// `lessdugin ls [forum]`.
+/// `pandoras-forum ls [forum]`.
 pub async fn ls(ctx: &Ctx, args: LsArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let forum = refs::forum_or_current(ctx, &engine, args.forum.as_deref()).await?;
@@ -300,14 +300,14 @@ fn print_posts(ctx: &Ctx, posts: &[PostSummary]) {
     }
 }
 
-/// `lessdugin linked <uri>`: the listed posts whose rendered bodies link to the item.
+/// `pandoras-forum linked <uri>`: the listed posts whose rendered bodies link to the item.
 pub async fn linked(ctx: &Ctx, args: RefArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let uri = match refs::item(ctx, &engine, &args.reference).await? {
-        lessdugin_core::dto::Ref::Post { uri }
-        | lessdugin_core::dto::Ref::Comment { uri }
-        | lessdugin_core::dto::Ref::Sequence { uri }
-        | lessdugin_core::dto::Ref::Record { uri } => uri,
+        pandoras_forum_core::dto::Ref::Post { uri }
+        | pandoras_forum_core::dto::Ref::Comment { uri }
+        | pandoras_forum_core::dto::Ref::Sequence { uri }
+        | pandoras_forum_core::dto::Ref::Record { uri } => uri,
         _ => {
             return Err(CliError::Engine(EngineError::invalid_ref(format!(
                 "{:?} is not an item",
@@ -338,7 +338,7 @@ pub async fn linked(ctx: &Ctx, args: RefArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin read <ref>`.
+/// `pandoras-forum read <ref>`.
 ///
 /// A post read from a sequence (`--sequence`, a number of `sequence read`, `next`, `prev`) is
 /// read in it (`get_post(uri, sequence)`, `social.md` §14): the thread's post carries that
@@ -455,8 +455,8 @@ pub async fn read(ctx: &Ctx, args: ReadArgs) -> Result<(), CliError> {
 
 /// Whether a view left this spilled body pending (`lfm-1.md` §1.3: it carries
 /// `NOTICE_SPILLED`).
-pub(crate) fn spilled_pending(body: &lessdugin_core::dto::RenderedBody) -> bool {
-    use lessdugin_core::model::render::NOTICE_SPILLED;
+pub(crate) fn spilled_pending(body: &pandoras_forum_core::dto::RenderedBody) -> bool {
+    use pandoras_forum_core::model::render::NOTICE_SPILLED;
     body.notices.iter().any(|n| n == NOTICE_SPILLED)
 }
 
@@ -489,8 +489,8 @@ pub(crate) async fn await_spilled(
     field: &str,
     pending: &[(String, String)],
 ) -> bool {
-    use lessdugin_core::host::Host;
-    use lessdugin_core::identity::IdentityLevel;
+    use pandoras_forum_core::host::Host;
+    use pandoras_forum_core::identity::IdentityLevel;
     if pending.is_empty() || ctx.offline() {
         return false;
     }
@@ -508,7 +508,7 @@ pub(crate) async fn await_spilled(
     )]);
     let fetches = pending.iter().map(|(item, author)| async move {
         let (_, record) = crate::cmd::write::cached(engine, item).await.ok()?;
-        let cid = lessdugin_core::model::render::text_blob_cid(record.get(field)?)?.to_owned();
+        let cid = pandoras_forum_core::model::render::text_blob_cid(record.get(field)?)?.to_owned();
         let identity = engine.resolve_identity(author).await.ok()?.identity;
         if identity.level != IdentityLevel::Doc {
             return None;
@@ -520,7 +520,7 @@ pub(crate) async fn await_spilled(
                 pds,
                 identity.did,
                 cid,
-                lessdugin_core::limits::BLOB_TEXT_MAX_BYTES,
+                pandoras_forum_core::limits::BLOB_TEXT_MAX_BYTES,
             )
             .await
         {
@@ -654,7 +654,7 @@ async fn post_text(
 
 /// The post's place in a sequence (`social.md` §14): the sequence, and its previous and next
 /// posts, which `read prev` and `read next` read in it.
-fn sequence_lines(ctx: &Ctx, navs: &[lessdugin_core::dto::SequenceNav]) -> String {
+fn sequence_lines(ctx: &Ctx, navs: &[pandoras_forum_core::dto::SequenceNav]) -> String {
     let mut s = String::new();
     for nav in navs {
         s.push('\n');
@@ -689,7 +689,7 @@ fn sequence_lines(ctx: &Ctx, navs: &[lessdugin_core::dto::SequenceNav]) -> Strin
 /// The react tallies listed under an item (`social.md` §9.2), `indent` columns in.
 fn react_lines(
     ctx: &Ctx,
-    reacts: &[lessdugin_core::dto::ReactTally],
+    reacts: &[pandoras_forum_core::dto::ReactTally],
     indent: usize,
     handle_of: &dyn Fn(&str) -> Option<String>,
 ) -> String {
@@ -709,7 +709,7 @@ fn react_lines(
 }
 
 /// A view's banners (`social.md` §1.6, §4.11: "moderation data unavailable"), above it.
-fn banner_lines(ctx: &Ctx, banners: &[lessdugin_core::dto::Banner]) -> String {
+fn banner_lines(ctx: &Ctx, banners: &[pandoras_forum_core::dto::Banner]) -> String {
     banners
         .iter()
         .map(|b| line(ctx, &[(cat([lit("! "), tt(&b.message)]), Style::Warn)]))
@@ -776,7 +776,7 @@ async fn comment_text(
     s
 }
 
-/// `lessdugin history <ref>`.
+/// `pandoras-forum history <ref>`.
 pub async fn history(ctx: &Ctx, args: RefArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let (uri, _) = refs::post_or_comment(ctx, &engine, &args.reference).await?;

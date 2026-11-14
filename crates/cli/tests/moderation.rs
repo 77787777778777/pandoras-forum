@@ -4,7 +4,7 @@
 //! - a post lock is refused above 5,000 allowed comments (the moderator is told to hide
 //!   instead; the engine's own case is `a_lock_keeps_the_visible_comments_and_is_refused_
 //!   above_5000` in `crates/core/tests/engine_actions.rs` — this one drives it through
-//!   `lessdugin mod lock`);
+//!   `pandoras-forum mod lock`);
 //! - `mods rm` runs `mod adopt` first: the departing moderator's assertions are re-issued
 //!   under the remover (with `adopts` pointing at each original) before the declaration
 //!   edits, and the ticket says so (`adoptedFirst` notice); `mods rm --skip-adopt` lists the
@@ -19,17 +19,17 @@
 mod fakenet;
 
 use fakenet::{Net, s};
-use lessdugin_atp::syntax::{AtUri, Datetime};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::nsid;
-use lessdugin_lexicon::records::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::nsid;
+use pandoras_forum_lexicon::records::{
     AccessAction, Action, Forum, Markdown, Md, Membership, ModAction, Post,
 };
-use lessdugin_lexicon::values::{AccessLevel, MembershipMode};
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::repo::tid_at_ms;
+use pandoras_forum_lexicon::values::{AccessLevel, MembershipMode};
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::repo::tid_at_ms;
 use serde_json::{Value, json};
 
 /// Writes records straight into the fake repositories (the `cold_sync.rs` seeding shape).
@@ -65,7 +65,7 @@ impl Seed {
 
     fn put(&self, a: &AccountHandle, coll: &str, rkey: &str, v: &Value) -> String {
         let uri = AtUri::parse(&a.uri(coll, rkey)).unwrap();
-        let validity = lessdugin_lexicon::validity::check_uri(&uri, v);
+        let validity = pandoras_forum_lexicon::validity::check_uri(&uri, v);
         assert!(validity.first_rule().is_none(), "{uri}: {validity:?}");
         a.put(coll, rkey, v);
         uri.to_string()
@@ -142,7 +142,7 @@ impl Seed {
     }
 }
 
-/// `lessdugin mod lock` is refused once a thread would keep more than 5,000 visible
+/// `pandoras-forum mod lock` is refused once a thread would keep more than 5,000 visible
 /// comments (synthesis §4.4 F21): the moderator is told to hide the thread instead.
 #[test]
 fn a_lock_above_5000_allowed_comments_is_refused_with_the_hide_hint() {
@@ -172,7 +172,7 @@ fn a_lock_above_5000_allowed_comments_is_refused_with_the_hide_hint() {
     assert_eq!(h["state"]["kind"], "done", "{h}");
 }
 
-/// `lessdugin mods rm` adopts the departing moderator's assertions first: they are
+/// `pandoras-forum mods rm` adopts the departing moderator's assertions first: they are
 /// re-issued under the remover with `adopts` pointing at each original, the ticket carries
 /// the `adoptedFirst` notice, and the declaration edit completes after the adoption.
 #[test]

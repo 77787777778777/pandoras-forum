@@ -6,15 +6,17 @@
 
 use std::collections::BTreeSet;
 
-use lessdugin_atp::datamodel;
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::host::{Dir, KvStore};
-use lessdugin_core::store::admit::{AdmittedRecord, NoValidator, Observation, admit_own_write};
-use lessdugin_core::store::records::{
+use pandoras_forum_atp::datamodel;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::host::{Dir, KvStore};
+use pandoras_forum_core::store::admit::{
+    AdmittedRecord, NoValidator, Observation, admit_own_write,
+};
+use pandoras_forum_core::store::records::{
     Admission, Delete, DeleteEvidence, OrderKey, RecordStore, TombOutcome,
 };
-use lessdugin_core::store::repo::{HostRow, RepoRow, RepoStatus};
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_core::store::repo::{HostRow, RepoRow, RepoStatus};
+use pandoras_forum_lexicon::ns::NS;
 use serde_json::{Value, json};
 
 const DID: &str = "did:plc:kvconformancekvconformaa";
@@ -90,7 +92,11 @@ pub async fn record_store_conformance<K: KvStore>(kv: &K) {
     // read back
     let row = store.get(&big).await.expect("get big").expect("big row");
     assert_eq!(row.cid, big_cid);
-    assert_eq!(lessdugin_atp::cid::for_dag_cbor(&row.cbor), big_cid, "I2");
+    assert_eq!(
+        pandoras_forum_atp::cid::for_dag_cbor(&row.cbor),
+        big_cid,
+        "I2"
+    );
     assert!(store.get(&decl).await.expect("get decl").is_some());
 
     // key order within the range = rkey byte order, both directions

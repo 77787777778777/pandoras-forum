@@ -8,11 +8,11 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { EditorView } from "@codemirror/view";
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ForumView, Json, MediaRef, RenderedBody } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ForumView, Json, MediaRef, RenderedBody } from "@pandoras-forum/engine/types";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import * as wasm from "../../../../packages/engine/pkg/lessdugin_engine.js";
+import * as wasm from "../../../../packages/engine/pkg/pandoras_forum_engine.js";
 import { NS } from "../../../../packages/engine/src/auth-bridge.ts";
 import { WorkerEngine, type WorkerEnv } from "../../../../packages/engine/src/worker-core.ts";
 import { toasts } from "../../components/Toast.tsx";
@@ -55,7 +55,7 @@ async function renderWithRealEngine(
   media: MediaRef[] | Json[],
 ): Promise<RenderedBody> {
   const require = createRequire(import.meta.url);
-  const wasmPath = require.resolve("../../../../packages/engine/pkg/lessdugin_engine_bg.wasm");
+  const wasmPath = require.resolve("../../../../packages/engine/pkg/pandoras_forum_engine_bg.wasm");
   wasm.initSync({ module: readFileSync(wasmPath) });
   const env: WorkerEnv = {
     fetch: (async () => {

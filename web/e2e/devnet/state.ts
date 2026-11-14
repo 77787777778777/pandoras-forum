@@ -30,8 +30,8 @@ export interface E2EState {
 }
 
 export function e2eState(): E2EState {
-  const path = process.env.LESSDUGIN_SPA_E2E_STATE;
-  if (!path) throw new Error("LESSDUGIN_SPA_E2E_STATE is not set (global setup did not run)");
+  const path = process.env.PANDORAS_FORUM_SPA_E2E_STATE;
+  if (!path) throw new Error("PANDORAS_FORUM_SPA_E2E_STATE is not set (global setup did not run)");
   return JSON.parse(readFileSync(path, "utf8")) as E2EState;
 }
 
@@ -91,7 +91,7 @@ export async function withDevnet(
 ): Promise<void> {
   await page.addInitScript(
     (o) => {
-      (window as unknown as { __LESSDUGIN_E2E__: unknown }).__LESSDUGIN_E2E__ = o;
+      (window as unknown as { __PANDORAS_FORUM_E2E__: unknown }).__PANDORAS_FORUM_E2E__ = o;
     },
     { devnet: { plc: s.devnet.plc, pds: s.devnet.pds }, ...extra },
   );

@@ -3,19 +3,19 @@
 //! under 5 s."
 //!
 //! A forum of its owner and 50 approved members (granted with `modAction` access records, as
-//! `lessdugin approve` writes them) on a FakePds network served over real HTTP: half of the
+//! `pandoras-forum approve` writes them) on a FakePds network served over real HTTP: half of the
 //! members post, comment and vote, half only vote (the shape of `sync.md` §14.1's cost model,
 //! `a_cold_sync_of_fifty_members_matches_the_cost_model` in `crates/core/tests/sync.rs`). An
-//! anonymous reader on a fresh data directory runs `lessdugin --dev sync <forum>`: the native
+//! anonymous reader on a fresh data directory runs `pandoras-forum --dev sync <forum>`: the native
 //! binary, the native host (SQLite state, real HTTP) and a cold cache. The wall time of that
 //! process (start-up included) must stay under [`ACCEPTANCE`] (5 s).
 //!
-//! The time is always recorded: printed, written to `LESSDUGIN_TIMINGS_FILE` (JSON lines) when
+//! The time is always recorded: printed, written to `PANDORAS_FORUM_TIMINGS_FILE` (JSON lines) when
 //! that is set, and added to the GitHub Actions job summary. An optimised build (`cargo test
 //! --release --features devnet`, a step of CI's rust job) always asserts 5 s: that is the
 //! acceptance check. A debug build on CI (`CI` set) asserts only [`CI_SLACK`] × 5 s, since
 //! `cargo test` builds without optimisation (the workspace crates, the fake PDS included, run
-//! at opt-level 0); a time over 5 s there is a warning annotation. `LESSDUGIN_COLD_SYNC_BUDGET_MS` sets the bound
+//! at opt-level 0); a time over 5 s there is a warning annotation. `PANDORAS_FORUM_COLD_SYNC_BUDGET_MS` sets the bound
 //! explicitly (never below 5 s).
 
 #![allow(clippy::disallowed_methods)] // a real clock for a real process
@@ -27,17 +27,17 @@ use std::cell::Cell;
 use std::time::{Duration, Instant};
 
 use fakenet::Net;
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::nsid;
-use lessdugin_lexicon::records::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::nsid;
+use pandoras_forum_lexicon::records::{
     AccessAction, Action, Forum, Markdown, Md, Membership, ModAction, Opinion, Post, StrongRef,
 };
-use lessdugin_lexicon::values::{AccessLevel, MembershipMode};
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::repo::tid_at_ms;
+use pandoras_forum_lexicon::values::{AccessLevel, MembershipMode};
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::repo::tid_at_ms;
 use serde_json::{Value, json};
 
 /// The acceptance bound (`docs/plan.md` M2).
@@ -81,7 +81,7 @@ impl Seed {
 
     fn put(&self, a: &AccountHandle, coll: &str, rkey: &str, v: &Value) -> String {
         let uri = AtUri::parse(&a.uri(coll, rkey)).unwrap();
-        let validity = lessdugin_lexicon::validity::check_uri(&uri, v);
+        let validity = pandoras_forum_lexicon::validity::check_uri(&uri, v);
         assert!(validity.first_rule().is_none(), "{uri}: {validity:?}");
         a.put(coll, rkey, v);
         uri.to_string()
@@ -149,7 +149,7 @@ impl Seed {
     }
 }
 
-/// Records a timing: stdout, `LESSDUGIN_TIMINGS_FILE` (a JSON line), the GitHub job summary
+/// Records a timing: stdout, `PANDORAS_FORUM_TIMINGS_FILE` (a JSON line), the GitHub job summary
 /// (and a warning annotation there when it is over the acceptance figure).
 fn record(name: &str, elapsed: Duration, budget: Duration, detail: &str) {
     let ms = elapsed.as_millis();
@@ -174,7 +174,7 @@ fn record(name: &str, elapsed: Duration, budget: Duration, detail: &str) {
             let _ = f.write_all(text.as_bytes());
         }
     };
-    if let Some(p) = std::env::var_os("LESSDUGIN_TIMINGS_FILE") {
+    if let Some(p) = std::env::var_os("PANDORAS_FORUM_TIMINGS_FILE") {
         let line = json!({
             "name": name,
             "ms": ms,
@@ -235,7 +235,7 @@ fn a_fifty_member_forum_cold_syncs_natively_within_five_seconds() {
     assert_eq!(report["reposComplete"], MEMBERS + 1, "{report}");
     assert_eq!(report["errors"], json!([]), "{report}");
     let ci = std::env::var_os("CI").is_some_and(|v| !v.is_empty());
-    let budget = std::env::var("LESSDUGIN_COLD_SYNC_BUDGET_MS")
+    let budget = std::env::var("PANDORAS_FORUM_COLD_SYNC_BUDGET_MS")
         .ok()
         .and_then(|v| v.parse::<u64>().ok())
         .map(|ms| Duration::from_millis(ms).max(ACCEPTANCE))

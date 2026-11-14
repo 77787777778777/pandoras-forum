@@ -3,14 +3,14 @@
 // (CodeMirror in a shadow root, and the live preview through DOMPurify.)
 
 import { EditorView } from "@codemirror/view";
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { Draft, MediaRef, MemberView } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { Draft, MediaRef, MemberView } from "@pandoras-forum/engine/types";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../test/render.tsx";
 import { Composer } from "./Composer.tsx";
 
-const ROOT = "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.post/3kabc";
+const ROOT = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.post/3kabc";
 
 function makeDraft(markdown: string, id: string | undefined): Draft {
   return {

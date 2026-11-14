@@ -22,12 +22,12 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys::{self, ModActionKey};
-use lessdugin_lexicon::records::{Action, Comment, Forum, Membership, ModAction, Opinion};
-use lessdugin_lexicon::validity::entry;
-use lessdugin_lexicon::values::{AccessLevel, MembershipMode, Role, Scope};
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys::{self, ModActionKey};
+use pandoras_forum_lexicon::records::{Action, Comment, Forum, Membership, ModAction, Opinion};
+use pandoras_forum_lexicon::validity::entry;
+use pandoras_forum_lexicon::values::{AccessLevel, MembershipMode, Role, Scope};
 use serde_json::Value;
 
 use crate::discovery::forum_ref::ForumKey;
@@ -251,8 +251,8 @@ impl Roster {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_atp::syntax::Datetime;
-    use lessdugin_lexicon::records::{AccessAction, Moderator, RestrictAction};
+    use pandoras_forum_atp::syntax::Datetime;
+    use pandoras_forum_lexicon::records::{AccessAction, Moderator, RestrictAction};
     use serde_json::json;
 
     const OWNER: &str = "did:plc:owner2222222222222222222";

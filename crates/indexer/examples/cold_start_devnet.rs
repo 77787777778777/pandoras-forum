@@ -16,24 +16,24 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
-use lessdugin_atp::proof::{ProofBundle, verify_proof};
-use lessdugin_atp::syntax::{AtUri, Datetime};
-use lessdugin_atp::xrpc::{GetLatestCommit, SyncGetRecord};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::xrpc::{CallOpts, Service};
-use lessdugin_indexer::host::PoliteHost;
-use lessdugin_indexer::store::Store;
-use lessdugin_indexer::{Indexer, IndexerConfig, api, ingest};
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::nsid;
-use lessdugin_lexicon::records::{AccessAction, Action, Forum, Membership, ModAction, Post};
-use lessdugin_lexicon::values::{AccessLevel, MembershipMode};
-use lessdugin_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
-use lessdugin_native::host::NativeHost;
-use lessdugin_testkit::FakeNet;
-use lessdugin_testkit::fake_pds::SystemClock;
-use lessdugin_testkit::repo::tid_at_ms;
+use pandoras_forum_atp::proof::{ProofBundle, verify_proof};
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_atp::xrpc::{GetLatestCommit, SyncGetRecord};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::xrpc::{CallOpts, Service};
+use pandoras_forum_indexer::host::PoliteHost;
+use pandoras_forum_indexer::store::Store;
+use pandoras_forum_indexer::{Indexer, IndexerConfig, api, ingest};
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::nsid;
+use pandoras_forum_lexicon::records::{AccessAction, Action, Forum, Membership, ModAction, Post};
+use pandoras_forum_lexicon::values::{AccessLevel, MembershipMode};
+use pandoras_forum_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
+use pandoras_forum_native::host::NativeHost;
+use pandoras_forum_testkit::FakeNet;
+use pandoras_forum_testkit::fake_pds::SystemClock;
+use pandoras_forum_testkit::repo::tid_at_ms;
 use serde_json::json;
 use url::Url;
 
@@ -152,7 +152,8 @@ async fn main() -> Result<()> {
     });
     // Check the visible record with the same lexicon validator used by clients.
     let post_value = owner.get(nsid::POST, &post_rkey).context("seeded post")?;
-    let validity = lessdugin_lexicon::validity::check_uri(&AtUri::parse(&post_uri)?, &post_value);
+    let validity =
+        pandoras_forum_lexicon::validity::check_uri(&AtUri::parse(&post_uri)?, &post_value);
     assert!(validity.first_rule().is_none(), "{validity:?}");
     assert_eq!(owner.list(nsid::MOD_ACTION).len(), participants - 1);
     for account in &accounts {
@@ -161,7 +162,7 @@ async fn main() -> Result<()> {
             .get(nsid::MEMBERSHIP, &forum.fk)
             .with_context(|| format!("membership for {}", account.did()))?;
         let validity =
-            lessdugin_lexicon::validity::check_uri(&AtUri::parse(&membership_uri)?, &value);
+            pandoras_forum_lexicon::validity::check_uri(&AtUri::parse(&membership_uri)?, &value);
         assert!(
             validity.first_rule().is_none(),
             "invalid membership for {}: {validity:?}",
@@ -188,9 +189,9 @@ async fn main() -> Result<()> {
         ..Config::default()
     };
     let host = NativeHost::open(&paths, &config)?;
-    let engine = lessdugin_core::engine::Engine::new(
+    let engine = pandoras_forum_core::engine::Engine::new(
         PoliteHost::new(host),
-        lessdugin_native::engine::engine_config(&config),
+        pandoras_forum_native::engine::engine_config(&config),
     );
     let store = Store::open(&paths.state_db())?;
     store.add_forum_seed(forum.uri.as_str())?;
@@ -199,7 +200,7 @@ async fn main() -> Result<()> {
         store,
         IndexerConfig {
             did: "did:web:indexer.test".into(),
-            source_url: "https://source.test/lessdugin".into(),
+            source_url: "https://source.test/pandoras-forum".into(),
             plc: Url::parse(&net.plc())?,
             relays: vec![],
             jetstream: vec![],
@@ -274,7 +275,7 @@ async fn main() -> Result<()> {
         net.now_ms() * 1000,
         &Default::default(),
     )?;
-    let proven_value = lessdugin_atp::datamodel::record_cbor_to_json(
+    let proven_value = pandoras_forum_atp::datamodel::record_cbor_to_json(
         &proven
             .record
             .as_ref()
@@ -282,7 +283,7 @@ async fn main() -> Result<()> {
             .bytes,
     )?;
     assert_eq!(proven_value["title"], TITLE);
-    let head: lessdugin_atp::xrpc::CommitMeta = engine
+    let head: pandoras_forum_atp::xrpc::CommitMeta = engine
         .xrpc()
         .query_endpoint(
             &Service::Anon(owner.pds().url()),
@@ -294,7 +295,7 @@ async fn main() -> Result<()> {
         .await?;
     assert_eq!(head.rev, proven.rev.to_string());
     assert_eq!(head.cid, proven.commit_cid.to_string());
-    let bundle = lessdugin_indexer::proofs::bundle(&indexer, std::slice::from_ref(&post_uri))
+    let bundle = pandoras_forum_indexer::proofs::bundle(&indexer, std::slice::from_ref(&post_uri))
         .await
         .context("pre-indexed post proof")?;
     let parsed = ProofBundle::parse(&bundle, &Default::default())?;
@@ -315,7 +316,7 @@ async fn main() -> Result<()> {
         .collect();
     let mut warmed = 0;
     for page in post_uris.chunks(25) {
-        let bundle = lessdugin_indexer::proofs::bundle(&indexer, page)
+        let bundle = pandoras_forum_indexer::proofs::bundle(&indexer, page)
             .await
             .context("warm the post proofs")?;
         warmed += ProofBundle::parse(&bundle, &Default::default())?

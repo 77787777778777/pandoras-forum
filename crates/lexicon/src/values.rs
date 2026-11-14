@@ -463,10 +463,7 @@ mod tests {
         );
         assert_eq!(ActionKind::from_type("com.example.mod#hide"), None);
         assert_eq!(
-            ActionKind::from_type_in(
-                "online.7778777.lessdugin.temp",
-                "online.7778777.lessdugin.modAction#hide"
-            ),
+            ActionKind::from_type_in("forum.pandoras.temp", "forum.pandoras.modAction#hide"),
             None
         );
     }

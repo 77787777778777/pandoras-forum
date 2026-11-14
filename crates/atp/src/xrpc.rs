@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Request/response types for the small XRPC subset lessdugin uses. No HTTP client: callers build
+//! Request/response types for the small XRPC subset Pandora's Forum uses. No HTTP client: callers build
 //! the path with [`query_path`] (queries) or [`procedure_path`] (procedures, JSON body) and decode
 //! responses with serde.
 //!
@@ -301,7 +301,7 @@ pub struct CreateRecord {
     /// Record key (server-generated TID if absent).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rkey: Option<RecordKey>,
-    /// Lexicon validation flag (lessdugin leaves it unset).
+    /// Lexicon validation flag (Pandora's Forum leaves it unset).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub validate: Option<bool>,
     /// The record.
@@ -911,14 +911,14 @@ mod tests {
     fn paths() {
         let q = ListRecords {
             repo: AtIdentifier::Did(did()),
-            collection: Nsid::parse("online.7778777.lessdugin.post").unwrap(),
+            collection: Nsid::parse("forum.pandoras.post").unwrap(),
             limit: Some(100),
-            cursor: Some("uetjixxr3a33.".into()),
+            cursor: Some("nkglkm5wsp3d.".into()),
             reverse: None,
         };
         assert_eq!(
             query_path(&q),
-            "/xrpc/com.atproto.repo.listRecords?repo=did%3Aplc%3Aewvi7nxzyoun6zhxrhs64oiz&collection=online.7778777.lessdugin.post&limit=100&cursor=uetjixxr3a33."
+            "/xrpc/com.atproto.repo.listRecords?repo=did%3Aplc%3Aewvi7nxzyoun6zhxrhs64oiz&collection=forum.pandoras.post&limit=100&cursor=nkglkm5wsp3d."
         );
         assert_eq!(
             query_path(&GetSession),

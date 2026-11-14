@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { Json, ModLogEntry } from "@lessdugin/engine/types";
+import type { Json, ModLogEntry } from "@pandoras-forum/engine/types";
 import { describe, expect, it } from "vitest";
 import { entryActionKey, recordActionValue, suspendsNotice, tagSlug } from "./modActions.ts";
 
-const NS = "online.7778777.lessdugin.temp";
+const NS = "forum.pandoras.temp";
 const COMMENT = `at://did:plc:abcdefghijklmnopqrstuvwx/${NS}.comment/3kabc`;
 const POST = `at://did:plc:abcdefghijklmnopqrstuvwx/${NS}.post/3kabc`;
 const action = (name: string, fields: { [k: string]: Json } = {}): Json => ({

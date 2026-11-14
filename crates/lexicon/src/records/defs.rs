@@ -2,7 +2,7 @@
 //! Shared definitions (`NS.defs`, §4), `NS.markdown` (§5), blobs, strong references and
 //! self-labels.
 
-use lessdugin_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::syntax::{AtUri, Did};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -64,8 +64,8 @@ impl Blob {
     }
 
     /// The blob CID, if it parses.
-    pub fn cid(&self) -> Option<lessdugin_atp::Cid> {
-        lessdugin_atp::cid::parse(&self.r#ref.link).ok()
+    pub fn cid(&self) -> Option<pandoras_forum_atp::Cid> {
+        pandoras_forum_atp::cid::parse(&self.r#ref.link).ok()
     }
 }
 

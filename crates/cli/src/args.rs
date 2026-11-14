@@ -2,7 +2,7 @@
 //! Command-line arguments (`docs/design/synthesis-v1.md` §6.10).
 //!
 //! There is deliberately no option that takes a password: app passwords come from a no-echo
-//! prompt, `--password-stdin` or `LESSDUGIN_APP_PASSWORD` (`threat-model.md` AUTH-3). A hidden
+//! prompt, `--password-stdin` or `PANDORAS_FORUM_APP_PASSWORD` (`threat-model.md` AUTH-3). A hidden
 //! `--password` and a hidden catch-all positional of `login` exist only to refuse them with an
 //! explanation, without echoing the value.
 //!
@@ -30,7 +30,7 @@ pub use organisation::*;
 /// A serverless markdown and media forum on atproto.
 #[derive(Debug, Parser)]
 #[command(
-    name = "lessdugin",
+    name = "pandoras-forum",
     version,
     about,
     long_about = None,
@@ -62,7 +62,12 @@ pub enum ColorChoice {
 #[derive(Clone, Debug, Args)]
 pub struct GlobalArgs {
     /// Act as this logged-in account (handle or DID) instead of the active one.
-    #[arg(long, global = true, value_name = "ACCOUNT", env = "LESSDUGIN_ACCOUNT")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "ACCOUNT",
+        env = "PANDORAS_FORUM_ACCOUNT"
+    )]
     pub account: Option<String>,
 
     /// Print JSON (dto/1) instead of text; errors go to stderr as JSON.
@@ -70,7 +75,12 @@ pub struct GlobalArgs {
     pub json: bool,
 
     /// Keep the configuration, data and cache under this directory.
-    #[arg(long, global = true, value_name = "DIR", env = "LESSDUGIN_DATA_DIR")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "DIR",
+        env = "PANDORAS_FORUM_DATA_DIR"
+    )]
     pub data_dir: Option<PathBuf>,
 
     /// When to use colour.
@@ -83,11 +93,21 @@ pub struct GlobalArgs {
     pub dev: bool,
 
     /// Devnet PLC directory (with --dev).
-    #[arg(long, global = true, value_name = "URL", env = "LESSDUGIN_PLC_URL")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "URL",
+        env = "PANDORAS_FORUM_PLC_URL"
+    )]
     pub plc_url: Option<Url>,
 
     /// Devnet PDS (with --dev).
-    #[arg(long, global = true, value_name = "URL", env = "LESSDUGIN_PDS_URL")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "URL",
+        env = "PANDORAS_FORUM_PDS_URL"
+    )]
     pub pds_url: Option<Url>,
 
     /// More log output on stderr (-v debug, -vv trace); RUST_LOG overrides.
@@ -99,7 +119,12 @@ pub struct GlobalArgs {
     pub quiet: bool,
 
     /// The forum to act in, instead of the current one (`forum use`).
-    #[arg(long, global = true, value_name = "FORUM", env = "LESSDUGIN_FORUM")]
+    #[arg(
+        long,
+        global = true,
+        value_name = "FORUM",
+        env = "PANDORAS_FORUM_FORUM"
+    )]
     pub forum: Option<String>,
 
     /// Indexers for this invocation: a consenting HTTPS URL, `forum`, or `none`.
@@ -223,7 +248,7 @@ pub enum Command {
     /// holds no secret; each printed link works once).
     #[cfg(feature = "web")]
     Web(crate::web::WebArgs),
-    /// Open the terminal UI (bare `lessdugin` does too, on a terminal with an account).
+    /// Open the terminal UI (bare `pandoras-forum` does too, on a terminal with an account).
     #[cfg(feature = "tui")]
     Tui(TuiArgs),
 }
@@ -263,7 +288,7 @@ pub struct LoginArgs {
     pub actor: Option<String>,
 
     /// Log in with an app password (prompted without echo, or from --password-stdin or
-    /// LESSDUGIN_APP_PASSWORD) instead of OAuth.
+    /// PANDORAS_FORUM_APP_PASSWORD) instead of OAuth.
     #[arg(long, conflicts_with_all = ["no_browser", "oauth_client"])]
     pub app_password: bool,
 
@@ -360,7 +385,7 @@ pub struct CompletionsArgs {
 
 /// How the CLI reaches each operation of `engine-api.md` §3.2 (forums and membership), §3.5
 /// (writes) and §3.6 (local state): `docs/plan.md` §M3, "every MVP action is reachable in all
-/// three clients". The TUI keeps the same table (`lessdugin_tui::command::REACH`); the test
+/// three clients". The TUI keeps the same table (`pandoras_forum_tui::command::REACH`); the test
 /// holds this one to the spec's tables, and each command line it names to the parser, so an
 /// operation the spec adds fails here until the CLI reaches it (or says why it does not).
 #[cfg(test)]
@@ -447,25 +472,25 @@ mod reach {
         (
             "seq_edit",
             Reach::Command(
-                "sequence edit at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 sequence.json",
+                "sequence edit at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 sequence.json",
             ),
         ),
         (
             "seq_add",
             Reach::Command(
-                "sequence add at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.post/p1 --chapter 0 --index 0",
+                "sequence add at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.post/p1 --chapter 0 --index 0",
             ),
         ),
         (
             "seq_remove",
             Reach::Command(
-                "sequence remove at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.post/p1",
+                "sequence remove at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.post/p1",
             ),
         ),
         (
             "seq_move",
             Reach::Command(
-                "sequence move at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 --chapter 0 --index 0 --to-chapter 0 --to-index 1",
+                "sequence move at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 --chapter 0 --index 0 --to-chapter 0 --to-index 1",
             ),
         ),
         ("redact_revision", Reach::Command("redact 3 --yes")),
@@ -576,7 +601,7 @@ mod reach {
     /// The opinion or the asserted mod-action value a command line sends, as `Type.kind`.
     fn sent_kind(line: &str) -> String {
         use clap::Parser;
-        let words = std::iter::once("lessdugin").chain(line.split_whitespace());
+        let words = std::iter::once("pandoras-forum").chain(line.split_whitespace());
         let cli = Cli::try_parse_from(words).unwrap_or_else(|e| panic!("{line}: {e}"));
         let (name, value) = match cli.command {
             Some(super::Command::Vote(a)) => ("OpinionIntent", serde_json::to_value(a.intent())),
@@ -619,16 +644,16 @@ mod reach {
         ("PostView.tagRelevance", "read 3"),
         (
             "WikiDraft.base",
-            "wiki edit rust --name Rust --file page.md --base at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.wikiRevision/w1",
+            "wiki edit rust --name Rust --file page.md --base at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.wikiRevision/w1",
         ),
         ("ModQueue.banners", "mod queue"),
         (
             "get_post.sequence",
-            "read 3 --sequence at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1",
+            "read 3 --sequence at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1",
         ),
         (
             "SequenceView.continueReading",
-            "sequence read at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1",
+            "sequence read at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1",
         ),
         ("EditOpts.dropLinkCard", "edit 3 --drop-link-card"),
     ];
@@ -674,7 +699,7 @@ mod reach {
     /// The fields of [`FIELDS`] that the command line `line` sends.
     fn sends(line: &str) -> Vec<&'static str> {
         use clap::Parser;
-        let words = std::iter::once("lessdugin").chain(line.split_whitespace());
+        let words = std::iter::once("pandoras-forum").chain(line.split_whitespace());
         let cli = Cli::try_parse_from(words).unwrap_or_else(|e| panic!("{line}: {e}"));
         let mut out = Vec::new();
         match cli.command {
@@ -711,9 +736,9 @@ mod reach {
     #[test]
     fn tag_votes_and_tag_moderation_build_their_values() {
         use clap::Parser;
-        use lessdugin_core::dto::{KarmaValue, ModActionValue, OpinionIntent};
+        use pandoras_forum_core::dto::{KarmaValue, ModActionValue, OpinionIntent};
         let parse = |line: &str| {
-            Cli::try_parse_from(std::iter::once("lessdugin").chain(line.split_whitespace()))
+            Cli::try_parse_from(std::iter::once("pandoras-forum").chain(line.split_whitespace()))
                 .unwrap_or_else(|e| panic!("{line}: {e}"))
                 .command
         };
@@ -745,7 +770,7 @@ mod reach {
             Some(super::Command::Mod(m)) => m.action.asserted(),
             other => panic!("{line}: {other:?}"),
         };
-        let head = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.wikiRevision/w1";
+        let head = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.wikiRevision/w1";
         assert_eq!(
             value("mod tag tag:rust --removed"),
             Some(ModActionValue::Tag {
@@ -784,8 +809,10 @@ mod reach {
             "mod tag rust --author-scope --removed",
         ] {
             assert!(
-                Cli::try_parse_from(std::iter::once("lessdugin").chain(bad.split_whitespace()))
-                    .is_err(),
+                Cli::try_parse_from(
+                    std::iter::once("pandoras-forum").chain(bad.split_whitespace())
+                )
+                .is_err(),
                 "{bad}"
             );
         }
@@ -830,7 +857,7 @@ mod reach {
                 &["-y"]
             };
             for yes in std::iter::once("--yes").chain(short.iter().copied()) {
-                let words = std::iter::once("lessdugin")
+                let words = std::iter::once("pandoras-forum")
                     .chain(line.split_whitespace())
                     .chain([yes]);
                 if let Err(e) = Cli::try_parse_from(words) {
@@ -1071,11 +1098,11 @@ mod reach {
     fn discovery_and_backlink_commands_validate_arguments() {
         use clap::Parser;
 
-        assert!(Cli::try_parse_from(["lessdugin", "discover"]).is_ok());
-        assert!(Cli::try_parse_from(["lessdugin", "discover", "rust"]).is_ok());
-        assert!(Cli::try_parse_from(["lessdugin", "discover", "rust", "extra"]).is_err());
-        assert!(Cli::try_parse_from(["lessdugin", "linked"]).is_err());
-        assert!(Cli::try_parse_from(["lessdugin", "linked", "at://did:plc:a/x.y/z"]).is_ok());
+        assert!(Cli::try_parse_from(["pandoras-forum", "discover"]).is_ok());
+        assert!(Cli::try_parse_from(["pandoras-forum", "discover", "rust"]).is_ok());
+        assert!(Cli::try_parse_from(["pandoras-forum", "discover", "rust", "extra"]).is_err());
+        assert!(Cli::try_parse_from(["pandoras-forum", "linked"]).is_err());
+        assert!(Cli::try_parse_from(["pandoras-forum", "linked", "at://did:plc:a/x.y/z"]).is_ok());
     }
 
     #[test]

@@ -7,7 +7,7 @@
 // time; the resolved identity also lets mentions of that DID show its handle (§5.4). Forum
 // cards come from the cache: a hover never opens a forum.
 
-import type { Ref as EngineRef } from "@lessdugin/engine/types";
+import type { Ref as EngineRef } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";

@@ -2,7 +2,7 @@
 // Resuming local comment drafts: a comment composer for (root, parent) starts from the latest
 // draft saved for that same place, so the drafts that composers autosave can be continued.
 
-import type { DraftEntry } from "@lessdugin/engine/types";
+import type { DraftEntry } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { useEngine } from "./context.tsx";
 import { qk } from "./queries.ts";

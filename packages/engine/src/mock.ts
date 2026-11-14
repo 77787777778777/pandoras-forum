@@ -653,7 +653,7 @@ export class MockEngine implements EngineApi {
   }
 
   private fkOf(uri: AtUri): string {
-    return uri === FORUM_URI ? FK : b32hash(`lessdugin-fk/1:${uri}`, 12);
+    return uri === FORUM_URI ? FK : b32hash(`pandoras-forum-fk/1:${uri}`, 12);
   }
 
   private postView(p: PostRec, from?: AtUri): PostView {
@@ -3093,7 +3093,7 @@ export class MockEngine implements EngineApi {
 
   async exportLocal(): Promise<Json> {
     return {
-      format: "lessdugin-local/1",
+      format: "pandoras-forum-local/1",
       followed: [...this.s.followed].map(([uri, alias]) =>
         alias === undefined ? { uri } : { uri, alias },
       ),
@@ -3114,9 +3114,9 @@ export class MockEngine implements EngineApi {
       typeof json !== "object" ||
       json === null ||
       Array.isArray(json) ||
-      json.format !== "lessdugin-local/1"
+      json.format !== "pandoras-forum-local/1"
     ) {
-      throw err("invalid_input", "Not a lessdugin local-state export.");
+      throw err("invalid_input", "Not a Pandora's Forum local-state export.");
     }
     const j = json as unknown as {
       followed?: { uri: string; alias?: string }[];

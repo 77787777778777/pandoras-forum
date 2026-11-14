@@ -1,6 +1,6 @@
 [package]
-name = "lessdugin-indexer"
-description = "Optional lessdugin indexer: discovery, ordering and proof source (never trusted for content)"
+name = "pandoras-forum-indexer"
+description = "Optional Pandora's Forum indexer: discovery, ordering and proof source (never trusted for content)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 repository.workspace = true
 
 [lib]
-name = "lessdugin_indexer"
+name = "pandoras_forum_indexer"
 path = "src/lib.rs"
 
 [features]
@@ -20,14 +20,14 @@ name = "cold_start_devnet"
 required-features = ["devnet"]
 
 [[bin]]
-name = "lessdugin-indexer"
+name = "pandoras-forum-indexer"
 path = "src/main.rs"
 
 [dependencies]
-lessdugin-atp.workspace = true
-lessdugin-core.workspace = true
-lessdugin-lexicon.workspace = true
-lessdugin-native.workspace = true
+pandoras-forum-atp.workspace = true
+pandoras-forum-core.workspace = true
+pandoras-forum-lexicon.workspace = true
+pandoras-forum-native.workspace = true
 anyhow.workspace = true
 axum.workspace = true
 clap = { workspace = true, features = ["derive"] }
@@ -45,7 +45,7 @@ tracing-subscriber = { workspace = true, features = ["env-filter"] }
 url.workspace = true
 
 [dev-dependencies]
-lessdugin-testkit = { workspace = true, features = ["http"] }
+pandoras-forum-testkit = { workspace = true, features = ["http"] }
 # `hooks`: cost tests count SQLite VM steps instead of timing queries.
 rusqlite = { workspace = true, features = ["bundled", "hooks"] }
 tempfile.workspace = true

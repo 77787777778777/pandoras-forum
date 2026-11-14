@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The lessdugin terminal UI (`docs/design/synthesis-v1.md` §6.11): an Elm-style
+//! The Pandora's Forum terminal UI (`docs/design/synthesis-v1.md` §6.11): an Elm-style
 //! `State`/`Action`/`Effect` loop over ratatui.
 //!
 //! | Module | Contents |
@@ -15,7 +15,7 @@
 //! | [`runtime`] | the crossterm terminal loop ([`run`]) |
 //! | [`headless`] | the same loop over a `TestBackend` ([`Headless`], [`capture_thread`]) |
 //!
-//! The CLI starts it (`lessdugin tui [forum]`, or bare `lessdugin` on a terminal with an
+//! The CLI starts it (`pandoras-forum tui [forum]`, or bare `pandoras-forum` on a terminal with an
 //! account) with an engine it opened (`crates/cli/src/ctx.rs`), so configuration, devnet and
 //! parity mode (`engine-api.md` §2.1) are the CLI's.
 

@@ -7,14 +7,14 @@
 use std::future::Future;
 use std::path::{Path, PathBuf};
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     BodyDraft, CommentDraft, DefaultTier, ForumDraft, PostDraft, PublicActionKind, SyncOpts,
     WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig};
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::{FakeNet, MemHost};
-use lessdugin_tui::{EditorConfig, Headless, HeadlessOpts};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig};
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::{FakeNet, MemHost};
+use pandoras_forum_tui::{EditorConfig, Headless, HeadlessOpts};
 
 pub const MINUTE: i64 = 60_000;
 
@@ -120,7 +120,7 @@ pub const WELCOME_MD: &str = "Hello **everyone**, and welcome to the forum.\n\n\
 ## Rules\n\n\
 - Be kind.\n\
 - Stay on topic; see the [guide](https://example.com/guide).\n\n\
-```\nlessdugin tui\n```\n";
+```\npandoras-forum tui\n```\n";
 
 /// alice's approval-mode forum (bob and carol granted) with her welcome post; bob's post and
 /// his comment on the welcome. carol follows the forum and has synced it. Every user has seen

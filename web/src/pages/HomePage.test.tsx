@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The forum directory comes grouped by owner (engine-api.md §3.2 `forum_discover`, sync.md
 // §4.7): the home page lists each owner's forums under a heading naming the owner.
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ActorView, ForumSummary } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ActorView, ForumSummary } from "@pandoras-forum/engine/types";
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../test/render.tsx";
@@ -23,7 +23,7 @@ const BOB: ActorView = {
 
 function forum(owner: ActorView, slug: string, name: string): ForumSummary {
   return {
-    uri: `at://${owner.did}/online.7778777.lessdugin.temp.forum/${slug}`,
+    uri: `at://${owner.did}/forum.pandoras.temp.forum/${slug}`,
     owner,
     name,
     membership: "open",

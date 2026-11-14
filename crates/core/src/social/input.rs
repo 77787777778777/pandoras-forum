@@ -21,7 +21,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::Collection;
+use pandoras_forum_lexicon::Collection;
 use serde_json::Value;
 
 use crate::social::time::{self, ItemTimes};
@@ -288,7 +288,7 @@ pub struct Skel {
 
 /// Splits `at://did/collection/rkey`.
 pub fn split_uri(uri: &str) -> Option<(&str, &str, &str)> {
-    lessdugin_lexicon::keys::split_uri(uri).ok()
+    pandoras_forum_lexicon::keys::split_uri(uri).ok()
 }
 
 impl Skel {
@@ -477,7 +477,7 @@ impl ForumInput {
         validity: impl Fn(&str, &Value) -> (bool, Option<String>),
     ) -> Result<Self, String> {
         let (owner, _, _) = split_uri(&input.decl.uri).ok_or("decl uri")?;
-        let fk = lessdugin_lexicon::keys::fk(&input.decl.uri).map_err(|e| e.to_string())?;
+        let fk = pandoras_forum_lexicon::keys::fk(&input.decl.uri).map_err(|e| e.to_string())?;
         let obs = obs_by_uri(&input.obs);
         let records = input
             .records

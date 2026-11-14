@@ -21,9 +21,9 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use lessdugin_atp::syntax::{Did, Nsid};
-use lessdugin_atp::xrpc::query_string;
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_atp::syntax::{Did, Nsid};
+use pandoras_forum_atp::xrpc::query_string;
+use pandoras_forum_lexicon::collection::nsid;
 use serde_json::Value;
 
 use crate::discovery::forum::RELAY_SOURCE;
@@ -708,7 +708,7 @@ fn parse_backlink(value: &Value) -> Result<Backlink, SourceError> {
 fn strict_did(raw: &str, service: &'static str) -> Result<String, SourceError> {
     let did = Did::parse(raw)
         .and_then(|did| {
-            did.check_lessdugin_policy()?;
+            did.check_pandoras_forum_policy()?;
             Ok(did)
         })
         .map_err(|_| malformed(service, "record did is not a supported canonical DID"))?;

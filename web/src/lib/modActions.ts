@@ -3,7 +3,7 @@
 // the action key a removal names, the action value of a stored record (to re-assert it on a
 // new version), and the notice the engine gives before an edit that suspends assertions.
 
-import type { ActionNotice, Json, ModActionValue, ModLogEntry } from "@lessdugin/engine/types";
+import type { ActionNotice, Json, ModActionValue, ModLogEntry } from "@pandoras-forum/engine/types";
 import { parseAtUri } from "./uri.ts";
 
 type Obj = { [k: string]: Json };

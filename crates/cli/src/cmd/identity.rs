@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `resolve` (`sync.md` §3) and `verify` (`sync.md` §8.8).
 
-use lessdugin_core::dto::{HandleState, VerifyOutcome};
-use lessdugin_core::identity::IdentityLevel;
-use lessdugin_core::verify::DEEP_SKIPPED;
+use pandoras_forum_core::dto::{HandleState, VerifyOutcome};
+use pandoras_forum_core::identity::IdentityLevel;
+use pandoras_forum_core::verify::DEEP_SKIPPED;
 
 use crate::args::{ResolveArgs, VerifyArgs};
 use crate::ctx::{CliError, Ctx};
 use crate::out::{Style, cat, dto, lit, name, tt};
 
-/// `lessdugin resolve <handle|did>`: prints `ResolvedActor` with `--json`.
+/// `pandoras-forum resolve <handle|did>`: prints `ResolvedActor` with `--json`.
 pub async fn resolve(ctx: &Ctx, args: ResolveArgs) -> Result<(), CliError> {
     let engine = ctx.engine()?;
     let r = engine.resolve_identity(&args.actor).await?;
@@ -62,7 +62,7 @@ pub async fn resolve(ctx: &Ctx, args: ResolveArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin verify <at-uri> [--deep]`: prints `VerifyReport` with `--json`; exits 1 when
+/// `pandoras-forum verify <at-uri> [--deep]`: prints `VerifyReport` with `--json`; exits 1 when
 /// the proof fails.
 pub async fn verify(ctx: &Ctx, args: VerifyArgs) -> Result<(), CliError> {
     let engine = ctx.engine()?;

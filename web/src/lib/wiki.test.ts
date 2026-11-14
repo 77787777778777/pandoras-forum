@@ -2,7 +2,7 @@
 // The wiki editor reads the canonical revision's record, and the history follows social.md §13.2
 // "History view": from the canonical revision, the edge to the parent with the greatest depth,
 // ties by the smallest uri; an edge whose CID differs is "ancestor altered".
-import type { RawView } from "@lessdugin/engine/types";
+import type { RawView } from "@pandoras-forum/engine/types";
 import { describe, expect, it } from "vitest";
 import {
   EMPTY_WIKI_FORM,
@@ -121,7 +121,7 @@ describe("wikiChain (social.md §13.2)", () => {
 });
 
 describe("loadWikiNodes", () => {
-  const NS = "online.7778777.lessdugin.temp";
+  const NS = "forum.pandoras.temp";
   const FORUM = `at://did:plc:abcdefghijklmnopqrstuvwx/${NS}.forum/3kforum`;
   const PAGE = { forum: FORUM, slug: "decision-theory" };
   const rev = (rkey: string) => `at://did:plc:bcdefghijklmnopqrstuvwxy/${NS}.wikiRevision/${rkey}`;

@@ -12,11 +12,11 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_core::dto::RenderedBody;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_markdown::printer::{PrintOpts, check_printer_output, print_doc_with};
-use lessdugin_markdown::styled::StyledDoc;
-use lessdugin_markdown::{MediaItem, RenderOpts};
+use pandoras_forum_core::dto::RenderedBody;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_markdown::printer::{PrintOpts, check_printer_output, print_doc_with};
+use pandoras_forum_markdown::styled::StyledDoc;
+use pandoras_forum_markdown::{MediaItem, RenderOpts};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use serde_json::Value;
@@ -157,7 +157,7 @@ pub fn styled_doc_of(md: &Value, text: &str) -> Option<StyledDoc> {
         styled: true,
         text: false,
     };
-    Some(lessdugin_markdown::render_profile(text, &media, profile, &opts).styled)
+    Some(pandoras_forum_markdown::render_profile(text, &media, profile, &opts).styled)
 }
 
 fn styled_lines(

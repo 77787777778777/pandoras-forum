@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! End-to-end tests of `lessdugin` against the local devnet (`packages/e2e/devnet.mjs`,
-//! ADR 0006, ADR 0007). They run only with `LESSDUGIN_E2E=1`, so plain `cargo test` stays
-//! offline. `LESSDUGIN_DEVNET_JSON=<file>` reuses a running devnet; otherwise one is started
+//! End-to-end tests of `pandoras-forum` against the local devnet (`packages/e2e/devnet.mjs`,
+//! ADR 0006, ADR 0007). They run only with `PANDORAS_FORUM_E2E=1`, so plain `cargo test` stays
+//! offline. `PANDORAS_FORUM_DEVNET_JSON=<file>` reuses a running devnet; otherwise one is started
 //! and killed at the end.
 //!
 //! 1. App password: `login --password-stdin` → `whoami` → `resolve alice.test` → a record
@@ -26,34 +26,34 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output, Stdio};
 use std::time::Duration;
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{HttpRequest, Target};
-use lessdugin_native::auth::oauth::OAuthSession;
-use lessdugin_native::auth::{SecretStore, StoredSession};
-use lessdugin_native::config::{DevnetProfile, FileLock, Paths};
-use lessdugin_native::host::{AuthSession, Net, NetPolicy};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{HttpRequest, Target};
+use pandoras_forum_native::auth::oauth::OAuthSession;
+use pandoras_forum_native::auth::{SecretStore, StoredSession};
+use pandoras_forum_native::config::{DevnetProfile, FileLock, Paths};
+use pandoras_forum_native::host::{AuthSession, Net, NetPolicy};
 use serde_json::{Value, json};
 
-const COLLECTION: &str = "online.7778777.lessdugin.temp.post";
+const COLLECTION: &str = "forum.pandoras.temp.post";
 
 struct Devnet {
     info: Value,
-    _child: Option<lessdugin_testkit::node_devnet::NodeDevnet>,
+    _child: Option<pandoras_forum_testkit::node_devnet::NodeDevnet>,
 }
 
 impl Devnet {
     fn start() -> Option<Self> {
-        if std::env::var("LESSDUGIN_E2E").ok().as_deref() != Some("1") {
-            eprintln!("skipped: set LESSDUGIN_E2E=1 to run against the devnet");
+        if std::env::var("PANDORAS_FORUM_E2E").ok().as_deref() != Some("1") {
+            eprintln!("skipped: set PANDORAS_FORUM_E2E=1 to run against the devnet");
             return None;
         }
-        if let Ok(path) = std::env::var("LESSDUGIN_DEVNET_JSON") {
+        if let Ok(path) = std::env::var("PANDORAS_FORUM_DEVNET_JSON") {
             let info = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             return Some(Self { info, _child: None });
         }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         // one devnet per test: the tests of a binary run in parallel
-        let (child, info) = lessdugin_testkit::node_devnet::NodeDevnet::start(root, "cli");
+        let (child, info) = pandoras_forum_testkit::node_devnet::NodeDevnet::start(root, "cli");
         Some(Self {
             info,
             _child: Some(child),
@@ -78,20 +78,20 @@ impl Devnet {
         self.s(&["plc"])
     }
 
-    /// `lessdugin --dev` with its own data directory and no OS keyring (`--dev` has no
+    /// `pandoras-forum --dev` with its own data directory and no OS keyring (`--dev` has no
     /// environment variable; the devnet URLs do).
     fn cli(&self, data: &Path) -> Command {
-        let mut c = Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
         for (k, _) in std::env::vars() {
-            if k.starts_with("LESSDUGIN_") {
+            if k.starts_with("PANDORAS_FORUM_") {
                 c.env_remove(k);
             }
         }
         c.arg("--dev")
-            .env("LESSDUGIN_DATA_DIR", data)
-            .env("LESSDUGIN_KEYRING", "off")
-            .env("LESSDUGIN_PLC_URL", self.plc())
-            .env("LESSDUGIN_PDS_URL", self.pds())
+            .env("PANDORAS_FORUM_DATA_DIR", data)
+            .env("PANDORAS_FORUM_KEYRING", "off")
+            .env("PANDORAS_FORUM_PLC_URL", self.plc())
+            .env("PANDORAS_FORUM_PDS_URL", self.pds())
             .env("NO_COLOR", "1")
             .env_remove("RUST_LOG");
         c
@@ -129,7 +129,7 @@ fn run(cmd: &mut Command, stdin: Option<&str>) -> Output {
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = cmd.spawn().expect("lessdugin");
+    let mut child = cmd.spawn().expect("pandoras-forum");
     {
         let mut si = child.stdin.take().unwrap();
         if let Some(s) = stdin {
@@ -166,7 +166,7 @@ fn edit_session(data: &Path, f: impl FnOnce(&mut Value)) {
     let path = session_file(data);
     let mut v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     f(&mut v);
-    lessdugin_native::fsutil::write_private_atomic(&path, &serde_json::to_vec(&v).unwrap())
+    pandoras_forum_native::fsutil::write_private_atomic(&path, &serde_json::to_vec(&v).unwrap())
         .unwrap();
 }
 
@@ -248,7 +248,7 @@ fn playwright(url: &str, password: &str, mode: &str) -> String {
     stdout
 }
 
-/// Starts `lessdugin login …` and returns the child and the authorization URL it printed.
+/// Starts `pandoras-forum login …` and returns the child and the authorization URL it printed.
 // The child is returned to the caller, which waits for it.
 #[allow(clippy::zombie_processes)]
 fn start_oauth_login(
@@ -258,7 +258,7 @@ fn start_oauth_login(
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = cmd.spawn().expect("lessdugin");
+    let mut child = cmd.spawn().expect("pandoras-forum");
     let mut stderr = BufReader::new(child.stderr.take().unwrap());
     let prefix = format!("{pds}/oauth/authorize?");
     let mut seen = String::new();
@@ -495,7 +495,7 @@ fn e2e_cli_against_devnet() {
         &pds,
     );
     let pw_out = playwright(&url, &devnet.s(&["accounts", "bob", "password"]), "follow");
-    assert!(pw_out.contains("lessdugin: signed in"), "{pw_out}");
+    assert!(pw_out.contains("Pandora's Forum: signed in"), "{pw_out}");
     let out = child.wait_with_output().unwrap();
     assert!(
         out.status.success(),
@@ -517,7 +517,7 @@ fn e2e_cli_against_devnet() {
 
 // ---- M1 acceptance: concurrent refresh -------------------------------------------------------
 
-/// How many `lessdugin` processes race for one refresh.
+/// How many `pandoras-forum` processes race for one refresh.
 const RACERS: usize = 8;
 
 /// Races [`RACERS`] `whoami`s sharing `data` and its stored session of `did`, and checks that
@@ -621,7 +621,7 @@ fn still_works(
     );
 }
 
-/// M1 acceptance (`docs/plan.md` §3 M1) against the reference PDS: parallel `lessdugin`
+/// M1 acceptance (`docs/plan.md` §3 M1) against the reference PDS: parallel `pandoras-forum`
 /// processes refreshing one stored session never invalidate it. For an app-password session
 /// and then an OAuth session (DPoP; single-use refresh tokens, replay revokes the session), two
 /// races of [`RACERS`] `whoami`s sharing one data directory and its 0600 session file:

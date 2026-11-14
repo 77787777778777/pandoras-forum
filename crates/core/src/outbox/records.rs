@@ -2,20 +2,20 @@
 //! Record builders: lexicon-valid JSON values with their canonical record keys
 //! (`data-model.md` §3, §6, §8.1).
 //!
-//! Values come from the [`lessdugin_lexicon::records`] structs (which always write `$type`, W1,
-//! and keep unknown fields, W3); keys come from [`lessdugin_lexicon::keys`] (never re-derived
+//! Values come from the [`pandoras_forum_lexicon::records`] structs (which always write `$type`, W1,
+//! and keep unknown fields, W3); keys come from [`pandoras_forum_lexicon::keys`] (never re-derived
 //! here). [`check`] runs the single-record validity rules (§7.2–§7.3) and the reserved-name rule
 //! (W10) on what a write is about to persist.
 
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_lexicon::collection::{Collection, nsid};
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::records::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_lexicon::collection::{Collection, nsid};
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::{
     Comment, Forum, Membership, ModAction, Opinion, Post, Profile, Revision, Sequence, StrongRef,
     WikiRevision,
 };
-use lessdugin_lexicon::values::RevisionOp;
+use pandoras_forum_lexicon::values::RevisionOp;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -194,7 +194,7 @@ pub fn profile(p: &Profile) -> Result<Built, EngineError> {
 
 /// The CIDv1 (dag-cbor, sha2-256) of a record value's DAG-CBOR encoding.
 pub fn record_cid(value: &Value) -> Result<String, EngineError> {
-    lessdugin_atp::datamodel::record_cid(value)
+    pandoras_forum_atp::datamodel::record_cid(value)
         .map(|c| c.to_string())
         .map_err(|e| EngineError::invalid_input(format!("not an atproto record value: {e}")))
 }
@@ -213,7 +213,7 @@ pub fn check(
         // Not one of ours (`app.bsky.actor.profile` is never written): the PDS decides.
         return Ok(());
     };
-    let v = lessdugin_lexicon::validity::check(collection, &uri, value);
+    let v = pandoras_forum_lexicon::validity::check(collection, &uri, value);
     if !v.valid {
         let rules: Vec<String> = v
             .violations
@@ -235,7 +235,7 @@ pub fn check(
         ));
     }
     if new {
-        let reserved = lessdugin_lexicon::reserved::reserved_fields_in(coll, value);
+        let reserved = pandoras_forum_lexicon::reserved::reserved_fields_in(coll, value);
         if !reserved.is_empty() {
             return Err(EngineError::invalid_input(format!(
                 "reserved field(s) {} are never written (W10)",
@@ -249,7 +249,7 @@ pub fn check(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_lexicon::records::{Action, HideAction, Markdown, Md};
+    use pandoras_forum_lexicon::records::{Action, HideAction, Markdown, Md};
     use serde_json::json;
 
     const DID: &str = "did:plc:ewvi7nxzyoun6zhxrhs64oiz";
@@ -316,14 +316,22 @@ mod tests {
 
         let fo = forum(
             "rationality",
-            &Forum::create("R", now(), lessdugin_lexicon::values::MembershipMode::Open),
+            &Forum::create(
+                "R",
+                now(),
+                pandoras_forum_lexicon::values::MembershipMode::Open,
+            ),
         )
         .unwrap();
         check(&did, fo.collection, &fo.rkey, &fo.value, true).unwrap();
         assert!(
             forum(
                 "Bad Slug",
-                &Forum::create("R", now(), lessdugin_lexicon::values::MembershipMode::Open)
+                &Forum::create(
+                    "R",
+                    now(),
+                    pandoras_forum_lexicon::values::MembershipMode::Open
+                )
             )
             .is_err()
         );

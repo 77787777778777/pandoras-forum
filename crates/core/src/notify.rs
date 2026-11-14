@@ -33,7 +33,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::Collection;
+use pandoras_forum_lexicon::Collection;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -242,7 +242,7 @@ fn body_src(v: &Value) -> Option<&str> {
 fn item_reason(
     inp: &Input<'_>,
     x: &Skel,
-    meta: Option<&lessdugin_markdown::Metadata>,
+    meta: Option<&pandoras_forum_markdown::Metadata>,
 ) -> Option<NotificationReason> {
     let me = inp.me;
     let refs = x.comment_refs();
@@ -465,7 +465,7 @@ pub fn compute(inp: &Input<'_>, base: Option<&Baseline>) -> (Vec<Note>, Baseline
         let value = inp.values.get(&x.uri);
         let meta = value
             .and_then(body_src)
-            .map(|src| lessdugin_markdown::derive_metadata(src, &[]));
+            .map(|src| pandoras_forum_markdown::derive_metadata(src, &[]));
         let Some(reason) = item_reason(inp, x, meta.as_ref()) else {
             continue;
         };

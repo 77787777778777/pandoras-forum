@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Native lessdugin indexer. Content is admitted and folded by `lessdugin-core`; this crate
+//! Native Pandora's Forum indexer. Content is admitted and folded by `pandoras-forum-core`; this crate
 //! owns only discovery metadata, change/cursor persistence, verified proof caching and HTTP.
 
 pub mod api;
@@ -12,17 +12,17 @@ pub mod store;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::engine::Engine;
-use lessdugin_core::model::ForumModel;
-use lessdugin_native::config::NetworkProfile;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::engine::Engine;
+use pandoras_forum_core::model::ForumModel;
+use pandoras_forum_native::config::NetworkProfile;
 use url::Url;
 
 use crate::host::PoliteHost;
 use crate::store::Store;
 
-pub const NS: &str = lessdugin_lexicon::ns::NS;
-pub const INDEX_NS: &str = "online.7778777.lessdugin.index";
+pub const NS: &str = pandoras_forum_lexicon::ns::NS;
+pub const INDEX_NS: &str = "forum.pandoras.index";
 pub const FEATURES: [&str; 9] = [
     "describeIndexer",
     "listForums",
@@ -60,7 +60,7 @@ pub fn network_profile(
             NetworkProfile::Devnet(d) => d.plc.clone(),
             NetworkProfile::Production => plc.clone(),
         };
-        NetworkProfile::Devnet(lessdugin_native::config::DevnetProfile {
+        NetworkProfile::Devnet(pandoras_forum_native::config::DevnetProfile {
             plc,
             pds,
             jetstream: None,
@@ -162,7 +162,7 @@ impl<M: Clone> Models<M> {
             return Cached::Missing;
         };
         entry.used = tick;
-        let max_age = lessdugin_core::limits::MODEL_MAX_AGE_MS
+        let max_age = pandoras_forum_core::limits::MODEL_MAX_AGE_MS
             .max(entry.cost_ms.saturating_mul(MODEL_AGE_FACTOR));
         if entry.built_ms > now_ms || now_ms.saturating_sub(entry.built_ms) > max_age {
             Cached::Stale(entry.model.clone())
@@ -280,69 +280,69 @@ pub struct Metrics {
 impl Metrics {
     pub fn render(&self, healthy: bool) -> String {
         let values = [
-            ("lessdugin_indexer_up", u64::from(healthy)),
+            ("pandoras_forum_indexer_up", u64::from(healthy)),
             (
-                "lessdugin_indexer_http_requests_total",
+                "pandoras_forum_indexer_http_requests_total",
                 self.requests.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_rate_limited_total",
+                "pandoras_forum_indexer_rate_limited_total",
                 self.rate_limited.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_forums_synced_total",
+                "pandoras_forum_indexer_forums_synced_total",
                 self.synced_forums.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_sync_errors_total",
+                "pandoras_forum_indexer_sync_errors_total",
                 self.sync_errors.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_live_events_total",
+                "pandoras_forum_indexer_live_events_total",
                 self.live_events.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_live_duplicates_total",
+                "pandoras_forum_indexer_live_duplicates_total",
                 self.live_duplicates.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_live_connections",
+                "pandoras_forum_indexer_live_connections",
                 self.live_connections.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_proofs_fetched_total",
+                "pandoras_forum_indexer_proofs_fetched_total",
                 self.proofs_fetched.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_proofs_failed_total",
+                "pandoras_forum_indexer_proofs_failed_total",
                 self.proofs_failed.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_changes_written_total",
+                "pandoras_forum_indexer_changes_written_total",
                 self.changes_written.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_live_failures_total",
+                "pandoras_forum_indexer_live_failures_total",
                 self.live_failures.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_live_oversized_total",
+                "pandoras_forum_indexer_live_oversized_total",
                 self.live_oversized.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_repo_retries_total",
+                "pandoras_forum_indexer_repo_retries_total",
                 self.repo_retries.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_query_model_builds_total",
+                "pandoras_forum_indexer_query_model_builds_total",
                 self.query_model_builds.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_query_model_refreshes_total",
+                "pandoras_forum_indexer_query_model_refreshes_total",
                 self.query_model_refreshes.load(Ordering::Relaxed),
             ),
             (
-                "lessdugin_indexer_query_model_refresh_failures_total",
+                "pandoras_forum_indexer_query_model_refresh_failures_total",
                 self.query_model_refresh_failures.load(Ordering::Relaxed),
             ),
         ];
@@ -372,7 +372,7 @@ impl Indexer {
 
     pub fn blocked(&self, value: &str) -> bool {
         self.config.blocklist.contains(value)
-            || lessdugin_atp::syntax::AtUri::parse(value)
+            || pandoras_forum_atp::syntax::AtUri::parse(value)
                 .ok()
                 .is_some_and(|u| self.config.blocklist.contains(u.did().as_str()))
     }
@@ -434,7 +434,7 @@ impl Indexer {
     }
 
     pub fn now_ms(&self) -> i64 {
-        lessdugin_core::host::Host::now_ms(self.engine.host())
+        pandoras_forum_core::host::Host::now_ms(self.engine.host())
     }
 
     /// Puts every cached query model past its age bound, as if its forum had been idle for
@@ -469,11 +469,11 @@ impl Indexer {
 mod tests {
     use super::*;
 
-    const F: &str = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.forum/f";
+    const F: &str = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.forum/f";
 
     #[test]
     fn a_cached_model_expires_like_the_engines() {
-        let max = lessdugin_core::limits::MODEL_MAX_AGE_MS;
+        let max = pandoras_forum_core::limits::MODEL_MAX_AGE_MS;
         let mut models = Models::<u32>::default();
         assert_eq!(models.get(F, 1_000), Cached::Missing);
         // A cheap fold serves for the engine's minimum age, then is refolded.
@@ -548,7 +548,7 @@ mod tests {
             network_profile(NetworkProfile::Production, &plc, Some(&plain), true, false).is_err()
         );
         assert!(network_profile(NetworkProfile::Production, &plc, None, true, true).is_err());
-        let devnet = NetworkProfile::Devnet(lessdugin_native::config::DevnetProfile {
+        let devnet = NetworkProfile::Devnet(pandoras_forum_native::config::DevnetProfile {
             plc: plc.clone(),
             pds: plain.clone(),
             jetstream: None,

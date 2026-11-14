@@ -3,9 +3,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use futures::future::join_all;
-use lessdugin_atp::proof::{BundleCaps, ProofBundle, ProofCaps, ProofErrorKind, verify_proof};
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_atp::xrpc::SyncGetRecord;
+use pandoras_forum_atp::proof::{BundleCaps, ProofBundle, ProofCaps, ProofErrorKind, verify_proof};
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::xrpc::SyncGetRecord;
 use serde::{Deserialize, Serialize};
 
 use crate::host::Host;
@@ -558,7 +558,7 @@ async fn pds_proof_fallback<H: Host>(
     session: &Session<H>,
     uri: &AtUri,
     ident: &crate::identity::ResolvedIdentity,
-    key: &lessdugin_atp::crypto::PublicKey,
+    key: &pandoras_forum_atp::crypto::PublicKey,
     item: &mut ProofItemStatus,
 ) {
     let result = async {

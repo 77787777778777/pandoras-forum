@@ -27,9 +27,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::keys::{self, ModActionKey};
-use lessdugin_lexicon::values::{AccessLevel, ActionKind, Capability, DefaultTier, PinScope, Tier};
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::keys::{self, ModActionKey};
+use pandoras_forum_lexicon::values::{
+    AccessLevel, ActionKind, Capability, DefaultTier, PinScope, Tier,
+};
 use serde_json::Value;
 
 use crate::social::full::authority::{rank, subject_author, subject_rank};

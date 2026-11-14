@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Test support for lessdugin: the shared JSON test-vector format and runner, an in-memory
+//! Test support for Pandora's Forum: the shared JSON test-vector format and runner, an in-memory
 //! host, a fake PDS with fault injection, and helpers for synthetic forums.
 //!
 //! | Module | Contents |
@@ -12,7 +12,7 @@
 //! | [`fake_pds`] | [`FakeNet`]: multi-repo PDS hosts with real repos, PLC, relays, DoH, writes, sessions, faults (feature `http`: real HTTP) |
 //! | [`kv`] | the shared `KvStore` contract suite |
 //! | [`store`] | the shared record-store scenario, run over any `KvStore` |
-//! | [`node_devnet`] | the node devnet process for the `LESSDUGIN_E2E=1` tests (native only) |
+//! | [`node_devnet`] | the node devnet process for the `PANDORAS_FORUM_E2E=1` tests (native only) |
 //! | [`devnet_services`] | the node devnet's CORE+ services: firehose mirror, Jetstream (both wires, with noise), Constellation, relay (feature `http`) |
 
 #![forbid(unsafe_code)]

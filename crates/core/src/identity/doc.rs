@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! DID document checks for identity level `doc` (`sync.md` §3.2), through `lessdugin-atp`'s
+//! DID document checks for identity level `doc` (`sync.md` §3.2), through `pandoras-forum-atp`'s
 //! [`DidDocument`] under the [`DocPolicy`] of the mode ([`policy`]).
 //!
 //! 1. The document is a JSON object whose `id` equals the resolved DID.
@@ -19,11 +19,11 @@
 //! The claimed handle is the first `alsoKnownAs` entry starting with `at://`, without that prefix,
 //! lowercased — unvalidated here (see `handle_state`).
 
-use lessdugin_atp::crypto::{Curve, PublicKey};
-use lessdugin_atp::did_doc::{
+use pandoras_forum_atp::crypto::{Curve, PublicKey};
+use pandoras_forum_atp::did_doc::{
     DidDocError, DidDocument, DocPolicy, EndpointError, ServiceEndpoint, ServiceError,
 };
-use lessdugin_atp::syntax::Did;
+use pandoras_forum_atp::syntax::Did;
 use serde::Deserialize;
 
 /// The atproto facts of a DID document that passed check 1.

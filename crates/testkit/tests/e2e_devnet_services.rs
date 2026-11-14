@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! End-to-end: the node devnet's CORE+ services (`lessdugin_testkit::devnet_services`, the ones
+//! End-to-end: the node devnet's CORE+ services (`pandoras_forum_testkit::devnet_services`, the ones
 //! the Playwright parity scenario configures in its `assisted` variant) against real writes on
-//! the devnet PDS. Runs only with `LESSDUGIN_E2E=1` (and the `http` feature, which `cargo xtask
+//! the devnet PDS. Runs only with `PANDORAS_FORUM_E2E=1` (and the `http` feature, which `cargo xtask
 //! e2e --rust` passes); otherwise the test returns at once so plain `cargo test` stays offline.
 //!
 //! It checks what the parity scenario relies on: the firehose mirror sees the writes; the
@@ -17,15 +17,15 @@ use std::collections::BTreeSet;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use futures::{SinkExt, StreamExt};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::live::{Action, Context, EventFilter, Wire as CoreWire, wire};
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::nsid;
-use lessdugin_lexicon::records::{Forum, Membership, Post};
-use lessdugin_lexicon::values::MembershipMode;
-use lessdugin_testkit::devnet_services::{DevnetServices, NOISE_DIDS};
-use lessdugin_testkit::jetstream::Wire;
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::live::{Action, Context, EventFilter, Wire as CoreWire, wire};
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::nsid;
+use pandoras_forum_lexicon::records::{Forum, Membership, Post};
+use pandoras_forum_lexicon::values::MembershipMode;
+use pandoras_forum_testkit::devnet_services::{DevnetServices, NOISE_DIDS};
+use pandoras_forum_testkit::jetstream::Wire;
 use serde_json::{Value, json};
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
@@ -41,21 +41,22 @@ fn now_ms() -> i64 {
 
 struct Devnet {
     info: Value,
-    _child: Option<lessdugin_testkit::node_devnet::NodeDevnet>,
+    _child: Option<pandoras_forum_testkit::node_devnet::NodeDevnet>,
 }
 
 impl Devnet {
     fn start() -> Option<Self> {
-        if std::env::var("LESSDUGIN_E2E").ok().as_deref() != Some("1") {
-            eprintln!("skipped: set LESSDUGIN_E2E=1 to run against the devnet");
+        if std::env::var("PANDORAS_FORUM_E2E").ok().as_deref() != Some("1") {
+            eprintln!("skipped: set PANDORAS_FORUM_E2E=1 to run against the devnet");
             return None;
         }
-        if let Ok(path) = std::env::var("LESSDUGIN_DEVNET_JSON") {
+        if let Ok(path) = std::env::var("PANDORAS_FORUM_DEVNET_JSON") {
             let info = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             return Some(Self { info, _child: None });
         }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
-        let (child, info) = lessdugin_testkit::node_devnet::NodeDevnet::start(root, "services");
+        let (child, info) =
+            pandoras_forum_testkit::node_devnet::NodeDevnet::start(root, "services");
         Some(Self {
             info,
             _child: Some(child),
@@ -189,7 +190,7 @@ async fn the_devnet_core_plus_services_hint_at_real_writes() {
     };
     let (alice, alice_jwt) = session("alice").await;
     let (bob, bob_jwt) = session("bob").await;
-    let at = lessdugin_atp::syntax::Datetime::from_millis(now_ms()).unwrap();
+    let at = pandoras_forum_atp::syntax::Datetime::from_millis(now_ms()).unwrap();
     let put = |did: &str, jwt: &str, collection: &str, rkey: &str, record: Value| {
         let (http, pds) = (http.clone(), pds.clone());
         let body = json!({"repo": did, "collection": collection, "rkey": rkey, "record": record});
@@ -201,7 +202,11 @@ async fn the_devnet_core_plus_services_hint_at_real_writes() {
 
     // alice's open forum; bob joins and posts (a newcomer: no seed references him)
     let slug = format!("services-{}", now_ms());
-    let forum = ForumKey::new(&lessdugin_atp::syntax::Did::parse(&alice).unwrap(), &slug).unwrap();
+    let forum = ForumKey::new(
+        &pandoras_forum_atp::syntax::Did::parse(&alice).unwrap(),
+        &slug,
+    )
+    .unwrap();
     put(
         &alice,
         &alice_jwt,
@@ -221,7 +226,7 @@ async fn the_devnet_core_plus_services_hint_at_real_writes() {
     .await;
     let post_rkey = keys::post_rkey(
         forum.uri.as_str(),
-        lessdugin_testkit::repo::tid_at_ms(now_ms()).as_ref(),
+        pandoras_forum_testkit::repo::tid_at_ms(now_ms()).as_ref(),
     )
     .unwrap();
     let post = Post::article(

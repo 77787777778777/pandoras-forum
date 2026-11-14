@@ -19,8 +19,8 @@ export default defineConfig({
     trace: "retain-on-failure",
     // Some Nix builders cannot create the conventional /opt/pw-browsers symlink. Keep that
     // PLAYWRIGHT_BROWSERS_PATH contract while selecting the same pinned 1.56.1 browser directly.
-    launchOptions: process.env.LESSDUGIN_CHROMIUM
-      ? { executablePath: process.env.LESSDUGIN_CHROMIUM }
+    launchOptions: process.env.PANDORAS_FORUM_CHROMIUM
+      ? { executablePath: process.env.PANDORAS_FORUM_CHROMIUM }
       : {},
   },
   projects: [

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! [`Net`]: the only HTTP client of the native host. Every request passes the SSRF guard,
-//! carries the lessdugin User-Agent, follows redirects only when asked (re-checking every hop),
+//! carries the Pandora's Forum User-Agent, follows redirects only when asked (re-checking every hop),
 //! and is capped in bytes (after decompression) and time.
 //!
 //! Auth sessions ([`super::AuthSession`]) send `UserPds` requests through
@@ -10,19 +10,19 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use http::header::{HeaderName, HeaderValue, LOCATION};
-use lessdugin_core::host::{
+use pandoras_forum_core::host::{
     HostError, HttpRequest, HttpResponse, Redirects, Target, is_sensitive_header,
 };
-use lessdugin_core::limits;
+use pandoras_forum_core::limits;
 use url::Url;
 
 use super::guard::{DnsBackend, GuardError, GuardedResolver, NetPolicy, SystemDns};
 
 /// `User-Agent` of every native request (`threat-model.md` INFRA-10, `sync.md` §9.5).
 pub const USER_AGENT: &str = concat!(
-    "lessdugin/",
+    "pandoras-forum/",
     env!("CARGO_PKG_VERSION"),
-    " (+https://lessdugin.7778777.online)"
+    " (+https://pandoras.forum)"
 );
 
 /// Request headers callers may not set: framing and routing are the client's business, and a
@@ -490,8 +490,8 @@ mod tests {
             "{s}"
         );
         assert!(
-            USER_AGENT.starts_with("lessdugin/")
-                && USER_AGENT.ends_with("(+https://lessdugin.7778777.online)")
+            USER_AGENT.starts_with("pandoras-forum/")
+                && USER_AGENT.ends_with("(+https://pandoras.forum)")
         );
     }
 }

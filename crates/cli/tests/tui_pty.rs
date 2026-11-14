@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The real TUI runtime on a pseudo-terminal (`crates/tui/src/runtime.rs`; every other TUI
-//! test drives the headless loop): `lessdugin --dev tui <forum>` under util-linux `script`,
+//! test drives the headless loop): `pandoras-forum --dev tui <forum>` under util-linux `script`,
 //! keys written to the terminal, `$EDITOR` a script. It checks what only the runtime does:
 //!
 //! - the terminal is not asked for its graphics protocol unless the environment names an
@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use fakenet::{Net, User, s};
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_lexicon::collection::nsid;
 
 fn shell_quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', r"'\''"))
@@ -85,8 +85,8 @@ struct Pty {
 }
 
 impl Pty {
-    /// Starts `lessdugin tui alice.test/meta` as `alice`, with `editor` as `$EDITOR` and
-    /// `images` as `LESSDUGIN_TUI_IMAGES` (unset: the default, `auto`). The emulator's
+    /// Starts `pandoras-forum tui alice.test/meta` as `alice`, with `editor` as `$EDITOR` and
+    /// `images` as `PANDORAS_FORUM_TUI_IMAGES` (unset: the default, `auto`). The emulator's
     /// variables are scrubbed: the pty is a terminal nothing answers for.
     fn start(alice: &User, editor: &std::path::Path, images: Option<&str>) -> Self {
         let base = alice.std_cmd();
@@ -115,8 +115,8 @@ impl Pty {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         match images {
-            Some(v) => cmd.env("LESSDUGIN_TUI_IMAGES", v),
-            None => cmd.env_remove("LESSDUGIN_TUI_IMAGES"),
+            Some(v) => cmd.env("PANDORAS_FORUM_TUI_IMAGES", v),
+            None => cmd.env_remove("PANDORAS_FORUM_TUI_IMAGES"),
         };
         let mut child = cmd.spawn().unwrap();
         let keys = child.stdin.take().unwrap();
@@ -273,7 +273,7 @@ fn the_tui_comments_through_the_editor_on_a_real_terminal() {
     );
 }
 
-/// `LESSDUGIN_TUI_IMAGES=query` on a terminal that never answers: the TUI asks, waits its
+/// `PANDORAS_FORUM_TUI_IMAGES=query` on a terminal that never answers: the TUI asks, waits its
 /// bounded time, falls back to halfblocks, and the keys typed afterwards still reach it (no
 /// reader is left waiting for the answer).
 #[test]

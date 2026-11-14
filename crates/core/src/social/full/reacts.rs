@@ -15,13 +15,13 @@
 //!
 //! Inputs: `cx` (opinion values for `reacts`, the palette), `a` (L0), `karma` (E, K, counting
 //! opinions with the reacts axis), `gates` (the L4 stage). `qkey` is
-//! [`lessdugin_markdown::quote::qkey`] (identical to `lessdugin_lexicon::records::qkey`; both
+//! [`pandoras_forum_markdown::quote::qkey`] (identical to `pandoras_forum_lexicon::records::qkey`; both
 //! run `testdata/vectors/lfm1/quote.json`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::values::{ReactPalette, Stance};
-use lessdugin_markdown::quote::qkey;
+use pandoras_forum_lexicon::values::{ReactPalette, Stance};
+use pandoras_forum_markdown::quote::qkey;
 use serde_json::Value;
 
 use crate::social::full::cx::Cx;

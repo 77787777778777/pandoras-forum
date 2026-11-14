@@ -30,7 +30,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use lessdugin_atp::syntax::Did;
+use pandoras_forum_atp::syntax::Did;
 
 use super::{Engine, EngineError};
 use crate::dto::{AccountView, AuthKind, Topic};
@@ -205,7 +205,7 @@ fn pin_key(did: &str) -> Vec<u8> {
 fn parse_did(s: &str) -> Result<Did, EngineError> {
     let did =
         Did::parse(s.trim()).map_err(|e| EngineError::invalid_input(format!("{s:?}: {e}")))?;
-    did.check_lessdugin_policy()
+    did.check_pandoras_forum_policy()
         .map_err(|e| EngineError::invalid_input(format!("{s:?}: {e}")))?;
     Ok(did)
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Until the engine has the `user` operation (M5), a profile shows the identity with subscribe
 // and mute, so muting is reachable (review finding m3-11).
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { actorIdent } from "../components/ActorName.tsx";

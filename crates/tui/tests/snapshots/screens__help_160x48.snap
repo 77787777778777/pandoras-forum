@@ -2,7 +2,7 @@
 source: crates/tui/tests/screens.rs
 expression: help
 ---
- lessdugin › Meta › Welcome                                                                                                                  @carol.example.com
+ Pandora's Forum › Meta › Welcome                                                                                                            @carol.example.com
  Meta · synced
 ▌ Welcome
 ▌ @alice.example.com · 2025-10-09 08:54 UTC · 1 ┌ Keys ────────────────────────────────────────────────────────┐
@@ -14,7 +14,7 @@ expression: help
 ▌ • Be kind.                                    │  h Esc q         back (q on the home screen quits)           │
 ▌ • Stay on topic; see the guide ⟨example.com⟩. │Threads                                                       │
 ▌                                               │  Space           collapse / expand replies                   │
-▌ lessdugin tui                                 │  p               parent comment                              │
+▌ pandoras-forum tui                            │  p               parent comment                              │
                                                 │  r               reply in $EDITOR                            │
   1 comment                                     │  c               comment on the post in $EDITOR              │
                                                 │  s               comment sort (magic, top, new, old, latest) │

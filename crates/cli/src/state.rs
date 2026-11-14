@@ -8,7 +8,7 @@
 //!   `forum ls`) work as references (synthesis §6.10), and the wiki heads `tag <slug>` showed,
 //!   which `wiki edit` names as the head its text was edited from. `<h>` is a hash of the
 //!   session key: the terminal of standard input/output (Linux `/proc/self/fd`), else the parent
-//!   process (the shell), or `LESSDUGIN_SESSION` when set (tests, scripts).
+//!   process (the shell), or `PANDORAS_FORUM_SESSION` when set (tests, scripts).
 //!
 //! Files are written atomically with private permissions. Unreadable or malformed files are
 //! treated as empty: this state is a convenience, never needed for correctness. Listing files
@@ -18,13 +18,13 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-use lessdugin_core::dto::SequenceNav;
-use lessdugin_native::config::{Paths, lock_hash};
-use lessdugin_native::fsutil::{ensure_private_dir, read_private, write_private_atomic};
+use pandoras_forum_core::dto::SequenceNav;
+use pandoras_forum_native::config::{Paths, lock_hash};
+use pandoras_forum_native::fsutil::{ensure_private_dir, read_private, write_private_atomic};
 use serde::{Deserialize, Serialize};
 
 /// The environment variable that names the terminal session explicitly.
-pub const SESSION_ENV: &str = "LESSDUGIN_SESSION";
+pub const SESSION_ENV: &str = "PANDORAS_FORUM_SESSION";
 
 /// Listing files older than this are removed.
 pub const REFS_MAX_AGE: Duration = Duration::from_secs(30 * 24 * 3600);

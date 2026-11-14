@@ -11,11 +11,11 @@ use std::future::Future;
 use std::ops::Bound;
 
 use js_sys::{Array, Promise, Uint8Array};
-use lessdugin_core::host::{
+use pandoras_forum_core::host::{
     BlobHandle, Dir, Host, HostError, HttpRequest, HttpResponse, KeyRange, KvOp, KvStore,
     Redirects, Target, WebSocket, WsMessage,
 };
-use lessdugin_core::limits;
+use pandoras_forum_core::limits;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
@@ -503,7 +503,7 @@ impl Host for JsHost {
     fn fetch_blob(
         &self,
         pds: url::Url,
-        did: lessdugin_atp::syntax::Did,
+        did: pandoras_forum_atp::syntax::Did,
         cid: String,
         max_bytes: u64,
     ) -> impl Future<Output = Result<BlobHandle, HostError>> {
@@ -550,7 +550,7 @@ impl Host for JsHost {
         len: u32,
     ) -> impl Future<Output = Result<Vec<u8>, HostError>> {
         // the JS side slices the stored Blob, so only this window enters wasm memory
-        let len = len.min(lessdugin_core::host::BLOB_READ_MAX_BYTES);
+        let len = len.min(pandoras_forum_core::host::BLOB_READ_MAX_BYTES);
         let p = self.imports.blob_read(cid, offset as f64, len);
         async move {
             let v: Uint8Array = await_promise(p).await?.unchecked_into();

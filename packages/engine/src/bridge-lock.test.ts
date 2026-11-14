@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// `lessdugin web` mode: an `outbox:<did>` host lock is the tab's Web Lock and then the native
+// `pandoras-forum web` mode: an `outbox:<did>` host lock is the tab's Web Lock and then the native
 // lock through `POST /bridge/lock` (conformance review M1: a tab and a native client must not
 // pump the same outbox rows).
 import { describe, expect, it } from "vitest";
@@ -79,7 +79,7 @@ function host(fetchFn: typeof fetch, locks = new LocalLocks(), onLost?: (n: stri
   });
 }
 
-describe("the native outbox lock in lessdugin web mode (conformance review M1)", () => {
+describe("the native outbox lock in pandoras-forum web mode (conformance review M1)", () => {
   it("takes the Web Lock, then the native lock, and releases both", async () => {
     const s = server(["held"]);
     const locks = new LocalLocks();
@@ -90,7 +90,7 @@ describe("the native outbox lock in lessdugin web mode (conformance review M1)",
     expect(s.calls[0]?.url).toBe("/bridge/lock");
     expect(s.calls[0]?.body).toEqual({ name: "outbox:did:plc:a", wait: false });
     expect(s.calls[0]?.headers.authorization).toBe(`Bearer ${"t".repeat(43)}`);
-    expect(locks.names).toEqual(["lessdugin-outbox-did:plc:a"]);
+    expect(locks.names).toEqual(["pandoras-forum-outbox-did:plc:a"]);
     await tick(20);
     expect(s.calls[0]?.signal.aborted).toBe(false);
     held?.release();

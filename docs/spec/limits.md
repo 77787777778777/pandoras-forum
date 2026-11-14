@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin limits (normative)
+# Pandora's Forum limits (normative)
 
 **Status:** draft for the `.temp` namespace (M0). Limits of class N and L (§2) freeze at publication (M7).
 **Sources:** `docs/design/synthesis-v1.md` §5.3, plus every numeric limit in §2–§6, with the fixes from `docs/design/completeness-review.md` and the approved plan applied, and the spike results in ADR 0003 and ADR 0004. Where they differ, the plan wins, then the ADRs.
@@ -10,7 +10,7 @@
 
 **Key words.** MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used as in RFC 2119 and RFC 8174. "Reserved (Pn)" and "Reserved (deferred)" are used as in `social.md` §0.1 and `threat-model.md` §0.
 
-**Scope.** Every byte, count, depth, time, concurrency and budget limit of lessdugin, in one place. Field limits of records (string lengths, array sizes, blob `maxSize`) live in `data-model.md` §4–§6 and §11; this document lists only the ones code uses outside the lexicon validator (§4).
+**Scope.** Every byte, count, depth, time, concurrency and budget limit of Pandora's Forum, in one place. Field limits of records (string lengths, array sizes, blob `maxSize`) live in `data-model.md` §4–§6 and §11; this document lists only the ones code uses outside the lexicon validator (§4).
 
 **Precedence.** Values here win over values repeated in other documents. A rule's *meaning* is defined by the document named in the "Defined in" column; this document fixes its numbers.
 
@@ -39,7 +39,7 @@
 |---|---|---|
 | **N** | Normative behaviour: part of a behaviour ID (`mod/1`, `karma/1`, `magic/1`, `lfm/1`, `default/1`, `sk/1`, `fk/1`, `proofs/1`) or of record validity. Every client (native, wasm, indexer) applies it identically, so it affects fold outputs, rendered semantics or verification results. | Never changes. A different value is a new behaviour ID (for example `proofs/2`), whose constants are added beside the old ones. |
 | **L** | Lexicon field limit. Defined in `data-model.md`; enforced by the validator from the embedded lexicon JSON. | Frozen at first publication (`data-model.md` §13). |
-| **W** | Writer rule: what lessdugin itself writes, and how. Readers never depend on it. | Any release. |
+| **W** | Writer rule: what Pandora's Forum itself writes, and how. Readers never depend on it. | Any release. |
 | **S** | Safety cap against hostile or broken peers. Hitting one makes the affected item *unavailable* or the repo `[partial]` (§3); it never yields a different view of fully fetched data. | Any release, with its vectors updated. |
 | **P** | Presentation, versioned by `RENDERER_VERSION` (`lfm-1.md` §1.2). | Any release that bumps `RENDERER_VERSION`. |
 | **O** | Operational: scheduling, budgets, caches, presentation outside the renderer, build gates. | Any release. |
@@ -259,7 +259,7 @@ bytes:              stop when RANGE_MAX_BYTES (or _OPINION) is exceeded; in full
 | `JETSTREAM_GAP_RECONCILE_MS` | 129,600,000 (36 h) | O | a gap longer than this (or an `OutdatedCursor` info message) triggers a full reconcile | `sync.md` |
 | `JETSTREAM_V2_QUERY_DIDS_MAX` | 150 | O | DIDs in a v2 `dids=` query (request-line limit measured in ADR 0003) | ADR 0003 |
 | `JETSTREAM_WANTED_DIDS_MAX` | 10,000 | O | DIDs in a v1 `options_update{wantedDids}` | `sync.md`; ADR 0003 |
-| `JETSTREAM_DID_FILTER_EVENTS_PER_S` | 50 | O | Reserved (deferred): above this lessdugin-wide rate, switching to a DID-filtered connection. v1 never switches automatically. | `sync.md` |
+| `JETSTREAM_DID_FILTER_EVENTS_PER_S` | 50 | O | Reserved (deferred): above this pandoras-forum-wide rate, switching to a DID-filtered connection. v1 never switches automatically. | `sync.md` |
 | `PROOF_BATCH_MAX` | 25 | O | uris per `getRecordProofs` call made for Jetstream events | `sync.md` |
 | `PROOF_BATCH_WINDOW_MS` | 1,000–3,000 | O | events are collected for a randomised window before a batch is sent | `sync.md` |
 | `INDEXER_AUDIT_OMISSION_MS` | 120,000 (2 min) | O | under `--audit`, a Jetstream event missing from `getChanges` after this counts against the indexer | `sync.md` |
@@ -437,7 +437,7 @@ Blobs are uploaded in the `sending` step of the `PendingWrite` that references t
 
 ---
 
-## 18. `lessdugin web` bridge
+## 18. `pandoras-forum web` bridge
 
 | Constant | Value | Class | Applies to | Defined in |
 |---|---|---|---|---|
@@ -451,7 +451,7 @@ Blobs are uploaded in the `sending` step of the `PendingWrite` that references t
 | `BRIDGE_LOGIN_CONFIRM_MS` | 300,000 (5 min) | S | a browser-started sign-in waits this long for `y` in the `web` terminal, then is refused | `threat-model.md` §7.4 |
 | `BRIDGE_LOCK_WAIT_MS` | 20,000 (20 s) | O | the longest one `/bridge/lock` request waits for a busy lock before answering `{"held": false}` | `threat-model.md` §7.4 |
 | `BRIDGE_LOCK_HEARTBEAT_MS` | 1,000 (1 s) | O | a held `/bridge/lock` body sends a newline this often, so a closed connection releases the lock within about two beats | `threat-model.md` §7.4 |
-| `WEB_SHUTDOWN_GRACE_MS` | 3,000 (3 s) | O | after Ctrl-C, open connections get this long before `lessdugin web` stops anyway (a second Ctrl-C stops it at once) | – |
+| `WEB_SHUTDOWN_GRACE_MS` | 3,000 (3 s) | O | after Ctrl-C, open connections get this long before `pandoras-forum web` stops anyway (a second Ctrl-C stops it at once) | – |
 
 `OAUTH_LOGIN_TTL_MS` (§16) bounds the pending bridge login.
 

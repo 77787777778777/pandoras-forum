@@ -37,12 +37,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
 use futures::future::join_all;
-use lessdugin_atp::Cid;
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did, Nsid, RecordKey};
-use lessdugin_atp::xrpc::{CommitMeta, DescribeRepo, GetLatestCommit, GetRecord, GetRepoStatus};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::Membership;
-use lessdugin_lexicon::{Collection, keys};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did, Nsid, RecordKey};
+use pandoras_forum_atp::xrpc::{
+    CommitMeta, DescribeRepo, GetLatestCommit, GetRecord, GetRepoStatus,
+};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::Membership;
+use pandoras_forum_lexicon::{Collection, keys};
 use serde_json::Value;
 
 use crate::host::{Dir, Host};
@@ -80,7 +82,7 @@ pub fn ours() -> Vec<String> {
 pub fn ranged() -> Vec<String> {
     schema::RANGED_SHORT
         .iter()
-        .map(|s| format!("{}.{s}", lessdugin_lexicon::ns::NS))
+        .map(|s| format!("{}.{s}", pandoras_forum_lexicon::ns::NS))
         .collect()
 }
 
@@ -372,7 +374,7 @@ pub(crate) async fn get_head<H: Host>(
         .query_raw(svc, &GetLatestCommit { did: did.clone() }, &opts)
         .await?;
     let meta: CommitMeta = decode_json(&resp.body)?;
-    if lessdugin_atp::tid::Tid::parse(&meta.rev).is_err() {
+    if pandoras_forum_atp::tid::Tid::parse(&meta.rev).is_err() {
         return Err(XrpcCallError::Decode(format!(
             "getLatestCommit rev {:?} is not a TID",
             meta.rev

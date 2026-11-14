@@ -7,7 +7,7 @@ use super::{SyntaxError, string_type_impls, valid_label};
 pub const MAX_NSID_LEN: usize = 317;
 const KIND: &str = "nsid";
 
-/// A syntactically valid NSID, such as `online.7778777.lessdugin.post`.
+/// A syntactically valid NSID, such as `forum.pandoras.post`.
 ///
 /// The domain authority (all but the last segment, in reversed-domain order) follows hostname
 /// rules: segments may start with a digit, except the first (the TLD). The name is
@@ -31,7 +31,7 @@ impl Nsid {
         &self.0
     }
 
-    /// The authority segments in NSID order, e.g. `online.7778777.lessdugin`.
+    /// The authority segments in NSID order, e.g. `forum.pandoras`.
     pub fn authority(&self) -> &str {
         match self.0.rfind('.') {
             Some(i) => &self.0[..i],
@@ -39,7 +39,7 @@ impl Nsid {
         }
     }
 
-    /// The authority as a hostname (segments reversed), e.g. `lessdugin.7778777.online`.
+    /// The authority as a hostname (segments reversed), e.g. `pandoras.forum`.
     pub fn domain_authority(&self) -> String {
         let mut segs: Vec<&str> = self.authority().split('.').collect();
         segs.reverse();
@@ -102,9 +102,9 @@ mod tests {
 
     #[test]
     fn digit_leading_segments() {
-        let n = Nsid::parse("online.7778777.lessdugin.post").unwrap();
-        assert_eq!(n.authority(), "online.7778777.lessdugin");
-        assert_eq!(n.domain_authority(), "lessdugin.7778777.online");
+        let n = Nsid::parse("forum.pandoras.post").unwrap();
+        assert_eq!(n.authority(), "forum.pandoras");
+        assert_eq!(n.domain_authority(), "pandoras.forum");
         assert_eq!(n.name(), "post");
         assert!(n.is_authority_normalized());
         assert!(Nsid::parse("7778777.online.post").is_err());

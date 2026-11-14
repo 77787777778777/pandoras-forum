@@ -17,7 +17,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use lessdugin_core::host::HostError;
+use pandoras_forum_core::host::HostError;
 use url::{Host, Url};
 
 /// Is `ip` outside the globally reachable unicast space? This is the `BLOCKED` table of

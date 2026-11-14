@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! `devnet_services --pds <url> --json <file>`: the node devnet's CORE+ services
-//! ([`lessdugin_testkit::devnet_services`]) for the Playwright parity scenario
+//! ([`pandoras_forum_testkit::devnet_services`]) for the Playwright parity scenario
 //! (`web/e2e/devnet/scenario.spec.ts`). Writes `{jetstream, constellation, relay, control}`
 //! (loopback URLs; `control` serves `/_devnet/log` and `/_devnet/record`) to the file once the
 //! listeners are bound, then runs until it is killed.
 
-use lessdugin_testkit::devnet_services::DevnetServices;
+use pandoras_forum_testkit::devnet_services::DevnetServices;
 
 fn arg(args: &[String], name: &str) -> Option<String> {
     let i = args.iter().position(|a| a == name)?;

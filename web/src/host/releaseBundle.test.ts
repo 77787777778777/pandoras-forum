@@ -28,7 +28,7 @@ afterAll(() => {
 /** `vite build` in a child process with only the given build flags (the test runner's own
  * NODE_ENV and VITE_* would otherwise make it a development build). */
 function build(flags: Record<string, string>): string {
-  const out = mkdtempSync(join(tmpdir(), "lessdugin-web-build-"));
+  const out = mkdtempSync(join(tmpdir(), "pandoras-forum-web-build-"));
   dirs.push(out);
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
@@ -53,7 +53,7 @@ describe.runIf(existsSync(VITE))("release bundle", () => {
     expect(scanDist(release)).toEqual([]);
     expect(modeOf(release)).toBe("release");
 
-    // build-info.json names the mode, which a release `lessdugin` refuses unless it is a
+    // build-info.json names the mode, which a release `pandoras-forum` refuses unless it is a
     // release one (crates/cli/build.rs; security review #7)
     const e2e = build({ VITE_E2E: "1" });
     expect(modeOf(e2e)).toBe("e2e");

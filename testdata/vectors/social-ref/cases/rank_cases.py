@@ -25,9 +25,9 @@ import json
 import math
 from decimal import Decimal, localcontext
 
-from lessdugin_ref.build import DAY, HOUR, MIN, NOW, T0, Forum, did, md
-from lessdugin_ref.fold import fold_vector_input
-from lessdugin_ref import rank as R
+from pandoras_forum_ref.build import DAY, HOUR, MIN, NOW, T0, Forum, did, md
+from pandoras_forum_ref.fold import fold_vector_input
+from pandoras_forum_ref import rank as R
 
 from .util import file_doc, vector
 

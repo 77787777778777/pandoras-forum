@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! A FakePds network served over real HTTP (testkit feature `http`) and `lessdugin --dev`
+//! A FakePds network served over real HTTP (testkit feature `http`) and `pandoras-forum --dev`
 //! users against it: each user has their own data directory, logs in with an app password and
 //! runs the binary with `assert_cmd`.
 
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Output;
 
 use assert_cmd::Command;
-use lessdugin_testkit::fake_pds::{AccountHandle, FakeNet, SystemClock};
+use pandoras_forum_testkit::fake_pds::{AccountHandle, FakeNet, SystemClock};
 use serde_json::Value;
 
 /// The network.
@@ -24,7 +24,7 @@ pub struct User {
     pub dir: tempfile::TempDir,
     plc: String,
     pds: String,
-    /// The terminal session (`LESSDUGIN_SESSION`).
+    /// The terminal session (`PANDORAS_FORUM_SESSION`).
     pub session: String,
 }
 
@@ -102,20 +102,20 @@ pub fn text(b: &[u8]) -> String {
 }
 
 impl User {
-    /// `lessdugin --dev` for this user, with a clean environment.
+    /// `pandoras-forum --dev` for this user, with a clean environment.
     pub fn std_cmd(&self) -> std::process::Command {
-        let mut c = std::process::Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+        let mut c = std::process::Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
         for (k, _) in std::env::vars() {
-            if k.starts_with("LESSDUGIN_") {
+            if k.starts_with("PANDORAS_FORUM_") {
                 c.env_remove(k);
             }
         }
         c.arg("--dev")
-            .env("LESSDUGIN_DATA_DIR", self.dir.path())
-            .env("LESSDUGIN_KEYRING", "off")
-            .env("LESSDUGIN_PLC_URL", &self.plc)
-            .env("LESSDUGIN_PDS_URL", &self.pds)
-            .env("LESSDUGIN_SESSION", &self.session)
+            .env("PANDORAS_FORUM_DATA_DIR", self.dir.path())
+            .env("PANDORAS_FORUM_KEYRING", "off")
+            .env("PANDORAS_FORUM_PLC_URL", &self.plc)
+            .env("PANDORAS_FORUM_PDS_URL", &self.pds)
+            .env("PANDORAS_FORUM_SESSION", &self.session)
             .env("NO_COLOR", "1")
             .env_remove("RUST_LOG")
             .env_remove("VISUAL")

@@ -10,15 +10,15 @@ import { isSpilledBody } from "./records.ts";
 
 const DID = "did:plc:abcdefghijklmnopqrstuvwx";
 const CID = "bafkreigh2akiscaildcqabsyg3dfr6chu3fgpregiymsck7e7aqa4s52zy";
-const POST = `at://${DID}/online.7778777.lessdugin.temp.post/3kabc`;
-const PARENT = `at://${DID}/online.7778777.lessdugin.temp.comment/3kdef`;
+const POST = `at://${DID}/forum.pandoras.temp.post/3kabc`;
+const PARENT = `at://${DID}/forum.pandoras.temp.comment/3kdef`;
 const media = {
   blob: { $type: "blob", ref: { $link: CID }, mimeType: "image/png", size: 1234 },
   alt: "a cat",
   aspectRatio: { width: 4, height: 3 },
 };
 const md = (text: string, extra: object = {}) => ({
-  $type: "online.7778777.lessdugin.markdown",
+  $type: "forum.pandoras.markdown",
   text,
   ...extra,
 });
@@ -116,7 +116,7 @@ describe("forum declaration edits (data-model.md §6.1)", () => {
 
   it("tell a spilled about apart from an absent one (robustness-2)", () => {
     const blob = { $type: "blob", ref: { $link: CID }, mimeType: "text/markdown", size: 70_000 };
-    const spilled = { $type: "online.7778777.lessdugin.markdown", textBlob: blob };
+    const spilled = { $type: "forum.pandoras.markdown", textBlob: blob };
     // the source is not in the record: the draft has no about, and the form must know why
     expect(forumDraftOf({ name: "F", about: spilled }, "f")?.about).toBeUndefined();
     expect(isSpilledBody(spilled)).toBe(true);

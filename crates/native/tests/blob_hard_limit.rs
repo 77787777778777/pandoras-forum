@@ -13,12 +13,12 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use lessdugin_core::host::{BLOB_READ_MAX_BYTES, Host, HostError};
-use lessdugin_core::limits::BLOB_HARD_MAX_BYTES;
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_native::host::{NativeHost, Net, NetPolicy};
-use lessdugin_testkit::FakeNet;
-use lessdugin_testkit::fake_pds::{Generated, ManualClock};
+use pandoras_forum_core::host::{BLOB_READ_MAX_BYTES, Host, HostError};
+use pandoras_forum_core::limits::BLOB_HARD_MAX_BYTES;
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_native::host::{NativeHost, Net, NetPolicy};
+use pandoras_forum_testkit::FakeNet;
+use pandoras_forum_testkit::fake_pds::{Generated, ManualClock};
 use sha2::{Digest, Sha256};
 use url::Url;
 
@@ -121,7 +121,8 @@ fn a_blob_at_the_hard_limit_is_streamed_to_disk_and_cid_checked() {
     assert_eq!(read, size);
     let digest: [u8; 32] = h.finalize().into();
     assert_eq!(
-        lessdugin_atp::cid::from_sha256_digest(lessdugin_atp::cid::RAW, digest).to_string(),
+        pandoras_forum_atp::cid::from_sha256_digest(pandoras_forum_atp::cid::RAW, digest)
+            .to_string(),
         cid
     );
     let g = Generated { size, seed: 0x5EED };

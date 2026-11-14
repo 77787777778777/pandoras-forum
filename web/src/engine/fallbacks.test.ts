@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The draft stand-ins: composer text survives a reload (localStorage, hosted mode) or at least
-// an unmount (memory, `lessdugin web`), robustness review H3.
-import type { EngineApi } from "@lessdugin/engine/api";
-import type { Draft } from "@lessdugin/engine/types";
+// an unmount (memory, `pandoras-forum web`), robustness review H3.
+import type { EngineApi } from "@pandoras-forum/engine/api";
+import type { Draft } from "@pandoras-forum/engine/types";
 import { describe, expect, it } from "vitest";
 import { DRAFTS_MAX, memoryDrafts, storageDrafts, withFallbacks } from "./fallbacks.ts";
 
-const ROOT = "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.post/3kabc";
+const ROOT = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.post/3kabc";
 
 const unsupported = async () => {
   throw { code: "unsupported", message: "not in M2", retryable: false };
@@ -66,9 +66,9 @@ describe("draft fallbacks", () => {
     // a reload: a new app over the same storage
     const b = withFallbacks(engine, { drafts: storageDrafts(storage as unknown as Storage) });
     expect((await b.drafts()).map((d) => d.id)).toEqual([id]);
-    storage.data.set("lessdugin-drafts-v1", '[{"id":1},{"nope":true}, "x"]');
+    storage.data.set("pandoras-forum-drafts-v1", '[{"id":1},{"nope":true}, "x"]');
     expect(await b.drafts()).toEqual([]);
-    storage.data.set("lessdugin-drafts-v1", "{not json");
+    storage.data.set("pandoras-forum-drafts-v1", "{not json");
     expect(await b.drafts()).toEqual([]);
   });
 

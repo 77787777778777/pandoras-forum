@@ -11,7 +11,7 @@ import type {
   ModeratorDraft,
   ModRole,
   TagSummary,
-} from "@lessdugin/engine/types";
+} from "@pandoras-forum/engine/types";
 import { type FormEvent, useId, useState } from "react";
 import {
   isSpilledBody,
@@ -126,7 +126,7 @@ function splitTags(s: string): string[] {
 /** Why a declaration whose about spilled into a blob is not saved while its source is not
  * loaded (`reason`: the engine's). */
 export function aboutUnavailableNotice(reason: string): string {
-  return `The about text is stored in a blob that could not be loaded (${reason}), and saving the declaration without it would remove it. Try again, or edit it from the CLI (lessdugin forum edit) or the TUI (:forum edit).`;
+  return `The about text is stored in a blob that could not be loaded (${reason}), and saving the declaration without it would remove it. Try again, or edit it from the CLI (pandoras-forum forum edit) or the TUI (:forum edit).`;
 }
 
 export function ForumForm({

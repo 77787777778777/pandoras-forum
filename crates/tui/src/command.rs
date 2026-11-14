@@ -42,7 +42,7 @@
 //! spec, so an operation or a field cannot go missing. `parse` is pure (no engine,
 //! no state); `State::command` runs it.
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     AccessLevel, AgreementValue, Capability, CommentSort, DefaultTier, ForumRole, KarmaCadence,
     KarmaValue, MembershipMode, ModActionIntent, ModActionValue, ModRole, ModScope, PinScope,
     PostFilter, PostSort, SearchQuery, SequenceDraft, SequencePosition, Tier, WikiDraft,
@@ -426,25 +426,25 @@ pub const REACH: &[(&str, Reach)] = &[
     (
         "seq_edit",
         Reach::Command(
-            r#"sequence edit at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 {"forum":".","title":"Reading","chapters":[]}"#,
+            r#"sequence edit at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 {"forum":".","title":"Reading","chapters":[]}"#,
         ),
     ),
     (
         "seq_add",
         Reach::Command(
-            "sequence add at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.post/p1 --chapter 0 --index 0",
+            "sequence add at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.post/p1 --chapter 0 --index 0",
         ),
     ),
     (
         "seq_remove",
         Reach::Command(
-            "sequence remove at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.post/p1",
+            "sequence remove at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.post/p1",
         ),
     ),
     (
         "seq_move",
         Reach::Command(
-            "sequence move at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1 --chapter 0 --index 0 --to-chapter 0 --to-index 1",
+            "sequence move at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1 --chapter 0 --index 0 --to-chapter 0 --to-index 1",
         ),
     ),
     ("redact_revision", Reach::Command("redact")),
@@ -503,10 +503,13 @@ pub const REACH: &[(&str, Reach)] = &[
     ),
     ("settings", Reach::Command("settings")),
     ("set_setting", Reach::Command("set mediaAutoload off")),
-    ("export_local", Reach::NotHere("a file: `lessdugin export`")),
+    (
+        "export_local",
+        Reach::NotHere("a file: `pandoras-forum export`"),
+    ),
     (
         "import_local",
-        Reach::NotHere("a file: `lessdugin export --import`"),
+        Reach::NotHere("a file: `pandoras-forum export --import`"),
     ),
 ];
 
@@ -639,7 +642,7 @@ pub enum Agree {
 }
 
 /// A moderation action (`mod ...`), each of which becomes a [`ModActionIntent`]. The verbs and
-/// their meaning are the CLI's (`lessdugin mod ...`): `keep`, `unlock` and `unpin` assert the
+/// their meaning are the CLI's (`pandoras-forum mod ...`): `keep`, `unlock` and `unpin` assert the
 /// opposite value (how a higher rank overrides another moderator, `social.md` §4.2), while
 /// `unhide`, `unban` and `unrestrict` remove the account's own assertion.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -1723,7 +1726,7 @@ fn mod_flags<'a>(args: &[&'a str]) -> Result<ModArgs<'a>, String> {
                         "--until needs a time (RFC 3339, e.g. 2026-11-01T00:00:00Z).".into(),
                     );
                 };
-                let d = lessdugin_atp::syntax::Datetime::parse(when)
+                let d = pandoras_forum_atp::syntax::Datetime::parse(when)
                     .map_err(|e| format!("--until {when:?}: {e}"))?;
                 opts.until_ms = Some(d.timestamp_micros() / 1000);
             }
@@ -2007,23 +2010,23 @@ fn karma_value(v: Vote) -> Option<KarmaValue> {
 }
 
 /// The karma intent a [`Vote`] names.
-pub fn vote_intent(v: Vote) -> lessdugin_core::dto::OpinionIntent {
-    lessdugin_core::dto::OpinionIntent::Karma {
+pub fn vote_intent(v: Vote) -> pandoras_forum_core::dto::OpinionIntent {
+    pandoras_forum_core::dto::OpinionIntent::Karma {
         value: karma_value(v),
     }
 }
 
 /// The tag-vote intent of [`Vote`] `v` on `slug` (a tag vote takes the karma values).
-pub fn tag_intent(slug: &str, v: Vote) -> lessdugin_core::dto::OpinionIntent {
-    lessdugin_core::dto::OpinionIntent::Tag {
+pub fn tag_intent(slug: &str, v: Vote) -> pandoras_forum_core::dto::OpinionIntent {
+    pandoras_forum_core::dto::OpinionIntent::Tag {
         slug: slug.to_owned(),
         value: karma_value(v),
     }
 }
 
 /// The agreement intent an [`Agree`] names.
-pub fn agree_intent(a: Agree) -> lessdugin_core::dto::OpinionIntent {
-    use lessdugin_core::dto::OpinionIntent;
+pub fn agree_intent(a: Agree) -> pandoras_forum_core::dto::OpinionIntent {
+    use pandoras_forum_core::dto::OpinionIntent;
     OpinionIntent::Agreement {
         value: match a {
             Agree::For => Some(AgreementValue::Agree),
@@ -2041,7 +2044,7 @@ pub fn pin_scope(subject: &str) -> PinScope {
     let comment = subject
         .strip_prefix("at://")
         .and_then(|rest| rest.split('/').nth(1))
-        == Some(lessdugin_lexicon::collection::nsid::COMMENT)
+        == Some(pandoras_forum_lexicon::collection::nsid::COMMENT)
         || subject.contains("#/c/");
     if comment {
         PinScope::Thread
@@ -2413,7 +2416,7 @@ mod tests {
         assert_eq!(action("mod unlock"), ModActionValue::Lock { locked: false });
         let comment = format!(
             "at://did:plc:x/{}/3k",
-            lessdugin_lexicon::collection::nsid::COMMENT
+            pandoras_forum_lexicon::collection::nsid::COMMENT
         );
         assert_eq!(
             action(&format!("mod pin {comment}")),
@@ -2496,7 +2499,7 @@ mod tests {
     /// `tag:<slug>`, and a `#tag` that asserts must say something.
     #[test]
     fn tag_votes_and_tag_moderation_parse() {
-        use lessdugin_core::dto::OpinionIntent;
+        use pandoras_forum_core::dto::OpinionIntent;
         let c = parse("vote up --tag #rust").unwrap();
         assert_eq!(
             c.verb,
@@ -2532,7 +2535,7 @@ mod tests {
             };
             mod_intent(v, "at://f", "tag:rust", c.reason.clone(), &c.opts).unwrap()
         };
-        let head = "at://did:plc:x/online.7778777.lessdugin.wikiRevision/w1";
+        let head = "at://did:plc:x/forum.pandoras.wikiRevision/w1";
         match action("mod tag tag:rust --removed \"off topic\"") {
             ModActionIntent::Assert {
                 action,

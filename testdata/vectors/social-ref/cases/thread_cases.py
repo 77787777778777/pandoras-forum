@@ -9,8 +9,8 @@ cases, and the generator owns the directory now (NOTES.md, "thread/").
 
 from __future__ import annotations
 
-from lessdugin_ref.build import HOUR, MIN, SEC, T0, Forum, cid, nsid, rec
-from lessdugin_ref.cids import upper_spelling
+from pandoras_forum_ref.build import HOUR, MIN, SEC, T0, Forum, cid, nsid, rec
+from pandoras_forum_ref.cids import upper_spelling
 
 from .util import file_doc, vector
 

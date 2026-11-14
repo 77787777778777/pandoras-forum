@@ -2,8 +2,8 @@
 // raw(uri) and bodySource(uri) are separate engine reads. Only their equal record CIDs make
 // their fields one revision an edit may use (engine-api.md §3.4 "Body source revision").
 
-import type { EngineApi } from "@lessdugin/engine/api";
-import type { BodySource, RawView } from "@lessdugin/engine/types";
+import type { EngineApi } from "@pandoras-forum/engine/api";
+import type { BodySource, RawView } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { isSpilledBody, objectField } from "../lib/records.ts";

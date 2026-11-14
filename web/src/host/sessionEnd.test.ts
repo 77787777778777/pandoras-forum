@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // An ended OAuth session reaches the engine as `authRequired`, never as `network` (robustness
 // review H1), and is reported once to the app.
-import { AuthBridge } from "@lessdugin/engine/client";
+import { AuthBridge } from "@pandoras-forum/engine/client";
 import { describe, expect, it } from "vitest";
 import { endAwareSession } from "./sessionEnd.ts";
 
@@ -14,7 +14,7 @@ const create = {
   path: "/xrpc/com.atproto.repo.createRecord",
   headers: [["content-type", "application/json"]] as [string, string][],
   body: new TextEncoder().encode(
-    JSON.stringify({ repo: DID, collection: "online.7778777.lessdugin.temp.comment" }),
+    JSON.stringify({ repo: DID, collection: "forum.pandoras.temp.comment" }),
   ),
   maxBytes: 1 << 20,
   timeoutMs: 5000,

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Presentation rules of the lens (social.md §10.3) that the engine's views leave to clients.
 
-import type { ItemState } from "@lessdugin/engine/types";
+import type { ItemState } from "@pandoras-forum/engine/types";
 
 /** social.md §10.3 "Own newcomer items": the fold collapses a newcomer's items for every reader
  * (V8), but the newcomer sees their own `Collapsed(NewUser)` items expanded, with the label

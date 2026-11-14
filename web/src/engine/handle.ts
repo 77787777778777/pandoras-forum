@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { EngineApi } from "@lessdugin/engine/api";
-import type { ActorView, Did } from "@lessdugin/engine/types";
+import type { EngineApi } from "@pandoras-forum/engine/api";
+import type { ActorView, Did } from "@pandoras-forum/engine/types";
 
 /** Host-specific login (engine-api.md §3.1: the host logs in, then calls `addAccount`). */
 export interface LoginProvider {

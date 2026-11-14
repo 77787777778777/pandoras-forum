@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { EffectivePolicy } from "@lessdugin/engine/types";
+import type { EffectivePolicy } from "@pandoras-forum/engine/types";
 
 export type VotingMode = "karmaOnly" | "twoAxis" | "reacts";
 

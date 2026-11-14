@@ -3,8 +3,8 @@
 // m3m4-continuation-3). The author moves, removes and adds entries on the sequence page at the
 // record's positions (the view leaves out what it cannot display), and the editor keeps the
 // entries the view does not show.
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ForumView, SequenceDraft, WriteTicket } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ForumView, SequenceDraft, WriteTicket } from "@pandoras-forum/engine/types";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { parseAtUri } from "../lib/uri.ts";
@@ -33,7 +33,7 @@ async function ownSequence() {
   const [a, b, c, d, extra] = posts;
   if (!a || !b || !c || !d || !extra) throw new Error("not enough fixture posts");
   const me = (await engine.activeAccount())?.did ?? "";
-  const gone = `at://${me}/online.7778777.lessdugin.post/${parseAtUri(a.uri)?.rkey}x`;
+  const gone = `at://${me}/forum.pandoras.post/${parseAtUri(a.uri)?.rkey}x`;
   const uri = await done(
     engine,
     await engine.seqCreate({

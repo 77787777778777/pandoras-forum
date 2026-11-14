@@ -1,32 +1,32 @@
 [package]
-name = "lessdugin"
-description = "lessdugin: a serverless markdown and media forum on atproto — command line, TUI and local web UI"
+name = "pandoras-forum"
+description = "Pandora's Forum: a serverless markdown and media forum on atproto — command line, TUI and local web UI"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-default-run = "lessdugin"
+default-run = "pandoras-forum"
 
 [[bin]]
-name = "lessdugin"
+name = "pandoras-forum"
 path = "src/main.rs"
 
 [features]
 default = ["tui", "web"]
-tui = ["dep:lessdugin-tui"]
+tui = ["dep:pandoras-forum-tui"]
 web = []
 # Read and write the final (published) namespace (release builds).
-final-ns = ["lessdugin-native/final-ns", "lessdugin-lexicon/final-ns"]
+final-ns = ["pandoras-forum-native/final-ns", "pandoras-forum-lexicon/final-ns"]
 # Devnet mode (`--dev`, a `[network] mode = "devnet"` profile) in release builds. Debug builds
 # always have it; release builds without this feature talk only to the public network over
 # https/wss (`threat-model.md` INFRA-9).
 devnet = []
 
 [dependencies]
-lessdugin-core.workspace = true
-lessdugin-native.workspace = true
-lessdugin-tui = { workspace = true, optional = true }
+pandoras-forum-core.workspace = true
+pandoras-forum-native.workspace = true
+pandoras-forum-tui = { workspace = true, optional = true }
 clap.workspace = true
 anyhow.workspace = true
 tokio.workspace = true
@@ -38,16 +38,16 @@ serde.workspace = true
 serde_json.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
-lessdugin-markdown.workspace = true
+pandoras-forum-markdown.workspace = true
 # `media`: the image destinations of a draft, found as `lfm/1` parses them.
 pulldown-cmark.workspace = true
-lessdugin-atp.workspace = true
-lessdugin-lexicon.workspace = true
+pandoras-forum-atp.workspace = true
+pandoras-forum-lexicon.workspace = true
 crossterm.workspace = true
 webbrowser.workspace = true
 futures.workspace = true
 url = { workspace = true, features = ["serde"] }
-# `lessdugin web` (crates/cli/src/web): capabilities and bridge store values, `web.port`.
+# `pandoras-forum web` (crates/cli/src/web): capabilities and bridge store values, `web.port`.
 base64.workspace = true
 toml.workspace = true
 
@@ -56,7 +56,7 @@ assert_cmd.workspace = true
 tempfile.workspace = true
 reqwest.workspace = true
 # Forum and content commands against a FakePds network served over HTTP (tests/content.rs).
-lessdugin-testkit = { workspace = true, features = ["http"] }
+pandoras-forum-testkit = { workspace = true, features = ["http"] }
 insta = { workspace = true, features = ["filters"] }
 
 [target.'cfg(unix)'.dev-dependencies]

@@ -8,7 +8,7 @@
 // with the sequence as their context (`get_post(uri, sequence)`), so their next and previous
 // links follow it, and the last one opened is offered as "Continue reading" (§14, §16).
 
-import type { ChapterView, PostSummary, SequencePosition } from "@lessdugin/engine/types";
+import type { ChapterView, PostSummary, SequencePosition } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useState } from "react";

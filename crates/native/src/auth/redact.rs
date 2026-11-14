@@ -222,7 +222,7 @@ pub fn redact_secrets(text: &str) -> String {
             while k < s.len() && (is_word(s[k]) || s[k] == b'-') {
                 k += 1;
             }
-            // the last segment of a module path (`lessdugin_native::auth::app_password: …`, a
+            // the last segment of a module path (`pandoras_forum_native::auth::app_password: …`, a
             // log line's target) is not a field name
             let path_segment = i >= 2 && &s[i - 2..i] == b"::";
             if !path_segment && let Some((vs, ve)) = sensitive_value(s, i, k) {
@@ -309,19 +309,19 @@ mod tests {
     fn module_paths_are_not_fields() {
         // a log line's target is a module path: its segments are not field names
         assert_eq!(
-            redact_secrets("DEBUG lessdugin_native::auth::app_password: logging in as alice"),
-            "DEBUG lessdugin_native::auth::app_password: logging in as alice"
+            redact_secrets("DEBUG pandoras_forum_native::auth::app_password: logging in as alice"),
+            "DEBUG pandoras_forum_native::auth::app_password: logging in as alice"
         );
         assert_eq!(
-            redact_secrets("at lessdugin_native::auth::password::check (x.rs:1)"),
-            "at lessdugin_native::auth::password::check (x.rs:1)"
+            redact_secrets("at pandoras_forum_native::auth::password::check (x.rs:1)"),
+            "at pandoras_forum_native::auth::password::check (x.rs:1)"
         );
         // real fields on such a line are still redacted
         assert_eq!(
             redact_secrets(
-                "lessdugin_native::auth::app_password: login password=hunter2 app_password: p2"
+                "pandoras_forum_native::auth::app_password: login password=hunter2 app_password: p2"
             ),
-            "lessdugin_native::auth::app_password: login password=<redacted> app_password: \
+            "pandoras_forum_native::auth::app_password: login password=<redacted> app_password: \
              <redacted>"
         );
         assert_eq!(

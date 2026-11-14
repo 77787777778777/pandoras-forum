@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // AppShell is the one adoption-report presentation, including a direct modAdopt on the mod page.
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ForumView } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ForumView } from "@pandoras-forum/engine/types";
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { writeStore } from "../engine/writes.ts";

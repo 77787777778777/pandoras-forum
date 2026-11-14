@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `lessdugin web` against the local devnet (`packages/e2e/devnet.mjs`, ADR 0006, ADR 0007).
-//! Runs only with `LESSDUGIN_E2E=1` (`LESSDUGIN_DEVNET_JSON=<file>` reuses a running devnet).
+//! `pandoras-forum web` against the local devnet (`packages/e2e/devnet.mjs`, ADR 0006, ADR 0007).
+//! Runs only with `PANDORAS_FORUM_E2E=1` (`PANDORAS_FORUM_DEVNET_JSON=<file>` reuses a running devnet).
 //!
 //! The browser sign-in of `threat-model.md` §7.4, end to end: a bridge session from a printed
 //! link, `POST /bridge/login {"actor": "alice.test"}`, headless Chromium signs in and approves
@@ -19,27 +19,27 @@ use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_lexicon::ns::NS;
 use serde_json::{Value, json};
 
 struct Devnet {
     info: Value,
-    _child: Option<lessdugin_testkit::node_devnet::NodeDevnet>,
+    _child: Option<pandoras_forum_testkit::node_devnet::NodeDevnet>,
 }
 
 impl Devnet {
     fn start() -> Option<Self> {
-        if std::env::var("LESSDUGIN_E2E").ok().as_deref() != Some("1") {
-            eprintln!("skipped: set LESSDUGIN_E2E=1 to run against the devnet");
+        if std::env::var("PANDORAS_FORUM_E2E").ok().as_deref() != Some("1") {
+            eprintln!("skipped: set PANDORAS_FORUM_E2E=1 to run against the devnet");
             return None;
         }
-        if let Ok(path) = std::env::var("LESSDUGIN_DEVNET_JSON") {
+        if let Ok(path) = std::env::var("PANDORAS_FORUM_DEVNET_JSON") {
             let info = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             return Some(Self { info, _child: None });
         }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         // one devnet per test: the tests of a binary run in parallel
-        let (child, info) = lessdugin_testkit::node_devnet::NodeDevnet::start(root, "web");
+        let (child, info) = pandoras_forum_testkit::node_devnet::NodeDevnet::start(root, "web");
         Some(Self {
             info,
             _child: Some(child),
@@ -57,17 +57,17 @@ impl Devnet {
     }
 
     fn cli(&self, data: &Path) -> Command {
-        let mut c = Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
         for (k, _) in std::env::vars() {
-            if k.starts_with("LESSDUGIN_") {
+            if k.starts_with("PANDORAS_FORUM_") {
                 c.env_remove(k);
             }
         }
         c.arg("--dev")
-            .env("LESSDUGIN_DATA_DIR", data)
-            .env("LESSDUGIN_KEYRING", "off")
-            .env("LESSDUGIN_PLC_URL", self.s(&["plc"]))
-            .env("LESSDUGIN_PDS_URL", self.s(&["pds"]))
+            .env("PANDORAS_FORUM_DATA_DIR", data)
+            .env("PANDORAS_FORUM_KEYRING", "off")
+            .env("PANDORAS_FORUM_PLC_URL", self.s(&["plc"]))
+            .env("PANDORAS_FORUM_PDS_URL", self.s(&["pds"]))
             .env("NO_COLOR", "1")
             .env_remove("RUST_LOG")
             .env_remove("BROWSER");
@@ -207,7 +207,11 @@ fn e2e_browser_sign_in_and_oauth_writes_through_the_bridge() {
         .recv_timeout(Duration::from_secs(60))
         .expect("a link");
     let origin = format!("http://127.0.0.1:{port}");
-    let cap = link.split_once("#lessdugin-cap=").unwrap().1.to_owned();
+    let cap = link
+        .split_once("#pandoras-forum-cap=")
+        .unwrap()
+        .1
+        .to_owned();
 
     let rt = tokio::runtime::Runtime::new().unwrap();
     let client = reqwest::Client::builder()
@@ -229,7 +233,7 @@ fn e2e_browser_sign_in_and_oauth_writes_through_the_bridge() {
             let status = r.status().as_u16();
             let upstream = r
                 .headers()
-                .get("x-lessdugin-upstream")
+                .get("x-pandoras-forum-upstream")
                 .map(|v| v.to_str().unwrap().to_owned());
             (status, r.json().await.unwrap_or(Value::Null), upstream)
         })

@@ -13,9 +13,9 @@ use crate::social::full::view::State;
 use crate::store::RepoStatus;
 use crate::store::records::RecordStore;
 use crate::sync::{ObservedChange, PointOutcome, Session};
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_atp::tid::Tid;
-use lessdugin_lexicon::collection::Collection;
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_lexicon::collection::Collection;
 
 pub use crate::dto::{AuditCheck, AuditCounts, AuditFinding, AuditKind, AuditReport};
 

@@ -4,8 +4,8 @@
 // thread when it is read, and shows `syncProgress` events. Results arrive as `changed` events,
 // which invalidate queries (App.tsx), so these calls' own results are not used.
 
-import type { EngineApi } from "@lessdugin/engine/api";
-import { isEngineError } from "@lessdugin/engine/types";
+import type { EngineApi } from "@pandoras-forum/engine/api";
+import { isEngineError } from "@pandoras-forum/engine/types";
 import { useEffect, useSyncExternalStore } from "react";
 import { toasts } from "../components/Toast.tsx";
 import { useEngine } from "./context.tsx";

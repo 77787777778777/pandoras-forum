@@ -148,7 +148,7 @@ describe("WorkerEngine (stand-in wasm)", () => {
       code: "invalid_input",
     });
     // no connection was left open: deleting the stores is not blocked
-    for (const name of ["lessdugin-cache", "lessdugin-state", "lessdugin-blobs"]) {
+    for (const name of ["pandoras-forum-cache", "pandoras-forum-state", "pandoras-forum-blobs"]) {
       await new Promise<void>((resolve, reject) => {
         const r = factory.deleteDatabase(name);
         r.onsuccess = () => resolve();

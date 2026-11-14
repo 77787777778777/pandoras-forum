@@ -20,10 +20,10 @@ env:
   # Playwright version is pinned in web/package.json)
   PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.pw-browsers
 jobs:
-  # The devnet boots; then the Rust e2e tests (LESSDUGIN_E2E=1), each against a devnet of its
+  # The devnet boots; then the Rust e2e tests (PANDORAS_FORUM_E2E=1), each against a devnet of its
   # own: identity and the login binding, the native host, the CLI's app-password and OAuth
   # logins (headless Chromium approves at the PDS), concurrent refresh, the CLI forum scenario
-  # in parity mode, `lessdugin web`'s browser sign-in, and the TUI's reply through $EDITOR.
+  # in parity mode, `pandoras-forum web`'s browser sign-in, and the TUI's reply through $EDITOR.
   rust:
     # Playwright 1.56.1 refuses to run on ubuntu-26.04 ("Playwright does not support chromium on
     # ubuntu26.04-x64") and `ubuntu-latest` now resolves there, so pin the last LTS it supports.
@@ -42,7 +42,7 @@ jobs:
           node-version: "22"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @lessdugin/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @pandoras-forum/web exec playwright install --with-deps chromium
       - name: devnet boots
         working-directory: packages/e2e
         run: |
@@ -52,10 +52,10 @@ jobs:
           cat devnet.json || cat devnet.log
           test -s devnet.json
           kill "$pid"
-      - name: Rust e2e (LESSDUGIN_E2E=1)
+      - name: Rust e2e (PANDORAS_FORUM_E2E=1)
         run: cargo xtask e2e --rust
   # The SPA on the real wasm engine against the devnet, in Chromium (web/e2e/devnet): hosted
-  # mode with OAuth at the devnet PDS, parity mode, `lessdugin web` (the CLI embeds the e2e
+  # mode with OAuth at the devnet PDS, parity mode, `pandoras-forum web` (the CLI embeds the e2e
   # build), and the M2 parity scenario (docs/plan.md §4.2, text subset: alice with the CLI, bob
   # in the SPA, carol in the TUI; the three clients' anonymous views must be byte-identical).
   # Any CSP or Trusted Types violation fails. `cargo xtask e2e --web` builds the engine wasm,
@@ -81,7 +81,7 @@ jobs:
           cache: pnpm
       - run: cargo install wasm-bindgen-cli --version =0.2.129 --locked
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @lessdugin/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @pandoras-forum/web exec playwright install --with-deps chromium
       - name: Playwright devnet suite and the M2 parity scenario
         run: cargo xtask e2e --web
       # the parity scenario's outputs, timings and (on a mismatch) diffs, and the traces of
@@ -118,7 +118,7 @@ jobs:
           cache: pnpm
       - run: cargo install wasm-bindgen-cli --version =0.2.129 --locked
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @lessdugin/web exec playwright install --with-deps chromium
+      - run: pnpm --filter @pandoras-forum/web exec playwright install --with-deps chromium
       - name: M6 cold-start acceptance
         run: cargo xtask e2e --cold-start
       # the measured runs (results.json) and the traces of a failed run

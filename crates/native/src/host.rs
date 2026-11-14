@@ -18,8 +18,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 
 use futures::future::BoxFuture;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{
     BlobHandle, Host, HostError, HttpRequest, HttpResponse, KvStore, ProcessLock, ProcessLocks,
     Redirects, Target,
 };

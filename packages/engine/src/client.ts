@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Main-thread client for the engine worker. Re-exports the DTO types (engine-api.md §5).
 //
-// `startEngine(options)` starts the worker (through the `lessdugin-worker` Trusted Types policy)
+// `startEngine(options)` starts the worker (through the `pandoras-forum-worker` Trusted Types policy)
 // and returns an `EngineClient`: the `EngineApi` of api.ts, each method forwarded to the worker
 // (`WasmEngine.call`), plus `callJson` (the dto/1 text, for parity checks), `version()` and
 // `terminate()`. The worker is initialised on first use (or through `ready`); `version()` only
 // loads the module.
 //
-// The main thread keeps the session: `options.sessions` (hosted OAuth or the `lessdugin web`
+// The main thread keeps the session: `options.sessions` (hosted OAuth or the `pandoras-forum web`
 // bridge, see auth-bridge.ts) backs the `AuthBridge` the worker sends its authenticated requests
 // to. The worker reaches it, and sends its events, only through a dedicated `MessagePort` with a
 // fixed message schema (bridge-port.ts): no main-thread object is exposed to the worker, which
@@ -122,7 +122,7 @@ export function padArgs(op: string, args: readonly unknown[]): unknown[] {
 const LOCAL = new Set(["subscribe", "ready", "version", "callJson", "isLeader", "terminate"]);
 
 export function startEngine(options: StartEngineOptions = {}): EngineClient {
-  // The URL passes the `lessdugin-worker` Trusted Types policy (threat-model SPA-2).
+  // The URL passes the `pandoras-forum-worker` Trusted Types policy (threat-model SPA-2).
   const worker = options.worker
     ? options.worker()
     : new Worker(workerScriptUrl(), { type: "module" });
@@ -140,7 +140,7 @@ export function startEngine(options: StartEngineOptions = {}): EngineClient {
       try {
         l(event);
       } catch (e) {
-        console.error("lessdugin engine: an event listener threw", e);
+        console.error("pandoras-forum engine: an event listener threw", e);
       }
     }
   };

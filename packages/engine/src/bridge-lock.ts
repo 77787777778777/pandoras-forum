@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// The native `outbox:<did>` lock of `lessdugin web` mode, held for this tab through
+// The native `outbox:<did>` lock of `pandoras-forum web` mode, held for this tab through
 // `POST /bridge/lock` (threat-model §7.4; the wire format is crates/cli/src/web/lock.rs's). In
 // bridge mode the tab's outbox rows live in the native `state.sqlite`, so a Web Lock alone does
-// not keep a native client (`lessdugin sync`, `outbox flush`, the TUI) from pumping the same
+// not keep a native client (`pandoras-forum sync`, `outbox flush`, the TUI) from pumping the same
 // rows (conformance review M1, sync.md §7.1 "one write in flight per account"):
 //
 //   POST /bridge/lock {"name": "outbox:<did>", "wait": bool}
@@ -11,7 +11,7 @@
 //     not held  → 200 {"held":false} (busy, or the server's wait ran out: ask again)
 //
 // The lock is held exactly as long as the response body is open; releasing aborts the request.
-// The host (host.ts) takes the tab's Web Lock `lessdugin-outbox-<did>` first and then this one,
+// The host (host.ts) takes the tab's Web Lock `pandoras-forum-outbox-<did>` first and then this one,
 // and releases both when the Rust guard drops.
 
 import type { LockHandle } from "./locks.ts";

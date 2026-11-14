@@ -2,7 +2,7 @@
 // Trust and status badges (synthesis §1.2; lfm-1.md §9.1). They render only in this fixed
 // column, as ASCII bracketed words, optionally preceded by a glyph from BADGE_GLYPHS.
 
-import type { Badges as BadgeFlags, Completeness } from "@lessdugin/engine/types";
+import type { Badges as BadgeFlags, Completeness } from "@pandoras-forum/engine/types";
 import { type BadgeGlyph, GLYPH } from "../lib/badges.ts";
 import { cx } from "../lib/cx.ts";
 import styles from "./Badges.module.css";

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Strict DAG-CBOR (`lessdugin_atp::dagcbor`) and the data model on top of it
-//! (`lessdugin_atp::datamodel`), plus the raw navigation helpers and the schema decoders that read
+//! Strict DAG-CBOR (`pandoras_forum_atp::dagcbor`) and the data model on top of it
+//! (`pandoras_forum_atp::datamodel`), plus the raw navigation helpers and the schema decoders that read
 //! validated bytes (commits, MST nodes).
 //!
 //! Contract: never panics, and
@@ -10,12 +10,12 @@
 
 #![no_main]
 
-use lessdugin_atp::commit::Commit;
-use lessdugin_atp::dagcbor::{
+use pandoras_forum_atp::commit::Commit;
+use pandoras_forum_atp::dagcbor::{
     decode_scalar, decode_with, encode_with, list_items_raw, map_entries_raw, validate_with,
 };
-use lessdugin_atp::datamodel::{self, Limits};
-use lessdugin_atp::mst;
+use pandoras_forum_atp::datamodel::{self, Limits};
+use pandoras_forum_atp::mst;
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

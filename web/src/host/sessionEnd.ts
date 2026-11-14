@@ -5,8 +5,8 @@
 // session by throwing one of its token errors from `fetchHandler`; hosted.ts passes the check
 // for those (`isSessionGone`), so this module does not load the library.
 
-import type { PdsSession } from "@lessdugin/engine/client";
-import { hostError, oauthSession } from "@lessdugin/engine/client";
+import type { PdsSession } from "@pandoras-forum/engine/client";
+import { hostError, oauthSession } from "@pandoras-forum/engine/client";
 
 export type FetchHandler = (pathname: string, init: RequestInit) => Promise<Response>;
 

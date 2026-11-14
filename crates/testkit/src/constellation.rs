@@ -11,10 +11,10 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use lessdugin_atp::syntax::{AtUri, Did, Nsid};
+use pandoras_forum_atp::syntax::{AtUri, Did, Nsid};
 #[cfg(feature = "http")]
-use lessdugin_core::host::Target;
-use lessdugin_core::host::{HttpRequest, HttpResponse};
+use pandoras_forum_core::host::Target;
+use pandoras_forum_core::host::{HttpRequest, HttpResponse};
 use serde_json::{Value, json};
 
 use super::fake_pds::FakeNet;
@@ -205,7 +205,7 @@ impl Constellation {
         &self,
         req: &HttpRequest,
         count: bool,
-    ) -> Result<HttpResponse, lessdugin_core::host::HostError> {
+    ) -> Result<HttpResponse, pandoras_forum_core::host::HostError> {
         let url = target_url(&req.target);
         let parsed = match url::Url::parse(&url) {
             Ok(url) => url,
@@ -326,7 +326,7 @@ fn bad_request(message: &str) -> HttpResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_core::host::{Host, Target};
+    use pandoras_forum_core::host::{Host, Target};
 
     async fn get(host: &MemHost, path: &str) -> Value {
         let req = HttpRequest::get(Target::Anon(url::Url::parse(path).unwrap()));
@@ -345,13 +345,13 @@ mod tests {
         let host = MemHost::new();
         let net = FakeNet::on(&host);
         let owner = net.add_account("owner.test");
-        let forum = owner.uri("online.7778777.lessdugin.forum", "self");
+        let forum = owner.uri("forum.pandoras.forum", "self");
         let a = net.add_account("a.test");
         let b = net.add_account("b.test");
         let c = net.add_account("c.test");
         for account in [&a, &b, &c] {
             account.put(
-                "online.7778777.lessdugin.membership",
+                "forum.pandoras.membership",
                 "forum-3l2s5xxv2zaa2",
                 &json!({
                     "forum": forum, "createdAt": "2025-10-09T08:53:20Z"
@@ -361,7 +361,7 @@ mod tests {
         }
         let service = Constellation::install(&net, &host);
         let base = format!(
-            "{}/xrpc/{LINKS}?subject={forum}&source=online.7778777.lessdugin.membership:forum",
+            "{}/xrpc/{LINKS}?subject={forum}&source=forum.pandoras.membership:forum",
             service.base_url()
         );
         let first = get(&host, &format!("{base}&limit=1")).await;
@@ -374,7 +374,7 @@ mod tests {
         let count = get(
             &host,
             &format!(
-                "{}/xrpc/{COUNT}?subject={forum}&source=online.7778777.lessdugin.membership:forum",
+                "{}/xrpc/{COUNT}?subject={forum}&source=forum.pandoras.membership:forum",
                 service.base_url()
             ),
         )
@@ -383,12 +383,12 @@ mod tests {
         let filtered = get(&host, &format!("{base}&did={}", a.did())).await;
         assert_eq!(filtered["records"].as_array().unwrap().len(), 1);
         assert_eq!(filtered["records"][0]["did"], a.did().as_str());
-        b.delete("online.7778777.lessdugin.membership", "forum-3l2s5xxv2zaa2");
+        b.delete("forum.pandoras.membership", "forum-3l2s5xxv2zaa2");
         b.head();
         let count = get(
             &host,
             &format!(
-                "{}/xrpc/{COUNT}?subject={forum}&source=online.7778777.lessdugin.membership:forum",
+                "{}/xrpc/{COUNT}?subject={forum}&source=forum.pandoras.membership:forum",
                 service.base_url()
             ),
         )

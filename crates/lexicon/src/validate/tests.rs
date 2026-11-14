@@ -266,7 +266,7 @@ fn cid_links() {
     bad("l", json!({"$link": 1}), Code::Link);
     bad("l", json!(DAG_CID), Code::Link);
     // only blessed CIDs (v1, sha2-256, dag-cbor or raw): here a dag-pb CID
-    let dag_pb = lessdugin_atp::cid::from_sha256_digest(0x70, [7; 32]).to_string();
+    let dag_pb = pandoras_forum_atp::cid::from_sha256_digest(0x70, [7; 32]).to_string();
     bad("l", json!({ "$link": dag_pb }), Code::Link);
 }
 
@@ -502,13 +502,9 @@ fn formats() {
         ("f_dt", "2024-01-02T03:04:05.678Z", "2024-01-02 03:04:05Z"),
         ("f_did", "did:web:example.com", "did:Web:x"),
         ("f_handle", "alice.example.com", "alice"),
-        (
-            "f_nsid",
-            "online.7778777.lessdugin.post",
-            "7778777.online.post",
-        ),
+        ("f_nsid", "forum.pandoras.post", "7778777.online.post"),
         ("f_tid", "3l2s5xxv2ze2c", "3l2s5xxv2ze2"),
-        ("f_rkey", "uetjixxr3a33-~-x", ".."),
+        ("f_rkey", "nkglkm5wsp3d-~-x", ".."),
         ("f_uri", "https://example.com/a?b#c", "example.com"),
         ("f_lang", "pt-BR", "JA"),
     ];

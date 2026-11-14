@@ -16,15 +16,15 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::host::{Host, HostError, WebSocket, WsMessage};
-use lessdugin_core::live::events::{Action, Context, EventFilter};
-use lessdugin_core::live::source::{DEDUP_CAPACITY, MAX_MESSAGE_BYTES};
-use lessdugin_core::live::wire::{self, Event, EventKind, Wire};
-use lessdugin_core::sync::repo::MarkHint;
-use lessdugin_core::sync::{Priority, Stats};
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::host::{Host, HostError, WebSocket, WsMessage};
+use pandoras_forum_core::live::events::{Action, Context, EventFilter};
+use pandoras_forum_core::live::source::{DEDUP_CAPACITY, MAX_MESSAGE_BYTES};
+use pandoras_forum_core::live::wire::{self, Event, EventKind, Wire};
+use pandoras_forum_core::sync::repo::MarkHint;
+use pandoras_forum_core::sync::{Priority, Stats};
+use pandoras_forum_lexicon::collection::nsid;
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use url::Url;
@@ -613,9 +613,9 @@ async fn flush(indexer: &Indexer, work: &mut Work, proofs: &mpsc::Sender<String>
         match ingest::project_forum(indexer, &key, Some(&authors), &live).await {
             Ok(_) => {}
             Err(e)
-                if e.downcast_ref::<lessdugin_core::model::ModelError>()
+                if e.downcast_ref::<pandoras_forum_core::model::ModelError>()
                     .is_some_and(|e| {
-                        matches!(e, lessdugin_core::model::ModelError::NoDeclaration(_))
+                        matches!(e, pandoras_forum_core::model::ModelError::NoDeclaration(_))
                     }) =>
             {
                 // The declaration was deleted: an empty snapshot and a quarantined seed.
@@ -686,7 +686,7 @@ fn record_forums(indexer: &Indexer, uri: &AtUri) -> Vec<String> {
         out.insert(uri.to_string());
     }
     let rkey = uri.rkey().as_str();
-    if let Some(fk) = lessdugin_lexicon::keys::fk_of(rkey)
+    if let Some(fk) = pandoras_forum_lexicon::keys::fk_of(rkey)
         && (rkey.len() == fk.len() || rkey[fk.len()..].starts_with('-'))
     {
         out.extend(indexer.store.forums_by_fk(fk));
@@ -878,7 +878,7 @@ async fn point(
     let hint = MarkHint {
         cid: cid
             .as_deref()
-            .and_then(|c| lessdugin_atp::cid::parse(c).ok()),
+            .and_then(|c| pandoras_forum_atp::cid::parse(c).ok()),
     };
     let session = indexer
         .engine
@@ -889,7 +889,7 @@ async fn point(
         .syncer()
         .point_fetch(&session, &at, Some(&hint))
         .await;
-    if let Ok(lessdugin_core::sync::repo::PointOutcome::Admitted { .. }) = &outcome
+    if let Ok(pandoras_forum_core::sync::repo::PointOutcome::Admitted { .. }) = &outcome
         && at.collection().as_str() == nsid::FORUM
         && indexer
             .store
@@ -990,7 +990,7 @@ mod tests {
     }
 
     fn frame(time_us: i64) -> Result<WsMessage, HostError> {
-        let at = lessdugin_atp::syntax::Datetime::from_micros(time_us)
+        let at = pandoras_forum_atp::syntax::Datetime::from_micros(time_us)
             .unwrap()
             .to_string();
         Ok(WsMessage::Text(
@@ -999,7 +999,7 @@ mod tests {
                 "did":"did:plc:aaaaaaaaaaaaaaaaaaaaaaaa","seq":1,"witnessedAt":at,
                 "rev":"3l2s5xxv2zaa2","operation":"create","collection":nsid::POST,
                 "rkey":"aaaaaaaaaaaa-3l2s5xxv2zaa2",
-                "cid":lessdugin_atp::cid::for_raw(&[1]).to_string(),
+                "cid":pandoras_forum_atp::cid::for_raw(&[1]).to_string(),
             }})
             .to_string(),
         ))

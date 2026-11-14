@@ -2,7 +2,7 @@
 source: crates/tui/tests/screens.rs
 expression: help
 ---
- lessdug┌ Keys ────────────────────────────────────────────────────────┐ple.com
+ Pandora┌ Keys ────────────────────────────────────────────────────────┐ple.com
  Meta · │Navigation                                                    │
 ▌ Welcom│  j k  Down Up    next / previous                             │
 ▌ @alice│  g G             first / last                                │
@@ -14,7 +14,7 @@ expression: help
 ▌ • Be k│  p               parent comment                              │
 ▌ • Stay│  r               reply in $EDITOR                            │
 ▌       │  c               comment on the post in $EDITOR              │
-▌ lessdu│  s               comment sort (magic, top, new, old, latest) │
+▌ pandor│  s               comment sort (magic, top, new, old, latest) │
         │  [ ]             previous / next post of its sequence        │
   1 comm│  i               load the item's images (their host sees you)│
         │Forums                                                        │

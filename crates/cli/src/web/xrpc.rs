@@ -11,22 +11,22 @@
 //!   ([`restore_session`], AUTH-8);
 //! - JSON bodies are parsed and re-serialised (so the PDS sees exactly what was checked), and
 //!   the AUTH-4 `repo` and `collection` checks run on them here
-//!   ([`lessdugin_native::auth::allowlist::check`]), whatever the SPA checked; the session runs
+//!   ([`pandoras_forum_native::auth::allowlist::check`]), whatever the SPA checked; the session runs
 //!   them once more before it signs;
 //! - `uploadBlob` bodies are raw; the declared type must be a `data-model.md` §8.8 type that
 //!   the content sniffs as (spilled `text/markdown` must be UTF-8);
 //! - the answer is the PDS's status and body with only `Content-Type`, `Retry-After` and
-//!   `RateLimit-*` passed through, marked `X-Lessdugin-Upstream: pds`.
+//!   `RateLimit-*` passed through, marked `X-Pandoras-Forum-Upstream: pds`.
 
 use axum::body::{Body, Bytes};
 use axum::http::{HeaderName, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::engine::{EngineError, ErrorCode};
-use lessdugin_core::host::{Host as _, HostError, HttpRequest, Target};
-use lessdugin_core::limits;
-use lessdugin_core::outbox::blob::{TEXT_MARKDOWN, normalise_mime};
-use lessdugin_native::auth::{allowlist, restore_session};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::engine::{EngineError, ErrorCode};
+use pandoras_forum_core::host::{Host as _, HostError, HttpRequest, Target};
+use pandoras_forum_core::limits;
+use pandoras_forum_core::outbox::blob::{TEXT_MARKDOWN, normalise_mime};
+use pandoras_forum_native::auth::{allowlist, restore_session};
 
 use super::server::{Web, engine_error, error};
 
@@ -61,7 +61,7 @@ pub const DECLARED_TYPES: [&str; 11] = [
 ];
 
 /// The response header marking an answer that comes from the PDS (not from the bridge).
-pub const UPSTREAM_HEADER: &str = "x-lessdugin-upstream";
+pub const UPSTREAM_HEADER: &str = "x-pandoras-forum-upstream";
 
 /// The `account` query parameter: exactly one, a DID.
 fn account_param(query: Option<&str>) -> Result<Did, &'static str> {
@@ -131,7 +131,9 @@ pub async fn forward(
         return engine_error(
             &EngineError::new(
                 ErrorCode::AuthRequired,
-                format!("{did} is not logged in here: run `lessdugin login {did}` in a terminal"),
+                format!(
+                    "{did} is not logged in here: run `pandoras-forum login {did}` in a terminal"
+                ),
             )
             .with_detail("did", did.as_str()),
         );

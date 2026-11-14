@@ -22,26 +22,26 @@
 //! | `hot_bits_*` | §1.3 rule 3: `libm::pow` bit patterns are pinned |
 //! | `sequence_library_*` | §14 library eligibility (V1–V5, deleted), the gate or a forum pin, and the order `(pin, score, t_rank, uri)`, with explicit expected results: no vector kind covers the library, and the reference model's `sequences.py` is still a stub |
 //!
-//! Any namespace build: `cargo test -p lessdugin-core --test social_cases`.
+//! Any namespace build: `cargo test -p pandoras-forum-core --test social_cases`.
 
 mod social_gen;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::tid::Tid;
-use lessdugin_core::social::full::query::{
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_core::social::full::query::{
     CommentQuery, CommentSort, PostFilter, PostQuery, PostSort,
 };
-use lessdugin_core::social::full::timeline::{CommentVersions, Version};
-use lessdugin_core::social::full::view::{
+use pandoras_forum_core::social::full::timeline::{CommentVersions, Version};
+use pandoras_forum_core::social::full::view::{
     CollapseReason, Dim, DimValue, HiddenReason, ModStatus, QueueItem,
 };
-use lessdugin_core::social::full::{ForumView, Query, State, fold_view, project_fold};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_core::social::threads::Parent;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::values::Tier;
+use pandoras_forum_core::social::full::{ForumView, Query, State, fold_view, project_fold};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_core::social::threads::Parent;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::values::Tier;
 use serde_json::{Map, Value, json};
 use social_gen::{DAY, FOREIGN_CID, Forum, Kind, MINUTE, T0, at, check_validity, fold, user};
 
@@ -1405,8 +1405,8 @@ fn co5_edit_of_the_root_forum_keeps_the_thread() {
 /// root) excludes the thread's comments (V1), and the votes on them do not count (O2).
 #[test]
 fn co5_a_valid_root_naming_another_forum_excludes_its_comments() {
-    use lessdugin_core::social::full::cx::lexicon_validity;
-    use lessdugin_core::social::full::fold_view_with;
+    use pandoras_forum_core::social::full::cx::lexicon_validity;
+    use pandoras_forum_core::social::full::fold_view_with;
     let mut f = forum("open", json!({}));
     let (owner, member, author) = (user(0), user(4), user(5));
     grant(&mut f, &member);
@@ -1447,7 +1447,7 @@ fn co5_a_valid_root_naming_another_forum_excludes_its_comments() {
 /// them fails here, before it can reorder posts differently from the indexer.
 #[test]
 fn hot_bits_are_pinned() {
-    use lessdugin_core::social::rank::hot;
+    use pandoras_forum_core::social::rank::hot;
     let now = T0 + 30 * DAY;
     let mut bits = Vec::new();
     for b in [1i64, 2, 7, 25, 100, 1234, 99_999, 1 << 40] {
@@ -1463,7 +1463,7 @@ fn hot_bits_are_pinned() {
         }
     }
     assert_eq!(bits.len(), 8 * 8 * 12 * 3 * 5);
-    let digest: String = lessdugin_atp::cid::sha256(&bits)
+    let digest: String = pandoras_forum_atp::cid::sha256(&bits)
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect();
@@ -1485,5 +1485,5 @@ fn digest_preimage_is_projected_from_the_input() {
     let d = d.as_str().unwrap();
     assert!(d.starts_with(&format!("{p}\u{0}")));
     assert!(d.contains("\ndecl\u{0}"));
-    assert!(lessdugin_core::social::full::project(&v, "digestPreimage").is_err());
+    assert!(pandoras_forum_core::social::full::project(&v, "digestPreimage").is_err());
 }

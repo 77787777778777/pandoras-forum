@@ -10,9 +10,9 @@ everyone in the vectors without opinions, so they set the author gates explicitl
 
 from __future__ import annotations
 
-from lessdugin_ref.build import DAY, HOUR, MIN, NOW, T0, Forum, did, dt, rec
-from lessdugin_ref.common import split_uri
-from lessdugin_ref.fold import fold_vector_input
+from pandoras_forum_ref.build import DAY, HOUR, MIN, NOW, T0, Forum, did, dt, rec
+from pandoras_forum_ref.common import split_uri
+from pandoras_forum_ref.fold import fold_vector_input
 
 from . import kcast
 from .util import file_doc, vector

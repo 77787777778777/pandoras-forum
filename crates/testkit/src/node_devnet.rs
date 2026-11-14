@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The node devnet (`packages/e2e/devnet.mjs`, ADR 0006) for the Rust end-to-end tests that run
-//! with `LESSDUGIN_E2E=1`.
+//! with `PANDORAS_FORUM_E2E=1`.
 //!
 //! The devnet's output goes to a log file, not `/dev/null`: when node exits before the devnet
 //! is up, or it does not come up within [`BOOT_TIMEOUT`], the test fails at once with that
@@ -51,7 +51,7 @@ impl NodeDevnet {
         static STARTED: AtomicUsize = AtomicUsize::new(0);
         let n = STARTED.fetch_add(1, Ordering::SeqCst);
         let base = std::env::temp_dir().join(format!(
-            "lessdugin-{label}-devnet-{}-{n}",
+            "pandoras-forum-{label}-devnet-{}-{n}",
             std::process::id()
         ));
         let json = base.with_extension("json");
@@ -107,7 +107,8 @@ mod tests {
             eprintln!("skipped: node is not installed");
             return;
         }
-        let dir = std::env::temp_dir().join(format!("lessdugin-no-devnet-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("pandoras-forum-no-devnet-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let start = Instant::now();
         let r = std::panic::catch_unwind(|| NodeDevnet::start(&dir, "selftest"));

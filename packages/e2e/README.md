@@ -2,7 +2,7 @@
 # End-to-end tests on the local devnet
 
 `devnet.mjs` starts a local atproto network for the end-to-end tests (ADR 0006): a PLC
-directory and one PDS from `@atproto/dev-env` (`TestNetworkNoAppView`; lessdugin needs no
+directory and one PDS from `@atproto/dev-env` (`TestNetworkNoAppView`; Pandora's Forum needs no
 AppView), with the accounts `alice.test`, `bob.test` and `carol.test`, each with an app password.
 
 ```sh
@@ -12,7 +12,7 @@ node packages/e2e/devnet.mjs [--accounts alice,bob,carol] [--json devnet.json]
 It prints (and with `--json` writes) `{pds, plc, accounts: {<name>: {handle, did, password,
 appPassword}}, bootMs}` and runs until SIGINT or SIGTERM. Both services listen on
 `http://localhost:<random port>`, and handles resolve through the PDS. The clients reach it
-only in devnet mode (`lessdugin --dev`; ADR 0006, threat-model INFRA-9).
+only in devnet mode (`pandoras-forum --dev`; ADR 0006, threat-model INFRA-9).
 
 ## One command
 
@@ -32,23 +32,23 @@ CI (`.github/workflows/e2e.yml`) runs `cargo xtask e2e --rust` and `cargo xtask 
 two jobs and uploads `test-results/web-e2e-devnet`.
 
 Every test starts its own devnet and stops it at the end. To reuse a running devnet, set
-`LESSDUGIN_DEVNET_JSON=<the file devnet.mjs wrote>`. A fresh devnet is safer for the Rust
+`PANDORAS_FORUM_DEVNET_JSON=<the file devnet.mjs wrote>`. A fresh devnet is safer for the Rust
 tests, which use fixed forum slugs.
 
 ### `--rust`
 
-`LESSDUGIN_E2E=1` turns on the Rust tests that need the devnet. Without it, `cargo test` skips
+`PANDORAS_FORUM_E2E=1` turns on the Rust tests that need the devnet. Without it, `cargo test` skips
 them, so it stays offline. The list is `RUST_E2E` in `xtask/src/main.rs`:
 
 | Package | Test | What |
 |---|---|---|
-| `lessdugin-testkit` | `e2e_devnet` | identity resolution, the login binding, `verify` |
-| `lessdugin-testkit` (feature `http`) | `e2e_devnet_services` | the devnet's CORE+ services (below) against real writes: short Constellation and relay pages that still carry a cursor, both Jetstream wires, the noise dropped by the core's filter |
-| `lessdugin-native` | `devnet` | the native host against the reference PDS |
-| `lessdugin` | `e2e_devnet` | app-password and OAuth logins (headless Chromium approves at the PDS), concurrent refresh |
-| `lessdugin` | `e2e_forum` | the CLI forum scenario, and parity between two CLI devices |
-| `lessdugin` | `web_e2e_devnet` | `lessdugin web`: browser sign-in through `/bridge/login`, then writes through `/bridge/xrpc` |
-| `lessdugin-tui` | `e2e_devnet` | carol replies through `$EDITOR` in the headless TUI |
+| `pandoras-forum-testkit` | `e2e_devnet` | identity resolution, the login binding, `verify` |
+| `pandoras-forum-testkit` (feature `http`) | `e2e_devnet_services` | the devnet's CORE+ services (below) against real writes: short Constellation and relay pages that still carry a cursor, both Jetstream wires, the noise dropped by the core's filter |
+| `pandoras-forum-native` | `devnet` | the native host against the reference PDS |
+| `pandoras-forum` | `e2e_devnet` | app-password and OAuth logins (headless Chromium approves at the PDS), concurrent refresh |
+| `pandoras-forum` | `e2e_forum` | the CLI forum scenario, and parity between two CLI devices |
+| `pandoras-forum` | `web_e2e_devnet` | `pandoras-forum web`: browser sign-in through `/bridge/login`, then writes through `/bridge/xrpc` |
+| `pandoras-forum-tui` | `e2e_devnet` | carol replies through `$EDITOR` in the headless TUI |
 
 The CLI's OAuth approver (`crates/cli/tests/support/oauth_approve.mjs`) loads Playwright from
 `PLAYWRIGHT_MODULE`. pnpm keeps Playwright out of the root `node_modules`, so `cargo xtask e2e`
@@ -65,18 +65,18 @@ error or console error fails a test.
 |---|---|
 | `hosted.spec.ts` | anonymous read; OAuth sign-in; join, comment, post, and an edit that writes a revision |
 | `parity.spec.ts` | parity mode in the SPA: two fresh profiles read the same bytes |
-| `bridge.spec.ts` | `lessdugin web` serving the SPA (needs a CLI that embeds the e2e build) |
+| `bridge.spec.ts` | `pandoras-forum web` serving the SPA (needs a CLI that embeds the e2e build) |
 | `scenario.spec.ts` | the M2 parity scenario (below) |
 
 First, `cargo xtask e2e --web` builds these:
 
 1. the engine wasm (`cargo xtask wasm`);
-2. the e2e SPA (`pnpm --filter @lessdugin/web run build:e2e`);
-3. the CLI, with `LESSDUGIN_WEB_DIST=web/dist-e2e` so that it embeds the e2e SPA and
-   `bridge.spec.ts` runs. The next plain `cargo build -p lessdugin` embeds `web/dist` again;
-4. the TUI parity driver (`cargo build -p lessdugin-tui --example parity_driver`);
-5. the devnet's CORE+ services (`cargo build -p lessdugin-testkit --features http --example
-   devnet_services`) and `lessdugin-indexer`, for the parity scenario's variants.
+2. the e2e SPA (`pnpm --filter @pandoras-forum/web run build:e2e`);
+3. the CLI, with `PANDORAS_FORUM_WEB_DIST=web/dist-e2e` so that it embeds the e2e SPA and
+   `bridge.spec.ts` runs. The next plain `cargo build -p pandoras-forum` embeds `web/dist` again;
+4. the TUI parity driver (`cargo build -p pandoras-forum-tui --example parity_driver`);
+5. the devnet's CORE+ services (`cargo build -p pandoras-forum-testkit --features http --example
+   devnet_services`) and `pandoras-forum-indexer`, for the parity scenario's variants.
 
 ## The devnet's CORE+ services
 
@@ -97,7 +97,7 @@ only: no frame carries record text.
 
 `web/e2e/devnet/scenario.spec.ts` covers `docs/plan.md` §4.2, text subset, which is an M2
 acceptance item. Three users work on three clients, and every client runs in parity mode with
-the same fixed time `t` (`engine-api.md` §2.1: `LESSDUGIN_PARITY_NOW_MS` for the CLI and the TUI,
+the same fixed time `t` (`engine-api.md` §2.1: `PANDORAS_FORUM_PARITY_NOW_MS` for the CLI and the TUI,
 `parityNowMs` for the e2e SPA build).
 
 | Step | Who | Client | Action |
@@ -119,7 +119,7 @@ mode nothing may, during the whole run. The newcomer is what only CORE+ can intr
 mode its comment is in every assisted reader's thread (collapsed, as a new user's) and in no
 direct reader's; in approval mode it is an applicant, whose content no reader is shown.
 
-In the assisted variants `lessdugin-indexer --poll <pds> --forum <forum>` follows the devnet from
+In the assisted variants `pandoras-forum-indexer --poll <pds> --forum <forum>` follows the devnet from
 step 1. After the readers above, three more fresh readers (CLI, TUI, SPA) are configured with it
 and open the forum with no prior sync: the TUI and the SPA hydrate their cold page from its
 ordering and proof bundles (`listPosts`, `getRecordProofs`), and every reader's forum sync
@@ -134,16 +134,16 @@ byte for byte once the provenance badges (`verified`, `hint`, `stale`; decision 
 removed.
 
 The TUI runs as `crates/tui/examples/parity_driver.rs`, which drives the headless TUI
-(`lessdugin_tui::Headless`). It opens the engine the way `lessdugin --dev tui` does: the data
+(`pandoras_forum_tui::Headless`). It opens the engine the way `pandoras-forum --dev tui` does: the data
 directory, the devnet and parity mode come from the same environment variables, it uses the
-session that carol's `lessdugin --dev login` stored, and it writes through `$EDITOR`.
+session that carol's `pandoras-forum --dev login` stored, and it writes through `$EDITOR`.
 
 Then each client reads the forum as an anonymous reader, with a fresh data directory or browser
 profile, and syncs it the way it does when the forum is opened:
 
 | Client | Post list | Thread |
 |---|---|---|
-| CLI | `lessdugin --json ls <forum> --sort new --all` | `lessdugin --json read <post>` |
+| CLI | `pandoras-forum --json ls <forum> --sort new --all` | `pandoras-forum --json read <post>` |
 | TUI | the Forum screen's `PostList` (`parity_driver read`) | the Thread screen's `ThreadView` (`capture_thread`) |
 | SPA | forum page, then the post page; the debug hook's `listPosts` | the debug hook's `getThread` (sort `magic`) |
 
@@ -179,19 +179,19 @@ bytes. The step timings also go to the GitHub job summary.
 To run the scenario by hand against a running devnet:
 
 ```sh
-cargo build -p lessdugin && cargo build -p lessdugin-tui --example parity_driver
-cargo build -p lessdugin-testkit --features http --example devnet_services
-cargo build -p lessdugin-indexer --bin lessdugin-indexer
-cargo xtask wasm && pnpm --filter @lessdugin/web run build:e2e
-cd web && LESSDUGIN_DEVNET_JSON=/path/to/devnet.json PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
+cargo build -p pandoras-forum && cargo build -p pandoras-forum-tui --example parity_driver
+cargo build -p pandoras-forum-testkit --features http --example devnet_services
+cargo build -p pandoras-forum-indexer --bin pandoras-forum-indexer
+cargo xtask wasm && pnpm --filter @pandoras-forum/web run build:e2e
+cd web && PANDORAS_FORUM_DEVNET_JSON=/path/to/devnet.json PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers \
   pnpm exec playwright test -c e2e/devnet/playwright.config.ts scenario.spec.ts
 ```
 
-`LESSDUGIN_BIN`, `LESSDUGIN_TUI_DRIVER`, `LESSDUGIN_DEVNET_SERVICES` and `LESSDUGIN_INDEXER_BIN`
-override the binaries. Their defaults are `target/debug/lessdugin`,
+`PANDORAS_FORUM_BIN`, `PANDORAS_FORUM_TUI_DRIVER`, `PANDORAS_FORUM_DEVNET_SERVICES` and `PANDORAS_FORUM_INDEXER_BIN`
+override the binaries. Their defaults are `target/debug/pandoras-forum`,
 `target/debug/examples/parity_driver`, `target/debug/examples/devnet_services` and
-`target/debug/lessdugin-indexer`. When a binary is missing,
-the scenario is skipped, but it fails instead under CI or with `LESSDUGIN_PARITY_REQUIRED=1`,
+`target/debug/pandoras-forum-indexer`. When a binary is missing,
+the scenario is skipped, but it fails instead under CI or with `PANDORAS_FORUM_PARITY_REQUIRED=1`,
 which `cargo xtask e2e` sets.
 
 ## The M6 cold start (`--cold-start`)
@@ -208,10 +208,10 @@ fetch. The results go to `test-results/m6-cold-start/results.json`. It is not pa
 ## Other M2 acceptance checks outside this package
 
 - **A 50-member FakePds forum cold-syncs natively in under 5 s:**
-  - The test is `crates/cli/tests/cold_sync.rs`. It runs `lessdugin --dev sync` as an anonymous
+  - The test is `crates/cli/tests/cold_sync.rs`. It runs `pandoras-forum --dev sync` as an anonymous
     reader against FakePds over HTTP.
   - It runs in plain `cargo test`, and it prints and records the time to the job summary and to
-    `LESSDUGIN_TIMINGS_FILE`.
+    `PANDORAS_FORUM_TIMINGS_FILE`.
   - On CI the bound is 3 × 5 s, because shared runners are slow and test builds are not
     optimised; a time over 5 s is then a warning.
 - **The outbox survives `kill -9`:** `crates/cli/tests/outbox_kill.rs`.

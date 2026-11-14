@@ -9,14 +9,14 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     ActorView, AgreementValue, Badges, Banner, CollapseReason, HandleState, HiddenReason,
     ItemState, KarmaValue, PostKind, PostSummary, PostTag, ReactTally, ScoreView, Stance,
 };
 use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 
-pub use lessdugin_markdown::term::{RunKind, TermCtx, TermText, term_sanitize};
+pub use pandoras_forum_markdown::term::{RunKind, TermCtx, TermText, term_sanitize};
 
 /// Sanitised prose (messages, URLs, identifiers, titles).
 pub fn tt(s: &str) -> TermText {
@@ -264,7 +264,7 @@ pub fn agreement(s: &ScoreView) -> Option<TermText> {
 }
 
 /// The viewer's own vote as one word (`your: up`, `your: strong agree`).
-fn own_word(mine: &lessdugin_core::dto::MyOpinion) -> Vec<TermText> {
+fn own_word(mine: &pandoras_forum_core::dto::MyOpinion) -> Vec<TermText> {
     let mut v = Vec::new();
     if let Some(k) = &mine.karma {
         v.push(lit(match k {
@@ -290,7 +290,7 @@ fn own_word(mine: &lessdugin_core::dto::MyOpinion) -> Vec<TermText> {
 
 /// The viewer's own vote with its pending/not-established markers (`social.md` §7,
 /// `engine-api.md` §3.5): `your: up [pending]` / `your: up (not counted yet)`.
-pub fn mine(m: &lessdugin_core::dto::MyOpinion) -> Option<TermText> {
+pub fn mine(m: &pandoras_forum_core::dto::MyOpinion) -> Option<TermText> {
     let words = own_word(m);
     if words.is_empty() && !m.pending {
         return None;
@@ -346,7 +346,7 @@ pub fn score_parts(s: &ScoreView) -> Vec<TermText> {
 fn tally_author(creator: &str, handles: &BTreeMap<String, String>) -> TermText {
     match handles.get(creator) {
         Some(h) => cat([lit("@"), name(h)]),
-        None => tt(&lessdugin_core::identity::short_did(creator)),
+        None => tt(&pandoras_forum_core::identity::short_did(creator)),
     }
 }
 
@@ -382,7 +382,10 @@ pub fn react_line(t: &ReactTally, handles: &BTreeMap<String, String>) -> TermTex
             tt(&quote.exact),
             tt("\u{201d}"),
         ]));
-        if matches!(t.anchor, Some(lessdugin_core::dto::Anchor::Orphan { .. })) {
+        if matches!(
+            t.anchor,
+            Some(pandoras_forum_core::dto::Anchor::Orphan { .. })
+        ) {
             parts.push(lit(" (quoted text no longer present)"));
         }
     }
@@ -412,8 +415,8 @@ pub fn react_lines(
 
 /// One notification row (`social.md` §16): the reason kind, who, a preview, the time, and an
 /// unread mark.
-pub fn notification_line(n: &lessdugin_core::dto::NotificationView) -> TermText {
-    use lessdugin_core::dto::NotificationReason;
+pub fn notification_line(n: &pandoras_forum_core::dto::NotificationView) -> TermText {
+    use pandoras_forum_core::dto::NotificationReason;
     let reason = match n.reason {
         NotificationReason::Reply => "reply",
         NotificationReason::Mention => "mention",
@@ -519,7 +522,7 @@ pub fn queue_banner_lines(
 }
 
 /// One mod-queue row (`social.md` §4.12): its kind, subject, reason and actor.
-pub fn mod_queue_item(i: &lessdugin_core::dto::ModQueueItem) -> TermText {
+pub fn mod_queue_item(i: &pandoras_forum_core::dto::ModQueueItem) -> TermText {
     let mut parts = vec![tt(&i.item_kind), lit("  ")];
     match &i.actor {
         Some(a) => parts.push(actor(a)),
@@ -538,8 +541,8 @@ pub fn mod_queue_item(i: &lessdugin_core::dto::ModQueueItem) -> TermText {
 
 /// One mod-log row (`social.md` §4.12): the action and value, who asserted it, the status
 /// (`effective`, `overridden`, `lapsed`, …) and the winning rank of an override.
-pub fn mod_log_entry(e: &lessdugin_core::dto::ModLogEntry) -> TermText {
-    use lessdugin_core::dto::ModLogStatus;
+pub fn mod_log_entry(e: &pandoras_forum_core::dto::ModLogEntry) -> TermText {
+    use pandoras_forum_core::dto::ModLogStatus;
     let mut parts = vec![
         tt(&time(e.at_ms)),
         lit("  "),
@@ -612,8 +615,8 @@ pub fn post_meta(p: &PostSummary) -> Vec<TermText> {
         PostKind::QuickTake => parts.push(lit("quick take")),
     }
     match p.tier {
-        lessdugin_core::dto::Tier::Curated => parts.push(lit("curated")),
-        lessdugin_core::dto::Tier::Frontpage | lessdugin_core::dto::Tier::Personal => {}
+        pandoras_forum_core::dto::Tier::Curated => parts.push(lit("curated")),
+        pandoras_forum_core::dto::Tier::Frontpage | pandoras_forum_core::dto::Tier::Personal => {}
     }
     if p.pinned {
         parts.push(lit("pinned"));

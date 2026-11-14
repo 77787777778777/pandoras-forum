@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import hashlib
 
-from lessdugin_ref.build import HOUR, MIN, NOW, T0, Forum, did, rec
+from pandoras_forum_ref.build import HOUR, MIN, NOW, T0, Forum, did, rec
 
 from .util import file_doc, vector
 

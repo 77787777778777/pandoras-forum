@@ -3,9 +3,9 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::Profile;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::Profile;
 use serde_json::Value;
 
 use crate::dto::{
@@ -18,10 +18,10 @@ use super::models::store_error;
 use super::{Engine, EngineError};
 
 impl<H: Host> Engine<H> {
-    /// The synced lessdugin profile, if its current cached record is valid.
+    /// The synced Pandora's Forum profile, if its current cached record is valid.
     async fn cached_profile(&self, did: &str) -> Result<Option<Profile>, EngineError> {
         let uri = format!("at://{did}/{}/self", nsid::PROFILE);
-        let uri = lessdugin_atp::syntax::AtUri::parse(&uri)
+        let uri = pandoras_forum_atp::syntax::AtUri::parse(&uri)
             .map_err(|e| EngineError::invalid_ref(e.to_string()))?;
         let row = RecordStore::new(self.host.cache())
             .get(&uri)

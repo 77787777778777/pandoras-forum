@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! One account's repository: records as DAG-CBOR blocks, the canonical MST
-//! (`lessdugin_atp::mst::build`), signed v3 commits, proof and full-repo CARs, and listing.
+//! (`pandoras_forum_atp::mst::build`), signed v3 commits, proof and full-repo CARs, and listing.
 //!
 //! Writes accumulate as pending operations; [`Repo::recommit`] builds the MST, signs a commit at
 //! a new revision and returns the (coalesced) operations of that commit.
@@ -11,12 +11,12 @@ use std::sync::Arc;
 
 use k256::ecdsa::signature::Signer as _;
 use k256::ecdsa::{Signature, SigningKey};
-use lessdugin_atp::Cid;
-use lessdugin_atp::car::write_car;
-use lessdugin_atp::commit::UnsignedCommit;
-use lessdugin_atp::datamodel::{self, BlobRef};
-use lessdugin_atp::mst::{self, Node};
-use lessdugin_atp::syntax::{Did, Tid};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::car::write_car;
+use pandoras_forum_atp::commit::UnsignedCommit;
+use pandoras_forum_atp::datamodel::{self, BlobRef};
+use pandoras_forum_atp::mst::{self, Node};
+use pandoras_forum_atp::syntax::{Did, Tid};
 use serde_json::Value;
 
 /// A stored record.
@@ -33,7 +33,7 @@ pub(crate) struct Rec {
 impl Rec {
     /// A record from DAG-CBOR bytes (blob refs extracted when the bytes decode).
     pub fn from_cbor(cbor: Vec<u8>) -> Self {
-        let cid = lessdugin_atp::cid::for_dag_cbor(&cbor);
+        let cid = pandoras_forum_atp::cid::for_dag_cbor(&cbor);
         let blobs = datamodel::record_from_cbor(&cbor)
             .map(|v| datamodel::blob_refs(&v))
             .unwrap_or_default();

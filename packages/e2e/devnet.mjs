@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Local atproto network for end-to-end tests: PLC + PDS, no AppView (lessdugin needs none).
+// Local atproto network for end-to-end tests: PLC + PDS, no AppView (Pandora's Forum needs none).
 // Usage: node devnet.mjs [--accounts alice,bob,carol] [--json state.json]
 // Prints (or writes) a JSON description of the network and keeps running until SIGINT/SIGTERM.
 
@@ -15,7 +15,7 @@ const names = arg("--accounts", "alice,bob,carol").split(",").filter(Boolean);
 const jsonOut = arg("--json", null);
 
 const started = Date.now();
-const network = await TestNetworkNoAppView.create({ dbPostgresSchema: "lessdugin_e2e" });
+const network = await TestNetworkNoAppView.create({ dbPostgresSchema: "pandoras_forum_e2e" });
 const accounts = {};
 // Plain XRPC over fetch keeps this script independent of SDK API churn.
 const xrpc = async (nsid, body, token) => {

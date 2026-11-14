@@ -2,10 +2,10 @@
 //! MemHost behaviour and the KvStore contract on MemKv.
 
 use futures::executor::block_on;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{Host, HostError, HttpRequest, Target, WebSocket, WsMessage};
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_testkit::{MemHost, kv::kv_conformance, resp};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{Host, HostError, HttpRequest, Target, WebSocket, WsMessage};
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_testkit::{MemHost, kv::kv_conformance, resp};
 
 fn get(url: &str) -> HttpRequest {
     HttpRequest::get(Target::Anon(url::Url::parse(url).unwrap()))
@@ -120,7 +120,7 @@ fn blobs_are_hash_checked() {
     let did = Did::parse("did:plc:ewvi7nxzyoun6zhxrhs64oiz").unwrap();
     let pds = url::Url::parse("https://pds.example.com").unwrap();
     let data = b"hello blob".to_vec();
-    let cid = lessdugin_atp::cid::for_raw(&data).to_string();
+    let cid = pandoras_forum_atp::cid::for_raw(&data).to_string();
     host.respond_get(
         "https://pds.example.com/xrpc/com.atproto.sync.getBlob",
         resp::bytes(200, "image/png", data.clone()),
@@ -134,18 +134,18 @@ fn blobs_are_hash_checked() {
     block_on(host.fetch_blob(pds.clone(), did.clone(), cid.clone(), 1_000)).unwrap();
     assert_eq!(host.requests().len(), 1);
     // Mismatch, size cap, wrong codec, error status.
-    let other = lessdugin_atp::cid::for_raw(b"other").to_string();
+    let other = pandoras_forum_atp::cid::for_raw(b"other").to_string();
     assert_eq!(
         block_on(host.fetch_blob(pds.clone(), did.clone(), other.clone(), 1_000)).unwrap_err(),
         HostError::CidMismatch
     );
     assert_eq!(host.blob(&other), None);
-    let small = lessdugin_atp::cid::for_raw(b"x").to_string();
+    let small = pandoras_forum_atp::cid::for_raw(b"x").to_string();
     assert_eq!(
         block_on(host.fetch_blob(pds.clone(), did.clone(), small, 3)).unwrap_err(),
         HostError::TooLarge
     );
-    let dag = lessdugin_atp::cid::for_dag_cbor(b"\xa0").to_string();
+    let dag = pandoras_forum_atp::cid::for_dag_cbor(b"\xa0").to_string();
     assert!(matches!(
         block_on(host.fetch_blob(pds.clone(), did.clone(), dag, 1_000)),
         Err(HostError::Unsupported(_))
@@ -154,7 +154,7 @@ fn blobs_are_hash_checked() {
         "https://pds.example.com/xrpc/com.atproto.sync.getBlob",
         resp::xrpc_error(400, "BlobNotFound", "no"),
     );
-    let missing = lessdugin_atp::cid::for_raw(b"missing").to_string();
+    let missing = pandoras_forum_atp::cid::for_raw(b"missing").to_string();
     assert_eq!(
         block_on(host.fetch_blob(pds, did, missing, 1_000)).unwrap_err(),
         HostError::HttpStatus(400, Some("BlobNotFound".into()))

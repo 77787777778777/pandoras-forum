@@ -9,7 +9,7 @@
 //! inputDigest = lowercase hex of sha256(D)
 //! ```
 
-use lessdugin_lexicon::records::Forum;
+use pandoras_forum_lexicon::records::Forum;
 
 use crate::social::input::FoldInput;
 use crate::social::policy::EffectivePolicy;
@@ -47,6 +47,6 @@ fn line(a: &str, b: &str) -> Vec<u8> {
 
 /// `inputDigest`: 64 lowercase hex digits.
 pub fn input_digest(input: &FoldInput) -> Result<String, serde_json::Error> {
-    let h = lessdugin_atp::cid::sha256(&preimage(input)?);
+    let h = pandoras_forum_atp::cid::sha256(&preimage(input)?);
     Ok(h.iter().map(|b| format!("{b:02x}")).collect())
 }

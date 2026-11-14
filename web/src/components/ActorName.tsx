@@ -5,7 +5,7 @@
 // to a self-chosen display name, which is never shown alone (threat-model ID-5): a display
 // name can say anything, another user's name or handle included.
 
-import type { ActorView } from "@lessdugin/engine/types";
+import type { ActorView } from "@pandoras-forum/engine/types";
 import { Link } from "@tanstack/react-router";
 import { cx } from "../lib/cx.ts";
 import { cleanName } from "../lib/text.ts";

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The TUI's part of the M2 parity scenario (`docs/plan.md` §4.2, text subset;
 //! `packages/e2e/README.md`): a command-line driver over the headless TUI
-//! ([`lessdugin_tui::Headless`]). The Playwright scenario (`web/e2e/devnet/scenario.spec.ts`)
-//! runs it as a separate process, next to the `lessdugin` binary.
+//! ([`pandoras_forum_tui::Headless`]). The Playwright scenario (`web/e2e/devnet/scenario.spec.ts`)
+//! runs it as a separate process, next to the `pandoras-forum` binary.
 //!
-//! It opens the engine the way `lessdugin --dev tui` does: the data directory of
-//! `LESSDUGIN_DATA_DIR`, the devnet of `LESSDUGIN_PLC_URL` and `LESSDUGIN_PDS_URL`, parity mode
-//! from `LESSDUGIN_PARITY_NOW_MS` (`engine-api.md` §2.1), the session `lessdugin login` stored
+//! It opens the engine the way `pandoras-forum --dev tui` does: the data directory of
+//! `PANDORAS_FORUM_DATA_DIR`, the devnet of `PANDORAS_FORUM_PLC_URL` and `PANDORAS_FORUM_PDS_URL`, parity mode
+//! from `PANDORAS_FORUM_PARITY_NOW_MS` (`engine-api.md` §2.1), the session `pandoras-forum login` stored
 //! there, and `$EDITOR` for writing.
 //!
 //! ```text
@@ -20,7 +20,7 @@
 //!     thread.json (the Forum screen's query with the other clients' page size,
 //!     `exec::PARITY_LIST_LIMIT`, checked against the screen, and the Thread screen's ThreadView, dto/1 JSON
 //!     exactly as dto.rs serialises it, the bytes the wasm boundary carries), list.pretty.json
-//!     and thread.pretty.json (the same, as `lessdugin --json` prints them to a pipe), and the
+//!     and thread.pretty.json (the same, as `pandoras-forum --json` prints them to a pipe), and the
 //!     screens as text (forum-screen.txt, thread-screen.txt, thread-document.txt).
 //! parity_driver tag <forum-uri> <post-uri> <slug>
 //!     As the logged-in account: opens the post and types `:vote up --tag <slug>` (`docs/plan.md`
@@ -31,25 +31,25 @@
 //! Options: `--width N` and `--height N` (default 100 × 30). Exit code 0 on success, 1 on an
 //! error (on stderr).
 //!
-//! Build: `cargo build -p lessdugin-tui --example parity_driver`
+//! Build: `cargo build -p pandoras-forum-tui --example parity_driver`
 //! (`target/debug/examples/parity_driver`).
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
-use lessdugin_core::dto::{PostList, ThreadRoot};
-use lessdugin_core::engine::Engine;
-use lessdugin_native::auth::{SecretStore, restore_session};
-use lessdugin_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
-use lessdugin_native::engine::open_engine;
-use lessdugin_native::host::NativeHost;
-use lessdugin_tui::app::ScreenKind;
-use lessdugin_tui::exec;
-use lessdugin_tui::{CaptureOpts, EditorConfig, Headless, HeadlessOpts, capture_thread};
+use pandoras_forum_core::dto::{PostList, ThreadRoot};
+use pandoras_forum_core::engine::Engine;
+use pandoras_forum_native::auth::{SecretStore, restore_session};
+use pandoras_forum_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
+use pandoras_forum_native::engine::open_engine;
+use pandoras_forum_native::host::NativeHost;
+use pandoras_forum_tui::app::ScreenKind;
+use pandoras_forum_tui::exec;
+use pandoras_forum_tui::{CaptureOpts, EditorConfig, Headless, HeadlessOpts, capture_thread};
 
 type Res<T> = Result<T, String>;
 
-/// The devnet engine of `LESSDUGIN_DATA_DIR`, as `lessdugin --dev` opens it.
+/// The devnet engine of `PANDORAS_FORUM_DATA_DIR`, as `pandoras-forum --dev` opens it.
 struct Device {
     engine: Engine<NativeHost>,
     paths: Paths,
@@ -64,12 +64,12 @@ fn var(k: &str) -> Res<String> {
 }
 
 fn open() -> Res<Device> {
-    let dir = PathBuf::from(var("LESSDUGIN_DATA_DIR")?);
+    let dir = PathBuf::from(var("PANDORAS_FORUM_DATA_DIR")?);
     let url =
         |k: &str| -> Res<url::Url> { url::Url::parse(&var(k)?).map_err(|e| format!("{k}: {e}")) };
     let profile = DevnetProfile {
-        plc: url("LESSDUGIN_PLC_URL")?,
-        pds: url("LESSDUGIN_PDS_URL")?,
+        plc: url("PANDORAS_FORUM_PLC_URL")?,
+        pds: url("PANDORAS_FORUM_PDS_URL")?,
         jetstream: None,
     };
     let paths = Paths::resolve(Some(&dir)).map_err(|e| e.to_string())?;
@@ -87,7 +87,7 @@ fn open() -> Res<Device> {
 }
 
 /// The Forum screen's post list (the screen on top must be the forum).
-fn forum_list<H: lessdugin_core::host::Host>(h: &Headless<H>) -> Res<PostList> {
+fn forum_list<H: pandoras_forum_core::host::Host>(h: &Headless<H>) -> Res<PostList> {
     match h.state.top().map(|s| &s.kind) {
         Some(ScreenKind::Forum(f)) => f
             .data
@@ -100,14 +100,14 @@ fn forum_list<H: lessdugin_core::host::Host>(h: &Headless<H>) -> Res<PostList> {
 
 /// Answers `y` to the "this is public" interstitial, which the first opinion of each kind on
 /// a fresh account opens (`social.md` §17).
-async fn go_past_public_notice<H: lessdugin_core::host::Host>(h: &mut Headless<H>) {
+async fn go_past_public_notice<H: pandoras_forum_core::host::Host>(h: &mut Headless<H>) {
     if h.state.public_notice.is_some() {
         h.press("y").await;
     }
 }
 
 /// Opens `forum` (Home under it), applies any pending update, selects `post` and opens it.
-async fn open_post<H: lessdugin_core::host::Host>(
+async fn open_post<H: pandoras_forum_core::host::Host>(
     h: &mut Headless<H>,
     forum: &str,
     post: &str,
@@ -144,7 +144,7 @@ async fn reply(forum: &str, post: &str, size: (u16, u16)) -> Res<()> {
         .active_account()
         .await
         .map_err(|e| e.message)?
-        .ok_or("not logged in: run `lessdugin --dev login` with this data directory first")?;
+        .ok_or("not logged in: run `pandoras-forum --dev login` with this data directory first")?;
     let store = SecretStore::new(&d.paths).with_keyring_service(d.keyring_service.clone());
     let account = restore_session(&d.engine, &store, &d.paths, &account)
         .await
@@ -159,7 +159,7 @@ async fn reply(forum: &str, post: &str, size: (u16, u16)) -> Res<()> {
         HeadlessOpts {
             width: size.0,
             height: size.1,
-            // template files for $EDITOR, as `lessdugin tui` keeps them
+            // template files for $EDITOR, as `pandoras-forum tui` keeps them
             editor: Some(EditorConfig::from_env(d.paths.data_dir.join("tmp"))),
             ..HeadlessOpts::default()
         },
@@ -201,7 +201,7 @@ async fn votes(forum: &str, post: &str, size: (u16, u16)) -> Res<()> {
         .active_account()
         .await
         .map_err(|e| e.message)?
-        .ok_or("not logged in: run `lessdugin --dev login` with this data directory first")?;
+        .ok_or("not logged in: run `pandoras-forum --dev login` with this data directory first")?;
     let store = SecretStore::new(&d.paths).with_keyring_service(d.keyring_service.clone());
     let account = restore_session(&d.engine, &store, &d.paths, &account)
         .await
@@ -257,8 +257,8 @@ async fn votes(forum: &str, post: &str, size: (u16, u16)) -> Res<()> {
         .thread_view()
         .ok_or("the thread is gone after the opinions")?;
     let mine = match &view.post {
-        lessdugin_core::dto::ThreadRoot::Post(p) => p.post.score.mine.clone(),
-        lessdugin_core::dto::ThreadRoot::Missing { .. } => None,
+        pandoras_forum_core::dto::ThreadRoot::Post(p) => p.post.score.mine.clone(),
+        pandoras_forum_core::dto::ThreadRoot::Missing { .. } => None,
     };
     let Some(mine) = mine else {
         return Err(format!(
@@ -299,7 +299,7 @@ async fn tag(forum: &str, post: &str, slug: &str, size: (u16, u16)) -> Res<()> {
         .active_account()
         .await
         .map_err(|e| e.message)?
-        .ok_or("not logged in: run `lessdugin --dev login` with this data directory first")?;
+        .ok_or("not logged in: run `pandoras-forum --dev login` with this data directory first")?;
     let store = SecretStore::new(&d.paths).with_keyring_service(d.keyring_service.clone());
     let account = restore_session(&d.engine, &store, &d.paths, &account)
         .await
@@ -344,7 +344,7 @@ async fn tag(forum: &str, post: &str, slug: &str, size: (u16, u16)) -> Res<()> {
     let writes = engine.writes().await.map_err(|e| e.message)?;
     let open: Vec<_> = writes
         .iter()
-        .filter(|w| !matches!(w.state, lessdugin_core::dto::WriteState::Done { .. }))
+        .filter(|w| !matches!(w.state, pandoras_forum_core::dto::WriteState::Done { .. }))
         .collect();
     if !open.is_empty() {
         return Err(format!(

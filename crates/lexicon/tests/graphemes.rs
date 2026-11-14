@@ -11,9 +11,9 @@ mod common;
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
 use common::nsid;
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::validity::{RuleId, check_uri};
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::validity::{RuleId, check_uri};
 use serde_json::{Value, json};
 use unicode_segmentation::UnicodeSegmentation;
 

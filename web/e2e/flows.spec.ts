@@ -569,7 +569,7 @@ test("create a sequence, then reorder and remove its entries (engine-api.md §3.
   await expect(page.getByRole("heading", { level: 1, name: "Starter pack" })).toBeVisible();
   await expect(page.getByRole("article", { name: WELCOME })).toBeVisible();
 
-  await page.getByRole("button", { name: /^Remove Welcome to LessDugin/ }).click();
+  await page.getByRole("button", { name: /^Remove Welcome to Pandora's Forum/ }).click();
   await expect(page.getByText("Removed from the sequence")).toBeVisible();
   await expect(page.getByRole("article", { name: WELCOME })).toHaveCount(0);
 

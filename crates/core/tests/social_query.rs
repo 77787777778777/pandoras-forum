@@ -8,18 +8,18 @@
 //! `thread/depth.json`.
 //!
 //! The vectors are in the final namespace, so this test exists only in a `final-ns` build:
-//! `cargo test -p lessdugin-core --features final-ns --test social_query`. On wasm32 (no
+//! `cargo test -p pandoras-forum-core --features final-ns --test social_query`. On wasm32 (no
 //! filesystem) it is a module of `social_vectors.rs`, which embeds the vector files.
 
 #![cfg(feature = "final-ns")]
 
 use std::path::PathBuf;
 
-use lessdugin_core::social::full::query::{
+use pandoras_forum_core::social::full::query::{
     CommentQuery, CommentSort, PostFilter, PostQuery, PostSort,
 };
-use lessdugin_core::social::full::{Query, fold_view, project};
-use lessdugin_core::social::input::FoldInput;
+use pandoras_forum_core::social::full::{Query, fold_view, project};
+use pandoras_forum_core::social::input::FoldInput;
 use serde_json::Value;
 // Natively this is a libtest test; on wasm32 the same body runs under wasm-bindgen-test in node.
 #[cfg(target_arch = "wasm32")]

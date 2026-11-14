@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// `lessdugin web` mode (threat-model §7): the CLI keeps the session; the tab holds only a
+// `pandoras-forum web` mode (threat-model §7): the CLI keeps the session; the tab holds only a
 // per-launch bridge session token, in sessionStorage.
 //
-// - Startup, before the router mounts: the `#lessdugin-cap=` capability (already removed from
+// - Startup, before the router mounts: the `#pandoras-forum-cap=` capability (already removed from
 //   the address bar by lib/bootParams.ts) is exchanged once at `POST /bridge/session` for the
 //   token (§7.2). Without a capability the tab reuses its token (a reload, or the return from a
 //   sign-in). A refused capability, or no token at all, stops the app with the §7.2 message.
@@ -12,18 +12,18 @@
 //   authorization URL; the CLI's callback sends the tab back to `/#/` (or
 //   `/#/login?error=<code>`).
 
-import type { SessionProvider } from "@lessdugin/engine/client";
-import { bridgeSession } from "@lessdugin/engine/client";
-import type { EngineError } from "@lessdugin/engine/types";
+import type { SessionProvider } from "@pandoras-forum/engine/client";
+import { bridgeSession } from "@pandoras-forum/engine/client";
+import type { EngineError } from "@pandoras-forum/engine/types";
 
 /** sessionStorage key of the tab's bridge token (§7.2). */
-export const BRIDGE_TOKEN_KEY = "lessdugin-bridge-token";
+export const BRIDGE_TOKEN_KEY = "pandoras-forum-bridge-token";
 
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 /** The §7.2 text for a capability that was refused, or a tab without a session. */
 export const LINK_USED_MESSAGE =
-  "This link was already used or has expired; open a fresh link from the terminal (press Enter where `lessdugin web` runs).";
+  "This link was already used or has expired; open a fresh link from the terminal (press Enter where `pandoras-forum web` runs).";
 
 /** The app cannot run: the tab has no bridge session. */
 export class BridgeLinkError extends Error {
@@ -72,10 +72,11 @@ export async function bridgeToken(
       credentials: "omit",
     });
     if (resp.status === 403 || resp.status === 401) throw new BridgeLinkError();
-    if (!resp.ok) throw new Error(`lessdugin web: /bridge/session answered HTTP ${resp.status}`);
+    if (!resp.ok)
+      throw new Error(`pandoras-forum web: /bridge/session answered HTTP ${resp.status}`);
     const { token } = (await resp.json()) as { token?: unknown };
     if (typeof token !== "string" || !TOKEN_RE.test(token)) {
-      throw new Error("lessdugin web: /bridge/session answered without a token");
+      throw new Error("pandoras-forum web: /bridge/session answered without a token");
     }
     storageSet(storage, BRIDGE_TOKEN_KEY, token);
     return token;
@@ -115,12 +116,15 @@ export async function bridgeLogin(
     // the status decides
   }
   if (resp.status === 401) {
-    throw engineError("auth_required", `The lessdugin web session ended. ${LINK_USED_MESSAGE}`);
+    throw engineError(
+      "auth_required",
+      `The pandoras-forum web session ended. ${LINK_USED_MESSAGE}`,
+    );
   }
   if (!resp.ok) {
     const message = typeof body.message === "string" ? body.message.slice(0, 500) : "";
     const code = typeof body.error === "string" ? (body.error as EngineError["code"]) : "internal";
-    throw engineError(code, message || `lessdugin web: sign-in failed (HTTP ${resp.status})`);
+    throw engineError(code, message || `pandoras-forum web: sign-in failed (HTTP ${resp.status})`);
   }
   if (typeof body.url !== "string") throw engineError("internal", "no authorization URL");
   const url = new URL(body.url);

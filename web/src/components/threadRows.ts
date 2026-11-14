@@ -5,7 +5,7 @@
 // comments per author per thread are expanded by default, in `(t_rank, uri)` order; the rest
 // collapse behind "show N more by @x". The limit is presentation only.
 
-import type { CommentNode } from "@lessdugin/engine/types";
+import type { CommentNode } from "@pandoras-forum/engine/types";
 import { ownNewcomerItem } from "../lib/lens.ts";
 
 export const MAX_INDENT = 6;

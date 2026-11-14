@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! [`TestRepo`]: a small in-memory atproto repository that produces signed commits, the MST and
-//! `com.atproto.sync.getRecord`-style proof CARs, using `lessdugin_atp`'s canonical MST builder
+//! `com.atproto.sync.getRecord`-style proof CARs, using `pandoras_forum_atp`'s canonical MST builder
 //! (`mst::build`) and commit encoder (`commit::UnsignedCommit`), signed with a k256 key.
 
 use std::collections::BTreeMap;
 
 use k256::ecdsa::signature::Signer as _;
 use k256::ecdsa::{Signature, SigningKey};
-use lessdugin_atp::Cid;
-use lessdugin_atp::car::write_car;
-use lessdugin_atp::commit::UnsignedCommit;
-use lessdugin_atp::crypto::PublicKey;
-use lessdugin_atp::mst::{self, Node};
-use lessdugin_atp::syntax::{Did, Tid};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::car::write_car;
+use pandoras_forum_atp::commit::UnsignedCommit;
+use pandoras_forum_atp::crypto::PublicKey;
+use pandoras_forum_atp::mst::{self, Node};
+use pandoras_forum_atp::syntax::{Did, Tid};
 use serde_json::Value;
 
 /// A TID for a time in microseconds (clock id 0).
@@ -100,7 +100,7 @@ impl TestRepo {
     /// Creates or replaces a record from atproto JSON; returns its CID. Panics on JSON that is not
     /// a valid record or a key that is not a valid repo path (test helper).
     pub fn put(&mut self, collection: &str, rkey: &str, value: &Value) -> Cid {
-        let cbor = lessdugin_atp::datamodel::record_to_cbor(value).expect("valid record JSON");
+        let cbor = pandoras_forum_atp::datamodel::record_to_cbor(value).expect("valid record JSON");
         self.put_cbor(collection, rkey, cbor)
     }
 
@@ -108,7 +108,7 @@ impl TestRepo {
     pub fn put_cbor(&mut self, collection: &str, rkey: &str, cbor: Vec<u8>) -> Cid {
         let p = path(collection, rkey);
         mst::validate_key(p.as_bytes()).expect("valid repo path");
-        let cid = lessdugin_atp::cid::for_dag_cbor(&cbor);
+        let cid = pandoras_forum_atp::cid::for_dag_cbor(&cbor);
         self.records.insert(p, cbor);
         cid
     }
@@ -122,13 +122,13 @@ impl TestRepo {
     pub fn cid(&self, collection: &str, rkey: &str) -> Option<Cid> {
         self.records
             .get(&path(collection, rkey))
-            .map(|b| lessdugin_atp::cid::for_dag_cbor(b))
+            .map(|b| pandoras_forum_atp::cid::for_dag_cbor(b))
     }
 
     /// A record as atproto JSON.
     pub fn get(&self, collection: &str, rkey: &str) -> Option<Value> {
         let b = self.records.get(&path(collection, rkey))?;
-        lessdugin_atp::datamodel::record_cbor_to_json(b).ok()
+        pandoras_forum_atp::datamodel::record_cbor_to_json(b).ok()
     }
 
     /// The record DAG-CBOR bytes.
@@ -140,7 +140,7 @@ impl TestRepo {
     pub fn entries(&self) -> Vec<(String, Cid)> {
         self.records
             .iter()
-            .map(|(p, b)| (p.clone(), lessdugin_atp::cid::for_dag_cbor(b)))
+            .map(|(p, b)| (p.clone(), pandoras_forum_atp::cid::for_dag_cbor(b)))
             .collect()
     }
 
@@ -194,7 +194,7 @@ impl TestRepo {
                     .records
                     .get(std::str::from_utf8(target).expect("utf-8 path"))
                     .expect("record");
-                blocks.push((lessdugin_atp::cid::for_dag_cbor(rec), rec.clone()));
+                blocks.push((pandoras_forum_atp::cid::for_dag_cbor(rec), rec.clone()));
                 break;
             }
             let next = if idx == 0 {
@@ -229,7 +229,7 @@ impl TestRepo {
         blocks.extend(
             self.records
                 .values()
-                .map(|b| (lessdugin_atp::cid::for_dag_cbor(b), b.clone())),
+                .map(|b| (pandoras_forum_atp::cid::for_dag_cbor(b), b.clone())),
         );
         write_car(&[commit.cid], blocks.iter().map(|(c, b)| (c, b.as_slice())))
     }
@@ -238,8 +238,8 @@ impl TestRepo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_atp::proof::{ProofCaps, ProofError, verify_record_proof};
-    use lessdugin_atp::syntax::{Nsid, RecordKey};
+    use pandoras_forum_atp::proof::{ProofCaps, ProofError, verify_record_proof};
+    use pandoras_forum_atp::syntax::{Nsid, RecordKey};
     use serde_json::json;
 
     const NOW_US: i64 = 1_760_000_000_000_000;
@@ -249,15 +249,15 @@ mod tests {
         let mut r = TestRepo::new(did, SigningKey::from_slice(&[7u8; 32]).unwrap());
         for i in 0..n {
             r.put(
-                "online.7778777.lessdugin.post",
+                "forum.pandoras.post",
                 &format!("aaaaaaaaaaaa-3l2s5xxv2z{i:03}"),
-                &json!({"$type": "online.7778777.lessdugin.post", "n": i}),
+                &json!({"$type": "forum.pandoras.post", "n": i}),
             );
         }
         r.put(
-            "online.7778777.lessdugin.profile",
+            "forum.pandoras.profile",
             "self",
-            &json!({"$type": "online.7778777.lessdugin.profile"}),
+            &json!({"$type": "forum.pandoras.profile"}),
         );
         r
     }
@@ -291,25 +291,18 @@ mod tests {
                     break;
                 }
                 let rkey = format!("aaaaaaaaaaaa-3l2s5xxv2z{i:03}");
-                let car = r.proof_car("online.7778777.lessdugin.post", &rkey, rev);
-                let cid = verify(&r, "online.7778777.lessdugin.post", &rkey, &car).unwrap();
-                assert_eq!(
-                    cid,
-                    r.cid("online.7778777.lessdugin.post", &rkey),
-                    "n={n} i={i}"
-                );
+                let car = r.proof_car("forum.pandoras.post", &rkey, rev);
+                let cid = verify(&r, "forum.pandoras.post", &rkey, &car).unwrap();
+                assert_eq!(cid, r.cid("forum.pandoras.post", &rkey), "n={n} i={i}");
             }
             // absence proofs, before, between and after existing keys
             for rkey in ["aaaaaaaaaaaa-0", "aaaaaaaaaaaa-3l2s5xxv2z000x", "zzzz"] {
-                let car = r.proof_car("online.7778777.lessdugin.post", rkey, rev);
-                assert_eq!(
-                    verify(&r, "online.7778777.lessdugin.post", rkey, &car).unwrap(),
-                    None
-                );
+                let car = r.proof_car("forum.pandoras.post", rkey, rev);
+                assert_eq!(verify(&r, "forum.pandoras.post", rkey, &car).unwrap(), None);
             }
-            let car = r.proof_car("online.7778777.lessdugin.profile", "self", rev);
+            let car = r.proof_car("forum.pandoras.profile", "self", rev);
             assert!(
-                verify(&r, "online.7778777.lessdugin.profile", "self", &car)
+                verify(&r, "forum.pandoras.profile", "self", &car)
                     .unwrap()
                     .is_some()
             );
@@ -334,7 +327,8 @@ mod tests {
         // full CAR holds everything
         let car = r.full_car(tid_at_micros(NOW_US));
         let parsed =
-            lessdugin_atp::car::read_car(&car, &lessdugin_atp::car::CarLimits::PROOF).unwrap();
+            pandoras_forum_atp::car::read_car(&car, &pandoras_forum_atp::car::CarLimits::PROOF)
+                .unwrap();
         assert_eq!(parsed.blocks.len(), 1 + c.nodes.len() + r.len());
     }
 
@@ -344,15 +338,15 @@ mod tests {
         let rkey = "aaaaaaaaaaaa-3l2s5xxv2z004";
         let other = SigningKey::from_slice(&[9u8; 32]).unwrap();
         let commit = r.commit_signed_by(tid_at_micros(NOW_US), &other);
-        let car = r.proof_car_for("online.7778777.lessdugin.post", rkey, &commit);
-        let err = verify(&r, "online.7778777.lessdugin.post", rkey, &car).unwrap_err();
+        let car = r.proof_car_for("forum.pandoras.post", rkey, &commit);
+        let err = verify(&r, "forum.pandoras.post", rkey, &car).unwrap_err();
         assert!(matches!(
             *err,
-            ProofError::Commit(lessdugin_atp::commit::CommitError::Signature(_))
+            ProofError::Commit(pandoras_forum_atp::commit::CommitError::Signature(_))
         ));
-        let mut car = r.proof_car("online.7778777.lessdugin.post", rkey, tid_at_micros(NOW_US));
+        let mut car = r.proof_car("forum.pandoras.post", rkey, tid_at_micros(NOW_US));
         let last = car.len() - 1;
         car[last] ^= 1;
-        assert!(verify(&r, "online.7778777.lessdugin.post", rkey, &car).is_err());
+        assert!(verify(&r, "forum.pandoras.post", rkey, &car).is_err());
     }
 }

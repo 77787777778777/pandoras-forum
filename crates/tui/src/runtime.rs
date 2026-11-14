@@ -10,7 +10,7 @@
 //!   are restored afterwards and the screen redrawn.
 //! - Images (`crate::image`) are decoded and resized on worker threads, which wake the loop
 //!   with [`Action::ImagesReady`]. The terminal's graphics protocol is queried once, before the
-//!   input reader starts, and only when the environment (or `LESSDUGIN_TUI_IMAGES`) says the
+//!   input reader starts, and only when the environment (or `PANDORAS_FORUM_TUI_IMAGES`) says the
 //!   terminal answers such queries; the answer is read with a bounded poll, so nothing but the
 //!   input reader ever reads stdin, and keys typed around the answer are kept
 //!   (`crate::image`'s module docs).
@@ -31,10 +31,10 @@ use crossterm::terminal::{
 };
 use crossterm::{cursor, execute};
 use futures::FutureExt as _;
-use lessdugin_core::dto::AccountView;
-use lessdugin_core::engine::Engine;
-use lessdugin_core::host::Host;
-use lessdugin_core::outbox::Session;
+use pandoras_forum_core::dto::AccountView;
+use pandoras_forum_core::engine::Engine;
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::outbox::Session;
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 use ratatui_image::picker::Picker;
@@ -63,7 +63,7 @@ pub struct Options {
 pub struct Report {
     /// Writes still queued at exit (sent by the next command that writes).
     pub queued_writes: usize,
-    /// Writes that failed (sent again only by `lessdugin outbox retry`).
+    /// Writes that failed (sent again only by `pandoras-forum outbox retry`).
     pub failed_writes: usize,
 }
 

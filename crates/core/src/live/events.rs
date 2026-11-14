@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_lexicon::collection::{Collection, nsid};
+use pandoras_forum_lexicon::collection::{Collection, nsid};
 
 use crate::sync::Priority;
 

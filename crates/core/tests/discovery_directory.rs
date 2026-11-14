@@ -6,15 +6,15 @@
 mod common;
 
 use common::block_on;
-use lessdugin_atp::syntax::Datetime;
-use lessdugin_core::discovery::sources::LIST_REPOS_BY_COLLECTION;
-use lessdugin_core::dto::ForumSummary;
-use lessdugin_core::engine::{Engine, EngineConfig, IndexerConsent, Sources};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::Forum;
-use lessdugin_lexicon::values::MembershipMode;
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::{FakeNet, MemHost, identity, resp};
+use pandoras_forum_atp::syntax::Datetime;
+use pandoras_forum_core::discovery::sources::LIST_REPOS_BY_COLLECTION;
+use pandoras_forum_core::dto::ForumSummary;
+use pandoras_forum_core::engine::{Engine, EngineConfig, IndexerConsent, Sources};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::Forum;
+use pandoras_forum_lexicon::values::MembershipMode;
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::{FakeNet, MemHost, identity, resp};
 use serde_json::{Value, json};
 use url::Url;
 
@@ -23,7 +23,7 @@ const INDEX: &str = "https://index.example.com";
 fn endpoint(method: &str) -> String {
     format!(
         "{INDEX}/xrpc/{}",
-        lessdugin_core::indexer::contract::method_nsid(method)
+        pandoras_forum_core::indexer::contract::method_nsid(method)
     )
 }
 
@@ -56,8 +56,10 @@ fn indexer(host: &MemHost, uris: Vec<String>) {
     describe(host);
     host.on_get(&endpoint("listForums"), move |req| {
         let url = match &req.target {
-            lessdugin_core::host::Target::Anon(url) => url,
-            lessdugin_core::host::Target::UserPds { .. } => panic!("indexer call with credentials"),
+            pandoras_forum_core::host::Target::Anon(url) => url,
+            pandoras_forum_core::host::Target::UserPds { .. } => {
+                panic!("indexer call with credentials")
+            }
         };
         let at: usize = url
             .query_pairs()

@@ -2,7 +2,7 @@
 // The write store: seeding from `writes()`, and `settle`, which lets a composer go once a write
 // waits in the outbox instead of spinning until it is sent (robustness review H3).
 
-import type { WriteTicket } from "@lessdugin/engine/types";
+import type { WriteTicket } from "@pandoras-forum/engine/types";
 import { describe, expect, it } from "vitest";
 import { canSendNow, QUEUED_AFTER_MS, WriteStore, waitingText } from "./writes.ts";
 
@@ -166,7 +166,7 @@ describe("WriteStore", () => {
     const now = 1_800_000_000_000;
     const values = new Map<string, string>([
       [
-        "lessdugin.adoptionReports.acknowledged.v1",
+        "pandoras-forum.adoptionReports.acknowledged.v1",
         JSON.stringify([
           { id: `${A}/expired`, acknowledgedAtMs: now - 30 * DAY },
           { id: `${A}/fresh`, acknowledgedAtMs: now - 30 * DAY + 1 },

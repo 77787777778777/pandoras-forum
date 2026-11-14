@@ -3,7 +3,7 @@
 // following at each step the parent with the greatest depth, and the count of unmerged edits.
 // Each revision links to its raw record, which shows its text.
 
-import type { ActorView } from "@lessdugin/engine/types";
+import type { ActorView } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { shortDid } from "../../components/AccountName.tsx";

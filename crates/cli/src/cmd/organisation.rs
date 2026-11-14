@@ -6,13 +6,13 @@
 
 use std::path::Path;
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     BodyDraft, DTO_VERSION, ForumRole, PostSummary, SearchItem, SearchQuery, SequenceDraft,
     SequencePosition, SequenceSummary, SequenceView, TagSummary, TagView, UserView, WikiDraft,
     WriteState,
 };
-use lessdugin_core::engine::{Engine, EngineError, ErrorCode};
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineError, ErrorCode};
+use pandoras_forum_native::host::NativeHost;
 use serde::Serialize;
 
 use crate::args::{
@@ -113,7 +113,7 @@ fn print_posts(ctx: &Ctx, heading: &'static str, posts: &[PostSummary]) {
     }
 }
 
-/// `lessdugin search <text>`: only the local synced cache is inspected.
+/// `pandoras-forum search <text>`: only the local synced cache is inspected.
 pub async fn search(ctx: &Ctx, args: SearchArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let forum = match args.forum.as_deref() {
@@ -197,7 +197,7 @@ fn print_user(ctx: &Ctx, view: &UserView) {
     }
 }
 
-/// `lessdugin user <actor> [--forum <forum>]`.
+/// `pandoras-forum user <actor> [--forum <forum>]`.
 pub async fn user(ctx: &Ctx, args: UserArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let forum = match args.forum.as_deref() {
@@ -232,7 +232,7 @@ fn print_tag_summary(ctx: &Ctx, tag: &TagSummary) {
     }
 }
 
-/// `lessdugin tag [slug] [--forum <forum>]`.
+/// `pandoras-forum tag [slug] [--forum <forum>]`.
 pub async fn tag(ctx: &Ctx, args: TagArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let forum = refs::forum_or_current(ctx, &engine, args.forum.as_deref()).await?;
@@ -311,7 +311,7 @@ fn shown_wiki_head(ctx: &Ctx, forum: &str, slug: &str, head: &str) {
     }
 }
 
-/// `lessdugin wiki edit …`.
+/// `pandoras-forum wiki edit …`.
 ///
 /// The edit names the head it was made against (`WikiDraft.base`, decision O-2): `--base`, else
 /// the head `tag <slug>` last showed in this terminal (or its last `wiki edit` of the page
@@ -457,7 +457,7 @@ fn head_moved_error(
         None => message.push_str("your text was not kept. "),
     }
     message.push_str(&format!(
-        "Reload the page with `lessdugin tag {slug}`, redo your edit on it, then run `lessdugin \
+        "Reload the page with `pandoras-forum tag {slug}`, redo your edit on it, then run `pandoras-forum \
          wiki edit {slug} --base {} --file <your file> …` again",
         head.as_deref().unwrap_or("<the revision it shows>")
     ));
@@ -479,15 +479,15 @@ fn keep_stdin_text(
 ) -> std::io::Result<std::path::PathBuf> {
     let drafts = draft::Drafts::new(ctx);
     let dir = ctx.paths.drafts_dir().join("wiki");
-    lessdugin_native::fsutil::ensure_private_dir(&ctx.paths.drafts_dir())?;
-    lessdugin_native::fsutil::ensure_private_dir(&dir)?;
+    pandoras_forum_native::fsutil::ensure_private_dir(&ctx.paths.drafts_dir())?;
+    pandoras_forum_native::fsutil::ensure_private_dir(&dir)?;
     let path = loop {
         let path = dir.join(format!("{}.md", drafts.new_id(engine.host())));
         if !path.exists() {
             break path;
         }
     };
-    lessdugin_native::fsutil::write_private_atomic(&path, markdown.as_bytes())?;
+    pandoras_forum_native::fsutil::write_private_atomic(&path, markdown.as_bytes())?;
     Ok(path)
 }
 
@@ -567,7 +567,7 @@ fn print_sequence(ctx: &Ctx, view: &SequenceView) {
     }
 }
 
-/// `lessdugin sequence …`.
+/// `pandoras-forum sequence …`.
 pub async fn sequence(ctx: &Ctx, args: SequenceArgs) -> Result<(), CliError> {
     match args.action {
         SequenceAction::Ls { forum } => {
@@ -699,7 +699,7 @@ mod tests {
     #[test]
     fn organisation_commands_dispatch() {
         let cli = Cli::try_parse_from([
-            "lessdugin",
+            "pandoras-forum",
             "search",
             "borrowed",
             "--forum",
@@ -717,10 +717,10 @@ mod tests {
         assert_eq!(args.limit, 7);
 
         let cli = Cli::try_parse_from([
-            "lessdugin",
+            "pandoras-forum",
             "sequence",
             "move",
-            "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.sequence/s1",
+            "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.sequence/s1",
             "--chapter",
             "1",
             "--index",
@@ -749,7 +749,7 @@ mod tests {
         );
 
         let cli = Cli::try_parse_from([
-            "lessdugin",
+            "pandoras-forum",
             "wiki",
             "edit",
             "rust",
@@ -773,7 +773,7 @@ mod tests {
     fn sequence_drafts_are_typed_and_errors_stay_errors() {
         let draft = parse_sequence_draft(
             r#"{
-                "forum":"at://did:plc:a/online.7778777.lessdugin.forum/meta",
+                "forum":"at://did:plc:a/forum.pandoras.forum/meta",
                 "title":"Reading",
                 "body":{"markdown":"Introduction"},
                 "chapters":[{"title":"One","posts":[],"body":{"markdown":"Chapter"}}]

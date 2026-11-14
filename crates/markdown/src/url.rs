@@ -406,7 +406,7 @@ pub fn short_did(did: &str) -> String {
 
 /// Hover-preview eligibility for a record link (§5.3): the collection must be one of
 /// `NS.post`, `NS.comment`, `NS.sequence`, `NS.wikiRevision` or `NS.forum` for the build's `ns`
-/// (`online.7778777.lessdugin` or its `.temp` development variant). DID links (`a[data-did]`)
+/// (`forum.pandoras` or its `.temp` development variant). DID links (`a[data-did]`)
 /// are always eligible for a user card.
 pub fn preview_eligible(uri: &AtUri, ns: &str) -> bool {
     let col = at::collection(uri);
@@ -844,7 +844,7 @@ mod tests {
         ));
         assert!(matches!(
             safe_href(
-                &format!("at://{d}/online.7778777.lessdugin.post/3k2a"),
+                &format!("at://{d}/forum.pandoras.post/3k2a"),
                 HrefCtx::Markdown
             ),
             Some(Href::Record { .. })
@@ -1102,32 +1102,12 @@ mod tests {
         };
         let d = "did:plc:abcdefghijklmnopqrstuvwx";
         for (nsid, ns, want) in [
-            (
-                "online.7778777.lessdugin.post",
-                "online.7778777.lessdugin",
-                true,
-            ),
-            (
-                "online.7778777.lessdugin.wikiRevision",
-                "online.7778777.lessdugin",
-                true,
-            ),
-            (
-                "online.7778777.lessdugin.temp.comment",
-                "online.7778777.lessdugin.temp",
-                true,
-            ),
-            (
-                "online.7778777.lessdugin.temp.comment",
-                "online.7778777.lessdugin",
-                false,
-            ),
-            (
-                "online.7778777.lessdugin.vote",
-                "online.7778777.lessdugin",
-                false,
-            ),
-            ("app.bsky.feed.post", "online.7778777.lessdugin", false),
+            ("forum.pandoras.post", "forum.pandoras", true),
+            ("forum.pandoras.wikiRevision", "forum.pandoras", true),
+            ("forum.pandoras.temp.comment", "forum.pandoras.temp", true),
+            ("forum.pandoras.temp.comment", "forum.pandoras", false),
+            ("forum.pandoras.vote", "forum.pandoras", false),
+            ("app.bsky.feed.post", "forum.pandoras", false),
         ] {
             assert_eq!(
                 preview_eligible(&ok(&format!("at://{d}/{nsid}/x")), ns),

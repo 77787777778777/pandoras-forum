@@ -1,11 +1,10 @@
 ---
 source: crates/cli/tests/content.rs
-assertion_line: 314
 expression: "redact(&users, &anon.ok(&[\"read\", \"1\"]))"
 ---
 Bob asks
 @bob.test · <time> · 1 comment · 1 point · question
-at://<bob>/online.7778777.lessdugin.temp.post/kdjl3qv6jmgz-<tid>
+at://<bob>/forum.pandoras.temp.post/62kyx7hhvwrb-<tid>
 
 Bob's question body.
 

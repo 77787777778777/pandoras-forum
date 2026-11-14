@@ -19,8 +19,8 @@
 
 use std::sync::Arc;
 
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_atp::xrpc::CommitMeta;
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::xrpc::CommitMeta;
 use serde_json::Value;
 
 use crate::engine::EngineError;
@@ -144,7 +144,7 @@ pub async fn apply_own_write<K: KvStore>(
     if let Some(cid) = w
         .commit
         .as_deref()
-        .and_then(|c| lessdugin_atp::Cid::try_from(c).ok())
+        .and_then(|c| pandoras_forum_atp::Cid::try_from(c).ok())
     {
         repo.observe_head(&w.rev, cid, w.sent_at);
     }

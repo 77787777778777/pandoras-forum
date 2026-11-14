@@ -22,25 +22,27 @@
 //! P9 (native equals wasm) is `social_parity.rs`; the performance budget is `social_perf.rs`.
 //! `generator_coverage_report` (ignored; `--ignored --nocapture`) prints how often the generated
 //! forums reach each state, mod-log status and hypothesis.
-//! Any namespace build: `cargo test -p lessdugin-core --test social_props` (cases:
+//! Any namespace build: `cargo test -p pandoras-forum-core --test social_props` (cases:
 //! `PROPTEST_CASES`).
 
 mod social_gen;
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::{AtUri, Did, Tid};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::model::ForumModel;
-use lessdugin_core::social::full::karma::{Karma, strong};
-use lessdugin_core::social::full::visibility::{Lensed, lens};
-use lessdugin_core::social::full::{ForumView, Query};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_core::social::threads::{Node, Parent, ThreadComment, place};
-use lessdugin_core::store::admit::{Expect, LexiconValidator, admit_value};
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_core::store::{Delete, DeleteEvidence, Observation, OrderKey, RecordStore, RepoRow};
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_atp::syntax::{AtUri, Did, Tid};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::model::ForumModel;
+use pandoras_forum_core::social::full::karma::{Karma, strong};
+use pandoras_forum_core::social::full::visibility::{Lensed, lens};
+use pandoras_forum_core::social::full::{ForumView, Query};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_core::social::threads::{Node, Parent, ThreadComment, place};
+use pandoras_forum_core::store::admit::{Expect, LexiconValidator, admit_value};
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_core::store::{
+    Delete, DeleteEvidence, Observation, OrderKey, RecordStore, RepoRow,
+};
+use pandoras_forum_lexicon::ns::NS;
 use proptest::prelude::*;
 use proptest::test_runner::{Config, TestRng, TestRunner};
 use serde_json::{Value, json};
@@ -74,10 +76,10 @@ fn fold_all(f: &Forum, q: &Query) -> (FoldInput, ForumView) {
 /// Every projected field (`testdata/vectors/README.md`) as JSON values (objects compare as
 /// maps, arrays in order).
 fn projection(v: &ForumView) -> BTreeMap<&'static str, Value> {
-    lessdugin_core::social::full::project::FIELDS
+    pandoras_forum_core::social::full::project::FIELDS
         .iter()
         .map(|f| {
-            let x = lessdugin_core::social::full::project(v, f)
+            let x = pandoras_forum_core::social::full::project(v, f)
                 .unwrap_or_else(|e| json!(format!("{e:?}")));
             (*f, x)
         })
@@ -102,7 +104,7 @@ fn edit_values(f: &Forum, keep_cid: bool, mut edit: impl FnMut(&Rec, &mut Value)
         edit(r, &mut v);
         if v != r.value {
             if !keep_cid {
-                r.cid = lessdugin_atp::datamodel::record_cid(&v)
+                r.cid = pandoras_forum_atp::datamodel::record_cid(&v)
                     .unwrap()
                     .to_string();
             }
@@ -1015,7 +1017,7 @@ fn p7_holds_for_an_invalid_record_at_a_root_uri() {
     assert_eq!(karma(&vi).k_of(&member), 1);
     assert_eq!(
         vi2.visibility.as_ref().unwrap().states.get(&c),
-        Some(&lessdugin_core::social::full::State::Visible)
+        Some(&pandoras_forum_core::social::full::State::Visible)
     );
     // the generated property keeps such a record in R, and P7 holds for it
     assert_eq!(sybil_records(&f, &i, &vi, &r), r);
@@ -1082,7 +1084,7 @@ impl Refold {
         let mut f = self.forum.clone();
         f.deleted = self.tombstones.clone();
         let listed = |u: &str| {
-            let Ok((did, coll, rkey)) = lessdugin_lexicon::keys::split_uri(u) else {
+            let Ok((did, coll, rkey)) = pandoras_forum_lexicon::keys::split_uri(u) else {
                 return false;
             };
             let ranged = [
@@ -1247,7 +1249,7 @@ fn block_on<F: std::future::Future>(f: F) -> F::Output {
 }
 
 /// `value` at `uri` with CID `cid`, through the sync layer's admission (`sync.md` §5.5).
-fn admitted(uri: &str, cid: &str, value: &Value) -> lessdugin_core::store::AdmittedRecord {
+fn admitted(uri: &str, cid: &str, value: &Value) -> pandoras_forum_core::store::AdmittedRecord {
     let at = AtUri::parse(uri).unwrap();
     let did = Did::parse(at.did().as_str()).unwrap();
     let expect = Expect {
@@ -1277,7 +1279,7 @@ fn change_stream(f: &Forum, rng: &mut Rng) -> Vec<Change> {
         if rng.chance(1, 6) {
             let mut old = r.clone();
             old.value["createdAt"] = json!(social_gen::at(1));
-            old.cid = lessdugin_atp::datamodel::record_cid(&old.value)
+            old.cid = pandoras_forum_atp::datamodel::record_cid(&old.value)
                 .unwrap()
                 .to_string();
             ch.push(Change::Put(old));
@@ -1297,7 +1299,7 @@ fn change_stream(f: &Forum, rng: &mut Rng) -> Vec<Change> {
             json!({"$type": coll, "forum": f.uri, "title": "gone", "createdAt": social_gen::at(0)});
         let rec = Rec {
             uri: u.clone(),
-            cid: lessdugin_atp::datamodel::record_cid(&value)
+            cid: pandoras_forum_atp::datamodel::record_cid(&value)
                 .unwrap()
                 .to_string(),
             value,
@@ -1584,11 +1586,13 @@ fn generator_coverage_report() {
         let vis = v.visibility.as_ref().unwrap();
         for st in vis.displayed.values() {
             let name = match st {
-                lessdugin_core::social::full::State::Hidden(r) => format!("Hidden({})", r.name()),
-                lessdugin_core::social::full::State::Tombstone(r) => {
+                pandoras_forum_core::social::full::State::Hidden(r) => {
+                    format!("Hidden({})", r.name())
+                }
+                pandoras_forum_core::social::full::State::Tombstone(r) => {
                     format!("Tombstone({})", r.name())
                 }
-                lessdugin_core::social::full::State::Collapsed(r) => {
+                pandoras_forum_core::social::full::State::Collapsed(r) => {
                     format!("Collapsed({})", r.name())
                 }
                 other => format!("{other:?}"),
@@ -1773,12 +1777,12 @@ proptest! {
         if rng.chance(1, 3) {
             let mut h = g.clone();
             mangle(&mut h.decl, &mut rng, &f, 1);
-            let v = lessdugin_core::social::full::fold_view(&h.input(), &Query::default());
-            let (ok, _) = lessdugin_core::social::full::lexicon_validity(&h.uri, &h.decl);
+            let v = pandoras_forum_core::social::full::fold_view(&h.input(), &Query::default());
+            let (ok, _) = pandoras_forum_core::social::full::lexicon_validity(&h.uri, &h.decl);
             prop_assert_eq!(v.is_ok(), ok, "{}", h.decl);
         }
         let input = g.input();
-        let v = lessdugin_core::social::full::fold_view(&input, &Query::default());
+        let v = pandoras_forum_core::social::full::fold_view(&input, &Query::default());
         let v = match v {
             Ok(v) => v,
             Err(e) => return Err(TestCaseError::fail(format!("the fold rejected a well-formed input: {e}"))),
@@ -1788,7 +1792,7 @@ proptest! {
         let vis = v.visibility.as_ref().unwrap();
         for uri in v.raw.invalid.keys() {
             if g.get(uri).is_some_and(|r| r.kind.is_item()) {
-                prop_assert_eq!(vis.states.get(uri), Some(&lessdugin_core::social::full::State::Excluded));
+                prop_assert_eq!(vis.states.get(uri), Some(&pandoras_forum_core::social::full::State::Excluded));
                 prop_assert!(!v.scores.as_ref().unwrap().contains_key(uri));
             }
             prop_assert!(!k.counting.contains(uri));

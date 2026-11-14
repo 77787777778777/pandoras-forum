@@ -3,7 +3,7 @@
 //! copies the kept crash reproducers (`fuzz/regressions/<target>/`) into them.
 //!
 //! ```text
-//! lessdugin-fuzz-seeds <corpus-root> [target…]     (default: every target)
+//! pandoras-forum-fuzz-seeds <corpus-root> [target…]     (default: every target)
 //! ```
 //!
 //! Each seed is written as `<corpus-root>/<target>/seed-<sha256 prefix>` unless it exists, so
@@ -28,11 +28,11 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use k256::ecdsa::signature::Signer as _;
-use lessdugin_atp::car::{CarLimits, read_car, write_car};
-use lessdugin_atp::commit::UnsignedCommit;
-use lessdugin_atp::datamodel::{self, Limits};
-use lessdugin_atp::syntax::{Did, Tid};
-use lessdugin_atp::{Cid, Ipld, cid, dagcbor, mst};
+use pandoras_forum_atp::car::{CarLimits, read_car, write_car};
+use pandoras_forum_atp::commit::UnsignedCommit;
+use pandoras_forum_atp::datamodel::{self, Limits};
+use pandoras_forum_atp::syntax::{Did, Tid};
+use pandoras_forum_atp::{Cid, Ipld, cid, dagcbor, mst};
 use serde_json::Value;
 
 const TARGETS: &[&str] = &[
@@ -139,8 +139,8 @@ fn generated_cars() -> Vec<Vec<u8>> {
     let keys = [
         "app.bsky.feed.post/self",
         "app.bsky.feed.post/3k2akbibjhm2a",
-        "online.7778777.lessdugin.temp.post/self",
-        "online.7778777.lessdugin.temp.comment/3jzfcijpj2z2a",
+        "forum.pandoras.temp.post/self",
+        "forum.pandoras.temp.comment/3jzfcijpj2z2a",
         "app.bsky.actor.profile/self",
         "a.b.c/self",
         "a.b.c/x",
@@ -297,14 +297,14 @@ fn records_in(v: &Value, out: &mut Vec<Value>, known: &BTreeSet<String>) {
 
 /// The text with every final-namespace NSID moved to the build namespace.
 fn to_build(s: &str) -> String {
-    let fin = format!("{}.", lessdugin_lexicon::ns::NS_FINAL);
-    let build = format!("{}.", lessdugin_lexicon::ns::NS);
+    let fin = format!("{}.", pandoras_forum_lexicon::ns::NS_FINAL);
+    let build = format!("{}.", pandoras_forum_lexicon::ns::NS);
     s.replace(&fin, &build)
         .replace(&format!("{build}temp."), &build)
 }
 
 fn seeds_lexicon() -> Vec<Vec<u8>> {
-    let known: BTreeSet<String> = lessdugin_lexicon::schemas::registry()
+    let known: BTreeSet<String> = pandoras_forum_lexicon::schemas::registry()
         .record_nsids()
         .into_iter()
         .map(str::to_owned)
@@ -414,7 +414,7 @@ fn seeds_render() -> Vec<Vec<u8>> {
     out
 }
 
-/// The media strippers' formats (`lessdugin_core::media`, `threat-model.md` §5.9.1), each with
+/// The media strippers' formats (`pandoras_forum_core::media`, `threat-model.md` §5.9.1), each with
 /// the segments, chunks or boxes the walk drops or keeps, so that libFuzzer starts inside every
 /// walker rather than at the format sniff.
 fn seeds_media() -> Vec<Vec<u8>> {
@@ -522,7 +522,7 @@ fn regressions(target: &str) -> Vec<Vec<u8>> {
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let Some(corpus) = args.first() else {
-        eprintln!("usage: lessdugin-fuzz-seeds <corpus-root> [target…]");
+        eprintln!("usage: pandoras-forum-fuzz-seeds <corpus-root> [target…]");
         std::process::exit(2);
     };
     let targets: Vec<&str> = if args.len() > 1 {

@@ -3,7 +3,7 @@
 // clients against the devnet, every client in parity mode with the same fixed `now`
 // (engine-api.md §2.1):
 //
-//   1. alice, CLI (`lessdugin --dev`): creates an approval-mode forum and approves bob and carol;
+//   1. alice, CLI (`pandoras-forum --dev`): creates an approval-mode forum and approves bob and carol;
 //   2. bob, SPA (this browser, OAuth at the devnet PDS): joins and posts;
 //   3. carol, TUI (crates/tui/examples/parity_driver.rs, the headless TUI over the session the
 //      CLI's `login` stored): opens the forum and the post, presses `c`, writes in $EDITOR;
@@ -47,7 +47,7 @@
 // comment and the direct ones do not; in approval mode an applicant's content is never shown.
 //
 // Indexer (M6, plan §4.2 "indexer on and off"; decision U-D2): in the assisted variants
-// `lessdugin-indexer --poll` follows the devnet from step 1 on. After the readers above, three
+// `pandoras-forum-indexer --poll` follows the devnet from step 1 on. After the readers above, three
 // more fresh readers (CLI, TUI, SPA) are configured with that indexer (configuration consent,
 // sync.md §2.4) and no prior sync: the TUI and the SPA hydrate their cold forum page through
 // the indexer's ordering and proof bundles. The SPA's cold page is read while every range
@@ -58,12 +58,12 @@
 // must equal the indexer-off views byte for byte once the provenance badges (verified, hint,
 // stale) are removed.
 //
-// Needs the `lessdugin` binary (LESSDUGIN_BIN, default target/debug/lessdugin), the TUI
-// driver (LESSDUGIN_TUI_DRIVER, default target/debug/examples/parity_driver), the devnet
-// services (LESSDUGIN_DEVNET_SERVICES, default target/debug/examples/devnet_services) and the
-// indexer (LESSDUGIN_INDEXER_BIN, default target/debug/lessdugin-indexer). `cargo xtask e2e
+// Needs the `pandoras-forum` binary (PANDORAS_FORUM_BIN, default target/debug/pandoras-forum), the TUI
+// driver (PANDORAS_FORUM_TUI_DRIVER, default target/debug/examples/parity_driver), the devnet
+// services (PANDORAS_FORUM_DEVNET_SERVICES, default target/debug/examples/devnet_services) and the
+// indexer (PANDORAS_FORUM_INDEXER_BIN, default target/debug/pandoras-forum-indexer). `cargo xtask e2e
 // --parity` builds everything and runs this test alone (packages/e2e/README.md). Without the
-// binaries the test is skipped, except under CI or LESSDUGIN_PARITY_REQUIRED=1, where it fails.
+// binaries the test is skipped, except under CI or PANDORAS_FORUM_PARITY_REQUIRED=1, where it fails.
 
 import { type ChildProcess, execFile, spawn, spawnSync } from "node:child_process";
 import {
@@ -98,13 +98,14 @@ import { e2eState, route, signIn, watchStrict, withDevnet } from "./state.ts";
 
 const s = e2eState();
 const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const BIN = process.env.LESSDUGIN_BIN ?? join(ROOT, "target/debug/lessdugin");
+const BIN = process.env.PANDORAS_FORUM_BIN ?? join(ROOT, "target/debug/pandoras-forum");
 const DRIVER =
-  process.env.LESSDUGIN_TUI_DRIVER ?? join(ROOT, "target/debug/examples/parity_driver");
+  process.env.PANDORAS_FORUM_TUI_DRIVER ?? join(ROOT, "target/debug/examples/parity_driver");
 const SERVICES =
-  process.env.LESSDUGIN_DEVNET_SERVICES ?? join(ROOT, "target/debug/examples/devnet_services");
-const INDEXER = process.env.LESSDUGIN_INDEXER_BIN ?? join(ROOT, "target/debug/lessdugin-indexer");
-const REQUIRED = Boolean(process.env.CI) || process.env.LESSDUGIN_PARITY_REQUIRED === "1";
+  process.env.PANDORAS_FORUM_DEVNET_SERVICES ?? join(ROOT, "target/debug/examples/devnet_services");
+const INDEXER =
+  process.env.PANDORAS_FORUM_INDEXER_BIN ?? join(ROOT, "target/debug/pandoras-forum-indexer");
+const REQUIRED = Boolean(process.env.CI) || process.env.PANDORAS_FORUM_PARITY_REQUIRED === "1";
 const MISSING = [BIN, DRIVER, SERVICES, INDEXER].filter((p) => !existsSync(p));
 
 const FORUM_NAME = "Parity scenario";
@@ -256,7 +257,7 @@ async function freePort(): Promise<number> {
   });
 }
 
-/** `lessdugin-indexer --poll <pds> --forum <forum>` (M6): follows the devnet PDS. */
+/** `pandoras-forum-indexer --poll <pds> --forum <forum>` (M6): follows the devnet PDS. */
 class Indexer {
   private constructor(
     readonly url: string,
@@ -300,21 +301,22 @@ class Indexer {
     const deadline = Date.now() + 60_000;
     for (;;) {
       if (child.exitCode !== null)
-        throw new Error(`lessdugin-indexer exited with ${child.exitCode}`);
+        throw new Error(`pandoras-forum-indexer exited with ${child.exitCode}`);
       const up = await fetch(`${url}/_health`).then(
         (r) => r.ok,
         () => false,
       );
       if (up) return new Indexer(url, child);
-      if (Date.now() > deadline) throw new Error("lessdugin-indexer did not start within 60 s");
+      if (Date.now() > deadline)
+        throw new Error("pandoras-forum-indexer did not start within 60 s");
       await new Promise((r) => setTimeout(r, 200));
     }
   }
 
-  /** `lessdugin_indexer_http_requests_total` (this request included). */
+  /** `pandoras_forum_indexer_http_requests_total` (this request included). */
   async requests(): Promise<number> {
     const text = await (await fetch(`${this.url}/metrics`)).text();
-    const m = /^lessdugin_indexer_http_requests_total (\d+)$/m.exec(text);
+    const m = /^pandoras_forum_indexer_http_requests_total (\d+)$/m.exec(text);
     if (!m) throw new Error(`no request counter in the indexer metrics:\n${text}`);
     return Number(m[1]);
   }
@@ -478,7 +480,7 @@ function coldPageProblems(cold: string, off: string): string[] {
   return problems;
 }
 
-/** One client user: a data directory and the environment of `lessdugin --dev` (and of the TUI
+/** One client user: a data directory and the environment of `pandoras-forum --dev` (and of the TUI
  * driver, which opens the engine the same way). */
 class User {
   readonly env: NodeJS.ProcessEnv;
@@ -520,27 +522,27 @@ class User {
     );
     const env: NodeJS.ProcessEnv = {};
     for (const [k, v] of Object.entries(process.env)) {
-      if (k.startsWith("LESSDUGIN_")) continue;
+      if (k.startsWith("PANDORAS_FORUM_")) continue;
       if (["RUST_LOG", "VISUAL", "EDITOR", "BROWSER"].includes(k)) continue;
       env[k] = v;
     }
     Object.assign(env, {
-      LESSDUGIN_DATA_DIR: dir,
-      LESSDUGIN_KEYRING: "off",
-      LESSDUGIN_PLC_URL: s.devnet.plc,
-      LESSDUGIN_PDS_URL: s.devnet.pds,
-      LESSDUGIN_SESSION: "parity",
-      LESSDUGIN_PARITY_NOW_MS: String(parityNowMs),
+      PANDORAS_FORUM_DATA_DIR: dir,
+      PANDORAS_FORUM_KEYRING: "off",
+      PANDORAS_FORUM_PLC_URL: s.devnet.plc,
+      PANDORAS_FORUM_PDS_URL: s.devnet.pds,
+      PANDORAS_FORUM_SESSION: "parity",
+      PANDORAS_FORUM_PARITY_NOW_MS: String(parityNowMs),
       NO_COLOR: "1",
     });
     this.env = env;
   }
 
-  /** `lessdugin --dev <args>`; must succeed. */
+  /** `pandoras-forum --dev <args>`; must succeed. */
   async cli(label: string, args: string[], input?: string): Promise<string> {
     const r = await run(BIN, ["--dev", ...args], this.env, input);
     this.log(`${this.name}.cli.${label}`, r);
-    expect(r.code, `${this.name}: lessdugin ${args.join(" ")}\n${r.stderr}`).toBe(0);
+    expect(r.code, `${this.name}: pandoras-forum ${args.join(" ")}\n${r.stderr}`).toBe(0);
     return r.stdout;
   }
 
@@ -605,7 +607,7 @@ function minify(text: string): string {
 /** A dto/1 hook call in the page. */
 async function hook(page: Page, op: string, args: unknown[]): Promise<string> {
   const text = await page.evaluate(
-    ([o, a]) => window.__lessduginE2E?.callJson(o as string, a as unknown[]),
+    ([o, a]) => window.__pandorasForumE2E?.callJson(o as string, a as unknown[]),
     [op, args] as const,
   );
   if (typeof text !== "string") throw new Error(`the debug hook is missing (${op})`);
@@ -708,7 +710,7 @@ async function runScenario(
   const t = Date.now() + 86_400_000;
   const out = info.outputPath(`parity-${mode}-${sources}`);
   mkdirSync(out, { recursive: true });
-  const work = mkdtempSync(join(tmpdir(), "lessdugin-parity-"));
+  const work = mkdtempSync(join(tmpdir(), "pandoras-forum-parity-"));
   const timings: { step: string; ms: number }[] = [];
   const logRun = (name: string, r: Run) => {
     writeFileSync(join(out, `${name}.stdout.txt`), r.stdout);
@@ -837,7 +839,7 @@ async function runScenario(
           ) as { writes: { state: { kind: string } }[] };
           expect(approved.writes.map((w) => w.state.kind)).toEqual(["done", "done"]);
         }
-        // carol signs in with the CLI; the TUI uses that stored session (as `lessdugin tui`)
+        // carol signs in with the CLI; the TUI uses that stored session (as `pandoras-forum tui`)
         await carol.login();
       },
     );
@@ -860,7 +862,7 @@ async function runScenario(
     // M6: in the assisted variants the indexer follows the devnet from here on (poll mode,
     // seeded with this forum), as a deployed one follows the network
     if (sources === "assisted") {
-      await step("1c. lessdugin-indexer --poll follows the forum", async () => {
+      await step("1c. pandoras-forum-indexer --poll follows the forum", async () => {
         indexer = await Indexer.start(join(work, "indexer"), forum, out);
       });
     }
@@ -903,7 +905,7 @@ async function runScenario(
       await expect(page.getByRole("heading", { level: 1, name: TITLE })).toBeVisible();
       const m = /#\/p\/(did:plc:[a-z2-7]{24})\/([a-z2-7-]+)$/.exec(page.url());
       expect(m?.[1]).toBe(s.devnet.accounts.bob.did);
-      post = `at://${m?.[1]}/online.7778777.lessdugin.temp.post/${m?.[2]}`;
+      post = `at://${m?.[1]}/forum.pandoras.temp.post/${m?.[2]}`;
       if (!approval) {
         // open mode applies V8: a participant outside S ∪ E is a NEWCOMER, and a newcomer's
         // content is Collapsed(NewUser) by default (social.md §6.5 V8, `display.newUsers`). Bob

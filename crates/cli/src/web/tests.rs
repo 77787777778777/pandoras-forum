@@ -6,10 +6,10 @@
 use std::sync::Arc;
 
 use axum::Router;
-use lessdugin_core::engine::{Engine, EngineConfig};
-use lessdugin_native::auth::SecretStore;
-use lessdugin_native::config::{Config, Paths};
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineConfig};
+use pandoras_forum_native::auth::SecretStore;
+use pandoras_forum_native::config::{Config, Paths};
+use pandoras_forum_native::host::NativeHost;
 
 use super::assets::{Assets, PLACEHOLDER_HTML};
 use super::caps::Caps;
@@ -95,9 +95,9 @@ async fn placeholder_page_when_the_spa_is_missing() {
         .unwrap();
     assert_eq!(r.status(), 404);
     assert_policy(&r, PRODUCTION_CSP);
-    // lessdugin-config.json is served either way.
+    // pandoras-forum-config.json is served either way.
     let r = client
-        .get(format!("{}/lessdugin-config.json", s.origin))
+        .get(format!("{}/pandoras-forum-config.json", s.origin))
         .send()
         .await
         .unwrap();
@@ -145,7 +145,7 @@ async fn minted_links_exchange_once() {
     let s = start(Assets::placeholder(), false).await;
     let link = s.web.mint_link();
     let cap = link
-        .strip_prefix(&format!("{}/#lessdugin-cap=", s.origin))
+        .strip_prefix(&format!("{}/#pandoras-forum-cap=", s.origin))
         .unwrap();
     assert!(super::caps::is_secret_shape(cap));
     let client = reqwest::Client::builder().no_proxy().build().unwrap();
@@ -171,7 +171,11 @@ async fn minted_links_exchange_once() {
 /// Exchanges a fresh link for a bridge token.
 async fn new_token(s: &Running, client: &reqwest::Client) -> (String, String) {
     let link = s.web.mint_link();
-    let cap = link.split_once("#lessdugin-cap=").unwrap().1.to_owned();
+    let cap = link
+        .split_once("#pandoras-forum-cap=")
+        .unwrap()
+        .1
+        .to_owned();
     let r = client
         .post(format!("{}/bridge/session", s.origin))
         .header("origin", &s.origin)
@@ -206,7 +210,7 @@ fn lock_request(
 /// True while some holder has the native `outbox:<did>` lock (a native client asks for it
 /// without waiting, as a second process would).
 async fn native_lock_busy(s: &Running) -> bool {
-    use lessdugin_core::host::Host as _;
+    use pandoras_forum_core::host::Host as _;
     s.web
         .engine
         .host()
@@ -227,7 +231,7 @@ async fn wait_until_free(s: &Running) {
 }
 
 /// `/bridge/lock` holds the native `outbox:<did>` lock (the one native clients pump under) for
-/// as long as its response is open, so a tab and `lessdugin sync` never send the same write.
+/// as long as its response is open, so a tab and `pandoras-forum sync` never send the same write.
 #[tokio::test]
 async fn bridge_lock_holds_the_native_outbox_lock_while_the_response_is_open() {
     let s = start(Assets::placeholder(), false).await;
@@ -262,7 +266,7 @@ async fn bridge_lock_holds_the_native_outbox_lock_while_the_response_is_open() {
     wait_until_free(&s).await;
 
     // Waiting: the request answers once the lock is free.
-    use lessdugin_core::host::Host as _;
+    use pandoras_forum_core::host::Host as _;
     let native = s
         .web
         .engine

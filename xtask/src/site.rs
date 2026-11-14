@@ -41,14 +41,14 @@ const COLLECTIONS: [&str; 10] = [
     "profile",
 ];
 const BLOBS: &str = "blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf";
-const FINAL_NS: &str = "online.7778777.lessdugin";
+const FINAL_NS: &str = "forum.pandoras";
 
 /// Which namespace the documents' scope names.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Ns {
-    /// `online.7778777.lessdugin.temp` (development builds, data-model.md §1.3).
+    /// `forum.pandoras.temp` (development builds, data-model.md §1.3).
     Temp,
-    /// `online.7778777.lessdugin` (the release).
+    /// `forum.pandoras` (the release).
     Final,
 }
 
@@ -178,7 +178,7 @@ pub fn metadata(base: &str, ns: Ns) -> (String, String) {
     let scope = superset(ns);
     let web = document(
         &format!("{base}oauth/client-metadata.json"),
-        "lessdugin",
+        "Pandora's Forum",
         base,
         "web",
         base,
@@ -186,7 +186,7 @@ pub fn metadata(base: &str, ns: Ns) -> (String, String) {
     );
     let cli = document(
         &format!("{base}oauth/cli-client-metadata.json"),
-        "lessdugin CLI",
+        "Pandora's Forum CLI",
         base,
         "native",
         "http://127.0.0.1/callback",
@@ -309,7 +309,7 @@ pub fn site(args: &[String]) -> Result<(), String> {
         crate::wasm(&["--release".to_owned()])?;
         for (dir, mode) in [(&headers_dir, None), (&pages_dir, Some("pages"))] {
             let dir_s = dir.display().to_string();
-            let mut a = vec!["--filter", "@lessdugin/web", "exec", "vite", "build"];
+            let mut a = vec!["--filter", "@pandoras-forum/web", "exec", "vite", "build"];
             if let Some(m) = mode {
                 a.extend(["--mode", m]);
             }
@@ -319,7 +319,7 @@ pub fn site(args: &[String]) -> Result<(), String> {
                 "pnpm",
                 &[
                     "--filter",
-                    "@lessdugin/web",
+                    "@pandoras-forum/web",
                     "exec",
                     "node",
                     "scripts/check-release-bundle.mjs",
@@ -386,8 +386,8 @@ mod tests {
     #[test]
     fn the_canonical_documents_are_data_model_10_4() {
         let s = section_10_4();
-        let base = base_url("https://lessdugin.7778777.online").unwrap();
-        assert_eq!(base, "https://lessdugin.7778777.online/");
+        let base = base_url("https://pandoras.forum").unwrap();
+        assert_eq!(base, "https://pandoras.forum/");
         let (web, cli) = metadata(&base, Ns::Final);
         assert_eq!(web, block_after(&s, "**Web client**"));
         assert_eq!(cli, block_after(&s, "**Native client, hosted metadata**"));
@@ -401,7 +401,7 @@ mod tests {
     /// the canonical origin.
     #[test]
     fn the_deployed_documents_are_the_generated_ones() {
-        let base = base_url("https://lessdugin.7778777.online").unwrap();
+        let base = base_url("https://pandoras.forum").unwrap();
         let (web, cli) = metadata(&base, Ns::Final);
         assert_eq!(spec("deploy/site/oauth/client-metadata.json"), web);
         assert_eq!(spec("deploy/site/oauth/cli-client-metadata.json"), cli);
@@ -412,22 +412,16 @@ mod tests {
     #[test]
     fn a_temp_site_for_another_origin_substitutes_the_origin_and_drops_include() {
         let s = section_10_4();
-        let base = base_url("https://lessdugin-dev.7778777.online/").unwrap();
+        let base = base_url("https://dev.pandoras.forum/").unwrap();
         let (web, cli) = metadata(&base, Ns::Temp);
         for (got, marker) in [
             (&web, "**Web client**"),
             (&cli, "**Native client, hosted metadata**"),
         ] {
             let expected = block_after(&s, marker)
-                .replace(
-                    "https://lessdugin.7778777.online/",
-                    "https://lessdugin-dev.7778777.online/",
-                )
-                .replace(" include:online.7778777.lessdugin.authFull", "")
-                .replace(
-                    "online.7778777.lessdugin.",
-                    "online.7778777.lessdugin.temp.",
-                );
+                .replace("https://pandoras.forum/", "https://dev.pandoras.forum/")
+                .replace(" include:forum.pandoras.authFull", "")
+                .replace("forum.pandoras.", "forum.pandoras.temp.");
             assert_eq!(got, &expected, "{marker}");
             assert!(!got.contains("include:"));
             assert!(!got.contains("transition:generic") && !got.contains("blob:*/*"));
@@ -507,7 +501,7 @@ mod tests {
         let bridge = spec("packages/engine/src/auth-bridge.ts");
         assert_eq!(spa_namespace(&bridge), Ok(Ns::Temp));
         assert_eq!(
-            spa_namespace("export const NS = \"online.7778777.lessdugin\";\n"),
+            spa_namespace("export const NS = \"forum.pandoras\";\n"),
             Ok(Ns::Final)
         );
         assert!(spa_namespace("export const NS = \"com.example\";").is_err());

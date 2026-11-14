@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Render LFM/1 from stdin and print the outputs (a development aid).
 //!
-//! `cargo run -p lessdugin-markdown --example render [--json|--print|--color] < doc.md`
+//! `cargo run -p pandoras-forum-markdown --example render [--json|--print|--color] < doc.md`
 
 use std::io::Read;
 
-use lessdugin_markdown::printer::{PrintOpts, print_doc};
-use lessdugin_markdown::{RenderOpts, render};
+use pandoras_forum_markdown::printer::{PrintOpts, print_doc};
+use pandoras_forum_markdown::{RenderOpts, render};
 
 fn main() {
     let mut src = String::new();

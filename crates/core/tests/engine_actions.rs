@@ -14,7 +14,7 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use common::block_on;
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     AccessLevel, ActionTicket, AgreementValue, BodyDraft, Capability, CommentDraft, Draft,
     EditOpts, Event, ForumDraft, KarmaCadence, KarmaValue, MembershipMode, ModActionIntent,
     ModActionValue, ModRole, ModScope, ModsChange, NoticeCode, NotificationReason,
@@ -22,12 +22,12 @@ use lessdugin_core::dto::{
     SequenceDraft, SequencePosition, Stance, Subscription, SyncOpts, TextQuote, Tier, Topic,
     WikiDraft, WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
-use lessdugin_core::outbox::records;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::{AccountHandle, Fault};
-use lessdugin_testkit::repo::tid_at_ms;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
+use pandoras_forum_core::outbox::records;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, Fault};
+use pandoras_forum_testkit::repo::tid_at_ms;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 use serde_json::{Value, json};
 
 const MINUTE: i64 = 60_000;
@@ -130,7 +130,7 @@ impl User {
         block_on(self.engine.mod_action(&intent)).unwrap()
     }
 
-    fn mod_err(&self, intent: ModActionIntent) -> lessdugin_core::engine::EngineError {
+    fn mod_err(&self, intent: ModActionIntent) -> pandoras_forum_core::engine::EngineError {
         block_on(self.engine.mod_action(&intent)).unwrap_err()
     }
 
@@ -491,7 +491,7 @@ fn wiki_edits_parent_their_base_and_refuse_a_moved_head() {
 /// and the state of any page (engine-api.md §3.4), and an edit passing it as `base` parents it.
 #[test]
 fn wiki_page_gives_the_head_of_a_page_that_is_not_a_tag_or_was_removed() {
-    use lessdugin_core::dto::WikiPageView;
+    use pandoras_forum_core::dto::WikiPageView;
     let w = World::new();
     let edit = |slug: &str, is_tag: bool, base: Option<String>| {
         let t = block_on(w.alice.engine.wiki_edit(
@@ -702,7 +702,7 @@ fn a_seed_tag_vote_resolves_on_another_users_post() {
     assert_eq!(view.post.tags, vec!["rust".to_owned()]);
     // PostView.tagRelevance (m5-acceptance-12): the relevance for every reader, the vote for
     // its voter only
-    let tag = |v: &lessdugin_core::dto::PostView| {
+    let tag = |v: &pandoras_forum_core::dto::PostView| {
         let t = v.tag_relevance.iter().find(|t| t.slug == "rust").cloned();
         t.map(|t| (t.relevance > 0, t.applies, t.mine))
     };
@@ -1707,9 +1707,9 @@ fn mods_rm_adopts_first() {
 /// an admin's keep beats (`overridden`), are reported and never copied at the owner's rank.
 #[test]
 fn mods_rm_adopts_only_what_counted() {
-    use lessdugin_atp::syntax::{AtUri, Datetime};
-    use lessdugin_lexicon::records::{AccessAction, Action, HideAction, ModAction};
-    use lessdugin_lexicon::values::AccessLevel as LexAccess;
+    use pandoras_forum_atp::syntax::{AtUri, Datetime};
+    use pandoras_forum_lexicon::records::{AccessAction, Action, HideAction, ModAction};
+    use pandoras_forum_lexicon::values::AccessLevel as LexAccess;
 
     let w = World::new();
     let (alice, bob, carol, dave) = (&w.alice, &w.bob, &w.carol, &w.dave);
@@ -1817,7 +1817,7 @@ fn mods_rm_adopts_only_what_counted() {
 /// banner. After 7 days their repo is `Unavailable`, so the view degrades instead of opening.
 #[test]
 fn an_inactive_moderators_hides_stay_then_the_view_degrades() {
-    use lessdugin_core::dto::{HiddenReason, ItemState};
+    use pandoras_forum_core::dto::{HiddenReason, ItemState};
 
     let w = World::new();
     let (alice, bob, carol) = (&w.alice, &w.bob, &w.carol);
@@ -1910,7 +1910,7 @@ fn reopening_a_degraded_forum_announces_no_change() {
     }
     // once the back-off is over the authority is tried again; it fails as before, which
     // changes nothing in the cache, so there is still no `Changed`
-    w.tick(lessdugin_core::limits::FORUM_REOPEN_MS);
+    w.tick(pandoras_forum_core::limits::FORUM_REOPEN_MS);
     let v = block_on(bob.engine.forum_open(&w.forum)).unwrap();
     assert!(v.completeness.degraded, "{v:?}");
     let ev = bob.take_events();
@@ -2048,7 +2048,7 @@ fn approve_and_reject_applicants() {
 // ---------------------------------------------------------------------------------------------
 // Notifications and read state
 
-fn notes(u: &User, all: bool) -> lessdugin_core::dto::NotificationList {
+fn notes(u: &User, all: bool) -> pandoras_forum_core::dto::NotificationList {
     block_on(
         u.engine
             .notifications(&NotificationsQuery { all, limit: 50 }),
@@ -2322,7 +2322,7 @@ fn an_item_listed_after_it_was_first_seen_still_notifies() {
 /// store a change once: its id carries the baseline's generation, not the time.
 #[test]
 fn a_change_is_stored_once_when_refreshes_overlap() {
-    use lessdugin_core::host::{KvOp, KvStore};
+    use pandoras_forum_core::host::{KvOp, KvStore};
 
     let w = World::new();
     let (bob, carol) = (&w.bob, &w.carol);
@@ -2330,14 +2330,14 @@ fn a_change_is_stored_once_when_refreshes_overlap() {
     carol.opinion(&w.bob_post, react("insightful", Stance::For));
     carol.flush();
     w.resync(&[bob]);
-    let k = lessdugin_core::key!("loc", "nbase", bob.did().as_str(), w.forum.as_str());
+    let k = pandoras_forum_core::key!("loc", "nbase", bob.did().as_str(), w.forum.as_str());
     let kv = bob.host.state_kv();
     let before = block_on(kv.get_many(vec![k.clone()]))
         .unwrap()
         .pop()
         .flatten();
     let n = notes(bob, false);
-    let reacted = |n: &lessdugin_core::dto::NotificationList| {
+    let reacted = |n: &pandoras_forum_core::dto::NotificationList| {
         n.items
             .iter()
             .filter(|i| i.reason == NotificationReason::Reacted)

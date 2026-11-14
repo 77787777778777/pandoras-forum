@@ -4,20 +4,20 @@
 mod common;
 
 use common::block_on;
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_core::dto::{
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_core::dto::{
     BodyDraft, ForumDraft, ForumRole, ItemState, ModActionIntent, ModActionValue, ModScope,
     PostDraft, SearchItem, SearchQuery, SequenceChapterDraft, SequenceDraft, SequencePosition,
     SyncOpts, WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
-use lessdugin_core::host::Host;
-use lessdugin_core::store::Observation;
-use lessdugin_core::store::admit::{Expect, LexiconValidator, admit_value};
-use lessdugin_core::store::records::RecordStore;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::store::Observation;
+use pandoras_forum_core::store::admit::{Expect, LexiconValidator, admit_value};
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 use serde_json::json;
 
 const MINUTE: i64 = 60_000;
@@ -132,7 +132,7 @@ impl World {
         let alice = Device::new(&net, host, net.add_account("alice.example.com"));
         let bob = Device::new(&net, bob_host, net.add_account("bob.example.com"));
         let mut forum = ForumDraft::new("meta", "Meta");
-        forum.membership = lessdugin_core::dto::MembershipMode::Open;
+        forum.membership = pandoras_forum_core::dto::MembershipMode::Open;
         let ticket = block_on(alice.engine.forum_create(&forum)).unwrap();
         alice.flush();
         let forum = alice.done(&ticket);
@@ -145,11 +145,14 @@ impl World {
         bob.host.advance_ms(MINUTE);
         alice.sync(&forum);
         bob.sync(&forum);
-        let ticket = block_on(bob.engine.comment(&lessdugin_core::dto::CommentDraft::new(
-            &first,
-            None,
-            "Bob's recent comment",
-        )))
+        let ticket = block_on(
+            bob.engine
+                .comment(&pandoras_forum_core::dto::CommentDraft::new(
+                    &first,
+                    None,
+                    "Bob's recent comment",
+                )),
+        )
         .unwrap();
         bob.flush();
         let comment = bob.done(&ticket);

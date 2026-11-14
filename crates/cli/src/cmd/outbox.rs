@@ -8,9 +8,9 @@
 //! sends a backing-off one now; `undo` removes a write not sent yet. The listing says why a
 //! pending write waits.
 
-use lessdugin_core::dto::{DTO_VERSION, WriteState, WriteTicket};
-use lessdugin_core::engine::EngineError;
-use lessdugin_core::outbox::parse_write_id;
+use pandoras_forum_core::dto::{DTO_VERSION, WriteState, WriteTicket};
+use pandoras_forum_core::engine::EngineError;
+use pandoras_forum_core::outbox::parse_write_id;
 use serde::Serialize;
 
 use crate::args::{OutboxAction, OutboxArgs};
@@ -31,7 +31,9 @@ fn state_text(s: &WriteState) -> (TermText, Style) {
             lit(" ("),
             tt(e.code.as_str()),
             lit(": "),
-            tt(&lessdugin_native::auth::redact::redact_secrets(&e.message)),
+            tt(&pandoras_forum_native::auth::redact::redact_secrets(
+                &e.message,
+            )),
             lit(")"),
         ]),
         None => lit(""),
@@ -43,7 +45,7 @@ fn state_text(s: &WriteState) -> (TermText, Style) {
             ..
         } => (
             cat([
-                lit("waiting for `lessdugin login` (the session was refused)"),
+                lit("waiting for `pandoras-forum login` (the session was refused)"),
                 cause(error),
             ]),
             Style::Bad,
@@ -89,7 +91,7 @@ fn account_of(id: &str) -> Result<String, CliError> {
     })
 }
 
-/// `lessdugin outbox …`.
+/// `pandoras-forum outbox …`.
 pub async fn run(ctx: &Ctx, args: OutboxArgs) -> Result<(), CliError> {
     match args.action.unwrap_or(OutboxAction::Ls) {
         OutboxAction::Ls => {
@@ -154,7 +156,7 @@ pub async fn run(ctx: &Ctx, args: OutboxArgs) -> Result<(), CliError> {
                 .any(|t| matches!(t.state, WriteState::Pending { .. } | WriteState::Sending));
             if queued && !ctx.out.is_json() {
                 ctx.out.note(&[(
-                    lit("Some writes are still queued (a rate limit or a back-off); run `lessdugin outbox` to see them."),
+                    lit("Some writes are still queued (a rate limit or a back-off); run `pandoras-forum outbox` to see them."),
                     Style::Dim,
                 )]);
             }

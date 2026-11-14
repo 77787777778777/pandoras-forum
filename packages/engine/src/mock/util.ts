@@ -4,7 +4,7 @@
 import type { AtUri, Did, RenderedBody, TocEntry } from "../types.ts";
 
 /** The development namespace (data-model.md §1.3); the mock behaves like a `.temp` build. */
-export const NS = "online.7778777.lessdugin.temp";
+export const NS = "forum.pandoras.temp";
 export const COLL = {
   forum: `${NS}.forum`,
   membership: `${NS}.membership`,
