@@ -15,16 +15,16 @@
 //! is P9 (native equals wasm); `social_perf.rs` is the performance budget and the linear growth
 //! of P3.
 //!
-//! `cargo test -p lessdugin-core --test social_karma_props` (any namespace build).
+//! `cargo test -p pandoras-forum-core --test social_karma_props` (any namespace build).
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::tid::Tid;
-use lessdugin_core::social::full::karma::{Karma, small, strong};
-use lessdugin_core::social::full::{ForumView, Query, fold_view};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_core::social::full::karma::{Karma, small, strong};
+use pandoras_forum_core::social::full::{ForumView, Query, fold_view};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
 use proptest::prelude::*;
 use serde_json::{Map, Value, json};
 

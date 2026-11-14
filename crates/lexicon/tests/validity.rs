@@ -11,15 +11,15 @@ mod common;
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
 use common::{DAG_CID, RAW_CID, nsid};
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::records::{
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::{
     Forum, LockAction, Opinion, Post, RestrictAction, Sequence, WikiRevision,
 };
-use lessdugin_lexicon::validity::{Evaluation, RuleId, Validity, check, check_uri, entry};
-use lessdugin_lexicon::values::{Capability, Role, Stance, VoteValue};
+use pandoras_forum_lexicon::validity::{Evaluation, RuleId, Validity, check, check_uri, entry};
+use pandoras_forum_lexicon::values::{Capability, Role, Stance, VoteValue};
 use serde_json::{Value, json};
 
 const OWNER: &str = "did:plc:ewvi7nxzyoun6zhxrhs64oiz";
@@ -191,7 +191,7 @@ fn comment() -> R {
 /// A revision of `post()` in Alice's repo, with the correct snapshot CID.
 fn revision() -> R {
     let snapshot = post().v;
-    let cid = lessdugin_atp::datamodel::record_cid(&snapshot).unwrap();
+    let cid = pandoras_forum_atp::datamodel::record_cid(&snapshot).unwrap();
     R {
         coll: Collection::Revision,
         uri: at(ALICE, "revision", &format!("{}-{T1}-{T3}", fk())),
@@ -338,10 +338,10 @@ fn g1_type_equals_collection() {
     post().without(&["$type"]).fails(RuleId::G1);
     post().with(&["$type"], json!(7)).fails(RuleId::G1);
     // the other namespace prefix is not this build's collection
-    let other = if NS == lessdugin_lexicon::ns::NS_TEMP {
-        lessdugin_lexicon::ns::NS_FINAL
+    let other = if NS == pandoras_forum_lexicon::ns::NS_TEMP {
+        pandoras_forum_lexicon::ns::NS_FINAL
     } else {
-        lessdugin_lexicon::ns::NS_TEMP
+        pandoras_forum_lexicon::ns::NS_TEMP
     };
     let foreign = format!("{other}.post");
     let uri = AtUri::parse(&format!("at://{ALICE}/{foreign}/x")).unwrap();
@@ -779,7 +779,10 @@ fn fo4_policy_values() {
     let f: Forum = serde_json::from_value(r.v).unwrap();
     let p = f.policy.unwrap();
     assert!(p.voting().fallback);
-    assert_eq!(p.voting().value, lessdugin_lexicon::values::Voting::Reacts);
+    assert_eq!(
+        p.voting().value,
+        pandoras_forum_lexicon::values::Voting::Reacts
+    );
     assert!(p.tag_creation().fallback);
     forum()
         .with(&["policy"], json!({"karma": {"pairCap": 0}}))
@@ -828,7 +831,10 @@ fn po2_effective_kind() {
         .without(&["title"])
         .fails(RuleId::PO3);
     let p: Post = serde_json::from_value(post().with(&["kind"], json!("poll")).v).unwrap();
-    assert_eq!(p.kind().value, lessdugin_lexicon::values::PostKind::Article);
+    assert_eq!(
+        p.kind().value,
+        pandoras_forum_lexicon::values::PostKind::Article
+    );
     assert!(p.kind().fallback);
 }
 
@@ -1020,7 +1026,7 @@ fn rv3_key() {
         .fails(RuleId::RV3);
     // a forum revision uses P = fk(forum)
     let snap = forum().v;
-    let cid = lessdugin_atp::datamodel::record_cid(&snap)
+    let cid = pandoras_forum_atp::datamodel::record_cid(&snap)
         .unwrap()
         .to_string();
     let fr = R {
@@ -1039,7 +1045,7 @@ fn rv4_op() {
     revision().with(&["op"], json!("delete")).fails(RuleId::RV4);
     // delete is allowed for a modAction subject
     let h = hide();
-    let cid = lessdugin_atp::datamodel::record_cid(&h.v)
+    let cid = pandoras_forum_atp::datamodel::record_cid(&h.v)
         .unwrap()
         .to_string();
     let rkey = h.uri.rsplit('/').next().unwrap();
@@ -1074,8 +1080,10 @@ fn rv5_snapshot_integrity() {
         .with(&["record"], json!({ "$link": DAG_CID }))
         .fails(RuleId::G2);
     // the snapshot is displayable only if it passes its own lexicon
-    assert!(lessdugin_lexicon::validity::snapshot_renderable(&post().v));
-    assert!(!lessdugin_lexicon::validity::snapshot_renderable(
+    assert!(pandoras_forum_lexicon::validity::snapshot_renderable(
+        &post().v
+    ));
+    assert!(!pandoras_forum_lexicon::validity::snapshot_renderable(
         &post().without(&["title"]).with(&["createdAt"], json!(1)).v
     ));
 }
@@ -1083,8 +1091,8 @@ fn rv5_snapshot_integrity() {
 /// A revision of `snapshot` (a post value) in Alice's repo, with the snapshot's CID computed with
 /// no cap but depth.
 fn revision_of(snapshot: Value) -> R {
-    let limits = lessdugin_atp::datamodel::Limits::uncapped(64);
-    let cid = lessdugin_atp::datamodel::record_cid_with(&snapshot, &limits).unwrap();
+    let limits = pandoras_forum_atp::datamodel::Limits::uncapped(64);
+    let cid = pandoras_forum_atp::datamodel::record_cid_with(&snapshot, &limits).unwrap();
     let mut r = revision();
     r.v["subject"]["cid"] = json!(cid.to_string());
     r.v["record"] = snapshot;
@@ -1735,7 +1743,7 @@ fn pf2_inline_bio() {
 
 #[test]
 fn violations_are_capped_per_rule() {
-    use lessdugin_lexicon::validity::MAX_VIOLATIONS_PER_RULE;
+    use pandoras_forum_lexicon::validity::MAX_VIOLATIONS_PER_RULE;
     // 200,000 non-slug tags (an 800 KB record): every failing rule is listed, a bounded number
     // of times, and the rest only counted
     let tags = vec![json!("A"); 200_000];
@@ -1797,8 +1805,8 @@ fn every_rule_has_a_test() {
 
 #[test]
 fn typed_records_built_by_constructors_are_valid() {
-    use lessdugin_atp::syntax::Datetime;
-    use lessdugin_lexicon::records::{Comment, Membership, StrongRef};
+    use pandoras_forum_atp::syntax::Datetime;
+    use pandoras_forum_lexicon::records::{Comment, Membership, StrongRef};
     let now = Datetime::parse(NOW).unwrap();
     let f = AtUri::parse(&forum_uri()).unwrap();
     let post = Post::article(f.clone(), "Title", "Body", now.clone());
@@ -1809,7 +1817,7 @@ fn typed_records_built_by_constructors_are_valid() {
         v: pv.clone(),
     }
     .valid();
-    let cid = lessdugin_atp::datamodel::record_cid(&pv)
+    let cid = pandoras_forum_atp::datamodel::record_cid(&pv)
         .unwrap()
         .to_string();
     let c = Comment::new(
@@ -1835,7 +1843,7 @@ fn typed_records_built_by_constructors_are_valid() {
     let fv = serde_json::to_value(Forum::create(
         "Rationality",
         now,
-        lessdugin_lexicon::values::MembershipMode::Open,
+        pandoras_forum_lexicon::values::MembershipMode::Open,
     ))
     .unwrap();
     R {

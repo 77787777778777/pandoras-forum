@@ -4,14 +4,14 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_atp::car::{CarLimits, read_car, write_car};
-use lessdugin_atp::commit::Commit;
-use lessdugin_atp::datamodel::Limits;
-use lessdugin_atp::proof::{BundleCaps, ProofBundle, ProofCaps, verify_record_proof};
-use lessdugin_atp::syntax::{
+use pandoras_forum_atp::car::{CarLimits, read_car, write_car};
+use pandoras_forum_atp::commit::Commit;
+use pandoras_forum_atp::datamodel::Limits;
+use pandoras_forum_atp::proof::{BundleCaps, ProofBundle, ProofCaps, verify_record_proof};
+use pandoras_forum_atp::syntax::{
     AtIdentifier, AtUri, Datetime, Did, Handle, LooseAtUri, Nsid, RecordKey, Tid,
 };
-use lessdugin_atp::{Cid, Ipld, cid, dagcbor, datamodel, mst};
+use pandoras_forum_atp::{Cid, Ipld, cid, dagcbor, datamodel, mst};
 use proptest::prelude::*;
 // Natively these are libtest tests; on wasm32 (`cargo xtask test-wasm`) the same properties run
 // under wasm-bindgen-test in node.
@@ -82,7 +82,7 @@ proptest! {
         let _ = read_car(&bytes, &CarLimits::PROOF);
         let _ = mst::Node::decode(&bytes);
         let _ = Commit::decode(&bytes);
-        let _ = lessdugin_atp::did_doc::DidDocument::parse(&bytes);
+        let _ = pandoras_forum_atp::did_doc::DidDocument::parse(&bytes);
         let _ = cid::from_bytes(&bytes);
         let _ = ProofBundle::parse(&bytes, &BundleCaps::default());
         // the raw navigators never panic, even on input that was not validated
@@ -175,8 +175,8 @@ proptest! {
         let _ = Datetime::parse(&s);
         let _ = Tid::parse(&s);
         let _ = cid::parse(&s);
-        let _ = lessdugin_atp::crypto::PublicKey::from_did_key(&s);
-        let _ = lessdugin_atp::did_doc::normalize_service_endpoint(&s);
+        let _ = pandoras_forum_atp::crypto::PublicKey::from_did_key(&s);
+        let _ = pandoras_forum_atp::did_doc::normalize_service_endpoint(&s);
     }
 
     #[test]
@@ -231,12 +231,12 @@ fn sample_proof() -> (
     Did,
     Nsid,
     RecordKey,
-    lessdugin_atp::crypto::PublicKey,
+    pandoras_forum_atp::crypto::PublicKey,
 ) {
     use k256::ecdsa::signature::Signer as _;
     let did = Did::parse("did:plc:ewvi7nxzyoun6zhxrhs64oiz").unwrap();
-    let coll = Nsid::parse("online.7778777.lessdugin.post").unwrap();
-    let rkey = RecordKey::parse("uetjixxr3a33-3l2s5xxv2ze2c").unwrap();
+    let coll = Nsid::parse("forum.pandoras.post").unwrap();
+    let rkey = RecordKey::parse("nkglkm5wsp3d-3l2s5xxv2ze2c").unwrap();
     let rec = datamodel::record_to_cbor(&serde_json::json!({"$type": coll.as_str(), "text": "hi"}))
         .unwrap();
     let rcid = cid::for_dag_cbor(&rec);
@@ -247,7 +247,7 @@ fn sample_proof() -> (
     }
     let (root, nodes) = mst::build(entries.iter().map(|(k, v)| (k.as_bytes(), *v))).unwrap();
     let sk = k256::ecdsa::SigningKey::from_slice(&[5u8; 32]).unwrap();
-    let u = lessdugin_atp::commit::UnsignedCommit {
+    let u = pandoras_forum_atp::commit::UnsignedCommit {
         did: did.clone(),
         data: root,
         rev: Tid::from_parts(NOW as u64, 0).unwrap(),
@@ -284,6 +284,6 @@ fn sample_proof() -> (
         did,
         coll,
         rkey,
-        lessdugin_atp::crypto::PublicKey::Secp256k1(*sk.verifying_key()),
+        pandoras_forum_atp::crypto::PublicKey::Secp256k1(*sk.verifying_key()),
     )
 }

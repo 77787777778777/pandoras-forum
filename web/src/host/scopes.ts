@@ -5,7 +5,7 @@
 // `include:NS.authFull` first and falls back to the enumerated form on `invalid_scope` at PAR,
 // before the browser leaves for the authorization server.
 
-import { NS, RECORD_COLLECTIONS } from "@lessdugin/engine/client";
+import { NS, RECORD_COLLECTIONS } from "@pandoras-forum/engine/client";
 
 const BLOBS = "blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf";
 

@@ -19,18 +19,18 @@ use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use base64::Engine as _;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::engine::ErrorCode;
-use lessdugin_core::engine::{Engine, EngineConfig};
-use lessdugin_core::host::{Host, HostError, HttpRequest, Target};
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_native::auth::app_password::{create_session, session_data};
-use lessdugin_native::auth::{
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::engine::ErrorCode;
+use pandoras_forum_core::engine::{Engine, EngineConfig};
+use pandoras_forum_core::host::{Host, HostError, HttpRequest, Target};
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_native::auth::app_password::{create_session, session_data};
+use pandoras_forum_native::auth::{
     AppPassword, AppPasswordSession, SecretStore, StoredSession, login_app_password,
     logout_session, resolve_login_target, restore_session,
 };
-use lessdugin_native::config::Paths;
-use lessdugin_native::host::{AuthSession, NativeHost, Net, NetPolicy};
+use pandoras_forum_native::config::Paths;
+use pandoras_forum_native::host::{AuthSession, NativeHost, Net, NetPolicy};
 use serde_json::{Value, json};
 use url::Url;
 
@@ -262,7 +262,10 @@ impl Fixture {
         self.session(data)
     }
 
-    fn session(&self, data: lessdugin_native::auth::store::AppPasswordData) -> AppPasswordSession {
+    fn session(
+        &self,
+        data: pandoras_forum_native::auth::store::AppPasswordData,
+    ) -> AppPasswordSession {
         AppPasswordSession::new(
             data,
             self.net.clone(),
@@ -598,9 +601,9 @@ async fn an_older_stored_copy_is_never_adopted() {
     let session = f.login().await;
     let current = session.data().await;
     // A failed save left an older copy (an already-used refresh token) in storage.
-    let stale = lessdugin_native::auth::store::AppPasswordData {
-        refresh_jwt: lessdugin_native::auth::redact::Secret::new("stale-refresh"),
-        access_jwt: lessdugin_native::auth::redact::Secret::new("stale-access"),
+    let stale = pandoras_forum_native::auth::store::AppPasswordData {
+        refresh_jwt: pandoras_forum_native::auth::redact::Secret::new("stale-refresh"),
+        access_jwt: pandoras_forum_native::auth::redact::Secret::new("stale-access"),
         saved_ms: current.saved_ms - 1,
         ..current.clone()
     };
@@ -623,8 +626,8 @@ async fn an_older_stored_copy_is_never_adopted() {
 
 #[tokio::test]
 async fn a_hint_resolution_is_refused_for_login() {
-    use lessdugin_testkit::identity::{DOH, PLC, install_doc, install_nxdomain};
-    use lessdugin_testkit::{FakeIdentity, MemHost, resp};
+    use pandoras_forum_testkit::identity::{DOH, PLC, install_doc, install_nxdomain};
+    use pandoras_forum_testkit::{FakeIdentity, MemHost, resp};
     let host = MemHost::new();
     let alice = FakeIdentity::plc("alice", "alice.example.com", "https://pds.example.com");
     install_doc(&host, PLC, &alice.did, &alice.doc());

@@ -8,7 +8,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_core::dto::{CollapseReason, CommentNode, ItemState, MediaView, ThreadRoot};
+use pandoras_forum_core::dto::{CollapseReason, CommentNode, ItemState, MediaView, ThreadRoot};
 use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 
@@ -123,7 +123,7 @@ fn media_lines(
             // the notice of `sync.md` §11.3
             None => tt(&format!(
                 "i loads it from {}, which will see your IP",
-                lessdugin_core::media::host_of(&m.pds)
+                pandoras_forum_core::media::host_of(&m.pds)
             )),
             Some(MediaState::Fetching) => lit("fetching..."),
             Some(MediaState::Decoding) => lit("decoding..."),

@@ -1,6 +1,6 @@
 [package]
-name = "lessdugin-tui"
-description = "Terminal UI for lessdugin (ratatui)"
+name = "pandoras-forum-tui"
+description = "Terminal UI for Pandora's Forum (ratatui)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,12 +8,12 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-lessdugin-core.workspace = true
-lessdugin-markdown.workspace = true
-lessdugin-atp.workspace = true
-lessdugin-lexicon.workspace = true
+pandoras-forum-core.workspace = true
+pandoras-forum-markdown.workspace = true
+pandoras-forum-atp.workspace = true
+pandoras-forum-lexicon.workspace = true
 # Private template files for $EDITOR (threat-model TERM-9).
-lessdugin-native.workspace = true
+pandoras-forum-native.workspace = true
 ratatui.workspace = true
 crossterm.workspace = true
 ratatui-image.workspace = true
@@ -34,6 +34,6 @@ url.workspace = true
 rustix = { version = "1", default-features = false, features = ["std", "event", "stdio"] }
 
 [dev-dependencies]
-lessdugin-testkit.workspace = true
+pandoras-forum-testkit.workspace = true
 insta.workspace = true
 tempfile.workspace = true

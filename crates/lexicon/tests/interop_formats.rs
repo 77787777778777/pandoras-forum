@@ -10,9 +10,9 @@ mod common;
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
 use common::interop_lines;
-use lessdugin_lexicon::schemas::{Registry, StringFormat};
-use lessdugin_lexicon::validate::formats::{check_format, is_valid_language};
-use lessdugin_lexicon::validate::{Code, Options, Validator};
+use pandoras_forum_lexicon::schemas::{Registry, StringFormat};
+use pandoras_forum_lexicon::validate::formats::{check_format, is_valid_language};
+use pandoras_forum_lexicon::validate::{Code, Options, Validator};
 use serde_json::{Value, json};
 
 const CASES: &[(&str, StringFormat)] = &[
@@ -105,12 +105,12 @@ fn language_validity() {
 }
 
 #[test]
-fn lessdugin_nsids_and_keys() {
+fn pandoras_forum_nsids_and_keys() {
     // ADR 0003: the digit NSID, `.temp` and index ids, and our rkey and cursor shapes
     for n in [
-        "online.7778777.lessdugin.post",
-        "online.7778777.lessdugin.temp.post",
-        "online.7778777.lessdugin.index.listPosts",
+        "forum.pandoras.post",
+        "forum.pandoras.temp.post",
+        "forum.pandoras.index.listPosts",
     ] {
         assert!(check_format(StringFormat::Nsid, n).is_ok(), "{n}");
     }

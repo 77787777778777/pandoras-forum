@@ -6,7 +6,7 @@
 //! update), the content, and a status line (the last message, or the keys). Every string is a
 //! [`TermText`](crate::text::TermText) turned into spans by [`crate::text`].
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     CommentSort, ForumRole, HistoryView, MembershipMode, PostFilter, PostSort, PublicActionKind,
     Stance,
 };
@@ -386,7 +386,7 @@ fn fit_to(s: &str, width: usize) -> String {
 /// palette (the MVP's `default/1`), the for/against stance, and the tallies of the reacts the
 /// selected item already has.
 fn react_palette(f: &mut Frame<'_>, o: &ReactOverlay, area: Rect) {
-    let palette = lessdugin_core::model::palette::default_1();
+    let palette = pandoras_forum_core::model::palette::default_1();
     let rows = usize::from(area.height.saturating_sub(4)).max(1);
     let mut lines: Vec<Line<'static>> = Vec::new();
     let stance = match o.stance {
@@ -455,7 +455,7 @@ fn header_style() -> Style {
 }
 
 fn header_line(state: &State) -> Line<'static> {
-    let mut crumbs = vec![lit(" lessdugin")];
+    let mut crumbs = vec![lit(" Pandora's Forum")];
     for s in state.stack.iter().skip(1) {
         let label = match &s.kind {
             ScreenKind::Home(_) => continue,

@@ -1,6 +1,6 @@
 # M6 assisted indexer client contract
 
-The implementation is `lessdugin_core::indexer`; the transport shapes are in
+The implementation is `pandoras_forum_core::indexer`; the transport shapes are in
 `indexer::contract`. The normative source remains `docs/spec/data-model.md` §11 and
 `docs/spec/sync.md` §§1.2, 2.4, 6.6, 8.6 and 15.4.
 
@@ -15,10 +15,10 @@ in the normative contract, not full NSIDs. Every other call is refused unless it
 advertised. Direct mode returns before `describeIndexer`, so it generates no indexer traffic.
 
 All methods are anonymous GETs under
-`/xrpc/online.7778777.lessdugin.index.<method>`, with no redirects, scheduled host budgets and a
+`/xrpc/forum.pandoras.index.<method>`, with no redirects, scheduled host budgets and a
 4 MiB JSON body cap. Array parameters are repeated query parameters. `getRecordProofs` accepts at
 most 25 URIs and uses an 8 MiB CAR cap and `Accept: application/vnd.ipld.car`. Its body is parsed
-only by `lessdugin_atp::proof::ProofBundle` (`proofs/1`), never by JSON or an Engine DTO shortcut.
+only by `pandoras_forum_atp::proof::ProofBundle` (`proofs/1`), never by JSON or an Engine DTO shortcut.
 
 ## Trust boundary
 
@@ -56,7 +56,7 @@ one request per 25 visible URIs (two for 26–50).
 
 ## Audit and service integration
 
-`Engine::audit_indexer` is the shared A1–A5 implementation. `lessdugin sync <forum> --audit`
+`Engine::audit_indexer` is the shared A1–A5 implementation. `pandoras-forum sync <forum> --audit`
 prints per-check and total counts and exits 6 for any contradiction or omission. A2 uses bounded
 session-local Jetstream observations; it intentionally does not invent a persistent Jetstream
 history. It reads `getChanges` back from the head in doubling windows (restarting a window at

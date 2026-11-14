@@ -17,7 +17,7 @@
 //   browser API has no backpressure, so the FIFO is bounded too (`WS_QUEUE_MAX_FRAMES`,
 //   `WS_QUEUE_MAX_BYTES`): on overflow the socket is closed with an error and the core reconnects
 //   from its cursor (threat-model.md INFRA-5);
-// - `lock(name, wait)`: Web Locks (locks.ts); in `lessdugin web` mode an `outbox:<did>` lock is
+// - `lock(name, wait)`: Web Locks (locks.ts); in `pandoras-forum web` mode an `outbox:<did>` lock is
 //   then also the native one (bridge-lock.ts), Web Lock first;
 // - `sleep(ms)`, `now()`, `random(n)`: `setTimeout`, `Date.now()`, `crypto.getRandomValues`;
 // - `cache`, `state`: `KvBackend`s (idb.ts, bridge-kv.ts).
@@ -83,7 +83,7 @@ export interface HostDeps {
   locks: LockManagerLike;
   /** Native browser WebSocket (injectable for the worker's scripted-socket tests). */
   webSocket?: typeof WebSocket | undefined;
-  /** `lessdugin web` mode: `outbox:<did>` locks are also taken natively (`POST /bridge/lock`). */
+  /** `pandoras-forum web` mode: `outbox:<did>` locks are also taken natively (`POST /bridge/lock`). */
   bridgeLock?: BridgeLockOptions | undefined;
   /** Default `Date.now`. */
   now?: () => number;

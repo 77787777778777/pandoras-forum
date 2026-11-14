@@ -39,8 +39,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Bound;
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_atp::{Cid, Ipld};
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_atp::{Cid, Ipld};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::host::{Dir, HostError, KeyRange, KvOp, KvStore};
@@ -214,15 +214,15 @@ impl RecordRow {
     }
 
     /// The value as IPLD (strict DAG-CBOR under [`RECORD_LIMITS`], which admission wrote it with).
-    pub fn ipld(&self) -> Result<Ipld, lessdugin_atp::datamodel::DataModelError> {
-        lessdugin_atp::dagcbor::decode_with(&self.cbor, &RECORD_LIMITS)
+    pub fn ipld(&self) -> Result<Ipld, pandoras_forum_atp::datamodel::DataModelError> {
+        pandoras_forum_atp::dagcbor::decode_with(&self.cbor, &RECORD_LIMITS)
     }
 
     /// The value as atproto JSON.
     pub fn value_json(
         &self,
-    ) -> Result<serde_json::Value, lessdugin_atp::datamodel::DataModelError> {
-        lessdugin_atp::datamodel::ipld_to_json(&self.ipld()?)
+    ) -> Result<serde_json::Value, pandoras_forum_atp::datamodel::DataModelError> {
+        pandoras_forum_atp::datamodel::ipld_to_json(&self.ipld()?)
     }
 
     fn carry(&self) -> Option<(Cid, i64)> {
@@ -694,8 +694,8 @@ fn slot_from(rec: Option<RecordRow>, tomb: Option<TombRow>) -> Slot {
 
 /// I2 for a version about to be stored.
 fn check_version_bytes(v: &Version) -> Result<(), StoreError> {
-    let ok = v.cid.codec() == lessdugin_atp::cid::DAG_CBOR
-        && lessdugin_atp::cid::verify(&v.cid, &v.cbor).is_ok();
+    let ok = v.cid.codec() == pandoras_forum_atp::cid::DAG_CBOR
+        && pandoras_forum_atp::cid::verify(&v.cid, &v.cbor).is_ok();
     if ok {
         Ok(())
     } else {

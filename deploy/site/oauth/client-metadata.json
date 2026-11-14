@@ -1,12 +1,12 @@
 {
-  "client_id": "https://lessdugin.7778777.online/oauth/client-metadata.json",
-  "client_name": "lessdugin",
-  "client_uri": "https://lessdugin.7778777.online/",
+  "client_id": "https://pandoras.forum/oauth/client-metadata.json",
+  "client_name": "Pandora's Forum",
+  "client_uri": "https://pandoras.forum/",
   "application_type": "web",
   "grant_types": ["authorization_code", "refresh_token"],
   "response_types": ["code"],
-  "redirect_uris": ["https://lessdugin.7778777.online/"],
-  "scope": "atproto include:online.7778777.lessdugin.authFull repo?collection=online.7778777.lessdugin.forum&collection=online.7778777.lessdugin.membership&collection=online.7778777.lessdugin.post&collection=online.7778777.lessdugin.comment&collection=online.7778777.lessdugin.revision&collection=online.7778777.lessdugin.opinion&collection=online.7778777.lessdugin.modAction&collection=online.7778777.lessdugin.wikiRevision&collection=online.7778777.lessdugin.sequence&collection=online.7778777.lessdugin.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf",
+  "redirect_uris": ["https://pandoras.forum/"],
+  "scope": "atproto include:forum.pandoras.authFull repo?collection=forum.pandoras.forum&collection=forum.pandoras.membership&collection=forum.pandoras.post&collection=forum.pandoras.comment&collection=forum.pandoras.revision&collection=forum.pandoras.opinion&collection=forum.pandoras.modAction&collection=forum.pandoras.wikiRevision&collection=forum.pandoras.sequence&collection=forum.pandoras.profile blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf",
   "token_endpoint_auth_method": "none",
   "dpop_bound_access_tokens": true
 }

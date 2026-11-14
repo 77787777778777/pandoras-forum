@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // An edit draft may combine raw and bodySource only when both name the same record revision.
-import type { BodySource, RawView } from "@lessdugin/engine/types";
+import type { BodySource, RawView } from "@pandoras-forum/engine/types";
 import { describe, expect, it } from "vitest";
 import { coherentEditSource } from "./editSource.ts";
 

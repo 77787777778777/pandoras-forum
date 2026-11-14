@@ -7,8 +7,8 @@
 // image) is kept by the engine for the same link, unless the author removes it
 // (`EditOpts.dropLinkCard`, engine-api.md §3.5 `edit`).
 
-import type { Draft, MediaRef, PostDraft, PostKind } from "@lessdugin/engine/types";
-import { POST_KINDS } from "@lessdugin/engine/types";
+import type { Draft, MediaRef, PostDraft, PostKind } from "@pandoras-forum/engine/types";
+import { POST_KINDS } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useCallback, useId, useRef, useState } from "react";

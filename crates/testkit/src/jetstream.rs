@@ -11,7 +11,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use futures::{SinkExt, StreamExt};
-use lessdugin_atp::syntax::{Datetime, Did};
+use pandoras_forum_atp::syntax::{Datetime, Did};
 use serde_json::{Map, Value, json};
 use tokio::net::TcpListener;
 use tokio_tungstenite::tungstenite::Message;
@@ -413,7 +413,7 @@ fn frames(event: &RepoEvent, wire: Wire, wanted: &Filters) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_atp::syntax::Tid;
+    use pandoras_forum_atp::syntax::Tid;
 
     #[test]
     fn both_wires_emit_commit_hints_not_record_text() {
@@ -424,12 +424,12 @@ mod tests {
             did,
             kind: RepoEventKind::Commit {
                 rev: Tid::from_parts(1_760_000_000_000_000, 0).unwrap(),
-                cid: lessdugin_atp::cid::for_raw(&[1]),
+                cid: pandoras_forum_atp::cid::for_raw(&[1]),
                 ops: vec![super::super::fake_pds::RepoOp {
                     action: super::super::fake_pds::OpAction::Create,
-                    collection: "online.7778777.lessdugin.post".into(),
+                    collection: "forum.pandoras.post".into(),
                     rkey: "f-3l2s5xxv2zaa2".into(),
-                    cid: Some(lessdugin_atp::cid::for_raw(&[1])),
+                    cid: Some(pandoras_forum_atp::cid::for_raw(&[1])),
                     prev: None,
                     record: Some(Arc::from(&b"private record text"[..])),
                 }],
@@ -450,7 +450,7 @@ mod tests {
                 assert!(value["payload"]["rkey"].is_string());
                 assert!(value["payload"].get("commit").is_none());
             }
-            assert!(frames[0].contains("online.7778777.lessdugin.post"));
+            assert!(frames[0].contains("forum.pandoras.post"));
             assert!(!frames[0].contains("private record text"));
         }
     }
@@ -461,10 +461,10 @@ mod tests {
         let net = FakeNet::serve_http(crate::fake_pds::SystemClock);
         let alice = net.add_account("alice.test");
         alice.put(
-            "online.7778777.lessdugin.post",
+            "forum.pandoras.post",
             "f-3l2s5xxv2zaa2",
             &json!({
-                "forum": alice.uri("online.7778777.lessdugin.forum", "self"),
+                "forum": alice.uri("forum.pandoras.forum", "self"),
                 "title": "test", "createdAt": "2025-10-09T08:53:20Z"
             }),
         );
@@ -472,9 +472,9 @@ mod tests {
         for wire in [Wire::V1, Wire::V2] {
             let server = Jetstream::start(&net, wire);
             let path = if wire == Wire::V1 {
-                "/subscribe?requireHello=true&wantedCollections=online.7778777.lessdugin.*"
+                "/subscribe?requireHello=true&wantedCollections=forum.pandoras.*"
             } else {
-                "/xrpc/network.bsky.jetstream.subscribeEvents?collections=online.7778777.lessdugin.*"
+                "/xrpc/network.bsky.jetstream.subscribeEvents?collections=forum.pandoras.*"
             };
             let mut request = format!("{}{}", server.base_url(), path)
                 .into_client_request()
@@ -491,7 +491,7 @@ mod tests {
                 socket
                     .send(Message::Text(
                         json!({"type": "options_update", "payload": {
-                            "wantedCollections": ["online.7778777.lessdugin.*"],
+                            "wantedCollections": ["forum.pandoras.*"],
                             "wantedDids": [alice.did().as_str()],
                         }})
                         .to_string()
@@ -512,12 +512,12 @@ mod tests {
                     panic!("expected text")
                 };
                 text = frame.to_string();
-                if text.contains("online.7778777.lessdugin.post") {
+                if text.contains("forum.pandoras.post") {
                     break;
                 }
             }
             let value: Value = serde_json::from_str(&text).unwrap();
-            assert!(text.contains("online.7778777.lessdugin.post"), "{text}");
+            assert!(text.contains("forum.pandoras.post"), "{text}");
             assert!(value.get("record").is_none());
             let logs = server.requests();
             assert!(logs.iter().any(|r| r.url == path));
@@ -533,7 +533,7 @@ mod tests {
         let net = FakeNet::serve_http(crate::fake_pds::SystemClock);
         let alice = net.add_account("alice.test");
         alice.put(
-            "online.7778777.lessdugin.post",
+            "forum.pandoras.post",
             "f-3l2s5xxv2zaa2",
             &json!({"createdAt": "2025-10-09T08:53:20Z"}),
         );
@@ -541,7 +541,7 @@ mod tests {
         let server = Jetstream::start(&net, Wire::V2);
         let cursor = net.now_ms() + 60_000;
         let path = format!(
-            "/xrpc/network.bsky.jetstream.subscribeEvents?collections=online.7778777.lessdugin.*&cursor={}000",
+            "/xrpc/network.bsky.jetstream.subscribeEvents?collections=forum.pandoras.*&cursor={}000",
             cursor
         );
         let mut request = format!("{}{}", server.base_url(), path)
@@ -565,7 +565,7 @@ mod tests {
         let params = vec![
             ("dids".into(), "did:plc:a".into()),
             ("dids".into(), "did:plc:b".into()),
-            ("collections".into(), "online.7778777.lessdugin.*".into()),
+            ("collections".into(), "forum.pandoras.*".into()),
         ];
         let wanted = filters(&params, &Value::Null, Wire::V2);
         assert_eq!(wanted.dids.len(), 2);

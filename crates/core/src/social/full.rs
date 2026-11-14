@@ -53,8 +53,8 @@ pub mod wiki;
 
 use std::collections::BTreeSet;
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::ns::NS;
 
 pub use cx::{Cx, Validity, lexicon_validity};
 pub use project::{ProjectError, project, project_fold};

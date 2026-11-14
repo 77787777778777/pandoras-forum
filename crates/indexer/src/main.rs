@@ -5,21 +5,21 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use lessdugin_indexer::api;
-use lessdugin_indexer::host::PoliteHost;
-use lessdugin_indexer::ingest;
-use lessdugin_indexer::live;
-use lessdugin_indexer::store::Store;
-use lessdugin_indexer::{Indexer, IndexerConfig};
-use lessdugin_native::config::{Config, NetworkProfile, Paths};
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_indexer::api;
+use pandoras_forum_indexer::host::PoliteHost;
+use pandoras_forum_indexer::ingest;
+use pandoras_forum_indexer::live;
+use pandoras_forum_indexer::store::Store;
+use pandoras_forum_indexer::{Indexer, IndexerConfig};
+use pandoras_forum_native::config::{Config, NetworkProfile, Paths};
+use pandoras_forum_native::host::NativeHost;
 use url::Url;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "lessdugin-indexer",
+    name = "pandoras-forum-indexer",
     version,
-    about = "Optional native lessdugin indexer"
+    about = "Optional native Pandora's Forum indexer"
 )]
 struct Args {
     #[arg(long, default_value = "127.0.0.1:2584")]
@@ -45,7 +45,7 @@ struct Args {
     jetstream: Vec<Url>,
     #[arg(long)]
     blocklist: Option<PathBuf>,
-    #[arg(long, default_value = option_env!("LESSDUGIN_INDEXER_SOURCE_URL").unwrap_or("https://github.com/lessdugin/lessdugin"))]
+    #[arg(long, default_value = option_env!("PANDORAS_FORUM_INDEXER_SOURCE_URL").unwrap_or("https://github.com/77787777778777/pandoras-forum"))]
     source_url: String,
 }
 
@@ -60,16 +60,16 @@ async fn main() -> Result<()> {
         .ensure_dirs()
         .context("create indexer data directories")?;
     let mut config = Config::load(&paths.config_file).context("load indexer config")?;
-    config.network = lessdugin_indexer::network_profile(
+    config.network = pandoras_forum_indexer::network_profile(
         config.network.clone(),
         &config.plc,
         args.poll.as_ref(),
         args.dev,
-        lessdugin_indexer::DEVNET_AVAILABLE,
+        pandoras_forum_indexer::DEVNET_AVAILABLE,
     )?;
-    let engine_config = lessdugin_native::engine::engine_config(&config);
+    let engine_config = pandoras_forum_native::engine::engine_config(&config);
     let host = NativeHost::open(&paths, &config).context("open native cache")?;
-    let engine = lessdugin_core::engine::Engine::new(PoliteHost::new(host), engine_config);
+    let engine = pandoras_forum_core::engine::Engine::new(PoliteHost::new(host), engine_config);
     let store = Store::open(&paths.state_db()).context("open indexer side tables")?;
     let blocklist = load_blocklist(args.blocklist.as_ref())?;
     let plc = match &config.network {
@@ -97,7 +97,7 @@ async fn main() -> Result<()> {
     live::spawn(indexer.clone());
     let app = api::router(indexer.clone());
     let listener = tokio::net::TcpListener::bind(args.listen).await?;
-    tracing::info!(address = %listener.local_addr()?, "lessdugin indexer listening");
+    tracing::info!(address = %listener.local_addr()?, "Pandora's Forum indexer listening");
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<SocketAddr>(),

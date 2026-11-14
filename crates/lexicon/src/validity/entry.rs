@@ -6,7 +6,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::syntax::{AtUri, Did};
 
 use crate::collection::Collection;
 use crate::keys;

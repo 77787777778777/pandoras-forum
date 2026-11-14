@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // One leader tab per origin (sync.md §10.6). Every engine worker requests the Web Lock
-// `lessdugin-sync-leader` once and holds it for its lifetime; the holder is the leader and the
+// `pandoras-forum-sync-leader` once and holds it for its lifetime; the holder is the leader and the
 // only worker that runs the long-lived `outboxPump` and `liveTail`. When the leader's tab closes
 // (or its worker stops), the browser releases the lock and the next waiting worker takes over,
 // resuming from the persisted outbox and cursors.
 //
 // Followers still read the shared IndexedDB stores and enqueue writes into the shared outbox.
 // Every worker relays its engine's `changed` and `write` events on the BroadcastChannel
-// `lessdugin-changes`; a receiving worker drops the cached models the topics touch
+// `pandoras-forum-changes`; a receiving worker drops the cached models the topics touch
 // (`externalChange`) and forwards the event to its own subscribers, and the leader wakes its
 // pump when another tab queued a write (a `pending` write event).
 
@@ -20,7 +20,7 @@ export interface LeaderOptions {
   locks: LockManagerLike;
   /** Called once, when this worker becomes the leader. */
   onLead: () => void;
-  /** The lock name (default `lessdugin-sync-leader`). */
+  /** The lock name (default `pandoras-forum-sync-leader`). */
   name?: string;
 }
 

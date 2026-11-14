@@ -4,7 +4,7 @@
 // M2's `new`/`all` together with the CLI's `ls` and the TUI's forum screen so
 // the three clients show the same posts for the same forum).
 
-import type { PostFilter, PostSort } from "@lessdugin/engine/types";
+import type { PostFilter, PostSort } from "@pandoras-forum/engine/types";
 
 export const DEFAULT_POST_SORT: PostSort = "magic";
 export const DEFAULT_POST_FILTER: PostFilter = "frontpage";

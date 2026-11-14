@@ -7,7 +7,7 @@
 import { createHash } from "node:crypto";
 
 /** The NSID prefix of this build (`.temp` until release 0.1, crates/lexicon `ns::NS`). */
-export const NS = "online.7778777.lessdugin.temp";
+export const NS = "forum.pandoras.temp";
 
 const B32 = "234567abcdefghijklmnopqrstuvwxyz";
 
@@ -32,7 +32,7 @@ export function b32s(bytes, n) {
 /** `fk(forumUri)` (`fk/1`). */
 export function fk(forumUri) {
   const h = createHash("sha256");
-  h.update(Buffer.from("lessdugin-fk/1", "utf8"));
+  h.update(Buffer.from("pandoras-forum-fk/1", "utf8"));
   h.update(Buffer.from([0x1f]));
   h.update(Buffer.from(forumUri.normalize("NFC"), "utf8"));
   return b32s(h.digest(), 12);

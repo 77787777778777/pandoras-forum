@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
-# lessdugin engine API and DTO schema (`dto/1`)
+# Pandora's Forum engine API and DTO schema (`dto/1`)
 
 Status: normative for implementations in this repository; informative for other implementations
 (they only need the data model, LFM/1, social and sync specs). Version: **engine API v0
@@ -9,8 +9,8 @@ compatibly (§1 "Freeze"). The operations a later milestone implements are liste
 
 ## 0. Purpose
 
-One engine (`lessdugin-core::engine::Engine<H: Host>`) serves the CLI, the TUI, the SPA (through
-`lessdugin-wasm` and `@lessdugin/engine`) and the optional indexer. This document fixes:
+One engine (`pandoras-forum-core::engine::Engine<H: Host>`) serves the CLI, the TUI, the SPA (through
+`pandoras-forum-wasm` and `@pandoras-forum/engine`) and the optional indexer. This document fixes:
 
 - the engine's public operations, grouped as in synthesis §6.5;
 - the **DTO schema** returned by queries. The CLI's `--json` output *is* this schema, and the SPA
@@ -232,8 +232,8 @@ one day, and give every client the same `t`.
 
 Parity mode is **test-only** and is never enabled in production:
 
-- **Native (CLI, TUI):** `LESSDUGIN_PARITY_NOW_MS=<ms since the epoch>`, read by
-  `lessdugin_native::config::parity_now_ms`, which refuses it unless the configuration is in
+- **Native (CLI, TUI):** `PANDORAS_FORUM_PARITY_NOW_MS=<ms since the epoch>`, read by
+  `pandoras_forum_native::config::parity_now_ms`, which refuses it unless the configuration is in
   devnet mode (`--dev`, a devnet-enabled build). The CLI prints a warning when it is on.
 - **SPA:** only an e2e build (a build-time flag, like the demo flag that gates the mock engine)
   passes `parityNowMs` to the wasm engine's configuration; release builds do not contain the
@@ -289,7 +289,7 @@ when the engine is dropped or the corresponding stop method is called.
 | `outbox_pump()` | long-lived: drains the outbox of every logged-in account, one write in flight per account (`sync.md` §7.1, across processes and tabs through `Host::lock`); picks up account changes; never returns an error; ends on `outbox_stop()` |
 | `outbox_stop()` | sync; stops every running pump after its current round; a pump started later runs |
 | `outbox_flush() -> PumpReport` | one-shot (CLI, tests): prunes finished writes older than `DONE_KEEP_MS`, then runs every account's outbox until nothing is pending, sleeping through holds and back-offs; an account whose writes wait for a new login (below) is skipped. `PumpReport { processed, done, failed, conflicts, throttled, needsLogin }` is a Rust value, not a DTO |
-| `outbox_expedite() -> u32` | "send now" (`lessdugin outbox flush`): ends the back-off of every write that waits after an ambiguous or transient failure, so the next step tries it at once. The undo window, the write budget, a PDS rate limit and a refused session are not shortened. Returns how many writes it expedited |
+| `outbox_expedite() -> u32` | "send now" (`pandoras-forum outbox flush`): ends the back-off of every write that waits after an ambiguous or transient failure, so the next step tries it at once. The undo window, the write budget, a PDS rate limit and a refused session are not shortened. Returns how many writes it expedited |
 | `background_verify()` | long-lived; `verify = Proof` is Reserved (P2) (`sync.md` §2.3), so in v1 it returns at once |
 | `external_change(topics)` | sync; another engine over the same stores (another browser tab, `sync.md` §10.6) emitted `Changed { topics }`: drops the cached models those topics touch (a `Thread` or `User` topic drops every cached forum model). Emits nothing; the caller forwards the event to its own subscribers |
 
@@ -792,9 +792,9 @@ Topic         = { kind: forum|thread, uri } | { kind: "user", did }
               | { kind: notifications|outbox|drafts|accounts }
 ```
 
-## 5. Wasm binding (`@lessdugin/engine`)
+## 5. Wasm binding (`@pandoras-forum/engine`)
 
-- **Boundary.** `lessdugin-wasm` exposes one class, `WasmEngine`, built with wasm-bindgen
+- **Boundary.** `pandoras-forum-wasm` exposes one class, `WasmEngine`, built with wasm-bindgen
   (`--target web`, no tsify, no serde-wasm-bindgen): `new WasmEngine(configJson, host)`,
   `call(op, argsJson) → Promise<string>`, `subscribe(cb) → id`, `unsubscribe(id)`. `op` is an
   `EngineApi` method name (`packages/engine/src/api.ts`), `argsJson` its arguments as a JSON
@@ -803,7 +803,7 @@ Topic         = { kind: forum|thread, uri } | { kind: "user", did }
   reach `cb` as dto/1 JSON strings, in order, never re-entrantly. The TS types are the
   hand-written `types.ts`, checked by `types.parity.test.ts` against `testdata/dto/dto-1.d.ts`,
   which the Rust types generate through their tsify derives (§1 "Freeze"; the derives are a
-  test-only feature, `lessdugin-wasm/dto-decl`, never in the module).
+  test-only feature, `pandoras-forum-wasm/dto-decl`, never in the module).
 - **Coverage.** Every `EngineApi` method is either dispatched (`crates/wasm/src/ops.rs` `OPS`)
   or rejects with `unsupported` and `detail.milestone` (`UNSUPPORTED`, §3.9); a native test
   parses `api.ts` and fails when a method is in neither list, and `crates/wasm/tests/ops_social.rs`
@@ -824,12 +824,12 @@ Topic         = { kind: forum|thread, uri } | { kind: "user", did }
   `getSession` only; the core reads public records, the account's own included, as
   `Target::Anon`) to the main thread's AuthBridge; `fetch_blob` streamed and hashed in JS with
   the CID check, stored in IndexedDB, never copied into wasm (`blobs.ts`); `lock` as the Web
-  Lock `lessdugin-<name>` (`locks.ts`), where the leader's own `sync-leader` request is answered
-  at once (it holds that Web Lock, which is not re-entrant), and in `lessdugin web` mode an
+  Lock `pandoras-forum-<name>` (`locks.ts`), where the leader's own `sync-leader` request is answered
+  at once (it holds that Web Lock, which is not re-entrant), and in `pandoras-forum web` mode an
   `outbox:<did>` lock is the Web Lock and then the native lock through `POST /bridge/lock`
   (`bridge-lock.ts`, threat-model §7.4); `sleep`, `now_ms`, `fill_random` from the platform;
   WebSockets are `unsupported` until M5. The two `KvStore`s are IndexedDB databases
-  (`<prefix>-cache` relaxed, `<prefix>-state` strict; `idb.ts`), or in `lessdugin web` mode
+  (`<prefix>-cache` relaxed, `<prefix>-state` strict; `idb.ts`), or in `pandoras-forum web` mode
   the state store is the native one behind `POST /bridge/kv` (`bridge-kv.ts`). The IndexedDB
   store passes the core KV conformance suites in CI (`kv-conformance.test.ts`, with the test
   module of `cargo xtask wasm --kv-test`).
@@ -839,13 +839,13 @@ Topic         = { kind: forum|thread, uri } | { kind: "user", did }
   field by field, no main-thread object is exposed to the worker) through the AuthBridge
   allowlist
   (`auth-bridge.ts`, threat-model AUTH-4, AUTH-8), with a pluggable session: hosted OAuth
-  (`oauthSession(did, fetchHandler)`) or the `lessdugin web` bridge
-  (`bridgeSession({ did, token })`). `@lessdugin/engine/client` (`startEngine`) wraps the
+  (`oauthSession(did, fetchHandler)`) or the `pandoras-forum web` bridge
+  (`bridgeSession({ did, token })`). `@pandoras-forum/engine/client` (`startEngine`) wraps the
   worker as an `EngineApi` and re-exports the DTO types.
-- **Tabs.** One worker per tab; the Web Lock `lessdugin-sync-leader` elects the leader, the
+- **Tabs.** One worker per tab; the Web Lock `pandoras-forum-sync-leader` elects the leader, the
   only worker that runs `outbox_pump()` and `live_tail()` (the client's `outboxPump()` and
   `liveTail()` resolve at once). Workers relay their `Changed` and `Write` events on the
-  BroadcastChannel `lessdugin-changes`; a receiving worker calls `external_change(topics)`
+  BroadcastChannel `pandoras-forum-changes`; a receiving worker calls `external_change(topics)`
   (§3.3) and forwards the event to its subscribers, and the leader wakes its pump on another
   tab's `Write { pending }` (`leader.ts`, `sync.md` §10.6). The React app maps `Changed`
   topics to TanStack Query invalidations.

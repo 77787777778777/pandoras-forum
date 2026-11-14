@@ -195,8 +195,8 @@ pub fn account_status_due(repo: &RepoRow, now_ms: i64) -> bool {
 mod tests {
     use super::*;
 
-    fn cid() -> lessdugin_atp::Cid {
-        lessdugin_atp::cid::for_dag_cbor(b"\xa0")
+    fn cid() -> pandoras_forum_atp::Cid {
+        pandoras_forum_atp::cid::for_dag_cbor(b"\xa0")
     }
 
     #[test]

@@ -22,10 +22,10 @@ describe("splitBootParams (threat-model SPA-8)", () => {
 
   it("takes the bridge capability out of the fragment", () => {
     const cap = "A".repeat(43);
-    const r = splitBootParams({ search: "", hash: `#lessdugin-cap=${cap}` });
+    const r = splitBootParams({ search: "", hash: `#pandoras-forum-cap=${cap}` });
     expect(r.params.bridgeCapability).toBe(cap);
     expect(r.hash).toBe("#/");
-    const bad = splitBootParams({ search: "", hash: "#lessdugin-cap=<script>" });
+    const bad = splitBootParams({ search: "", hash: "#pandoras-forum-cap=<script>" });
     expect(bad.params.bridgeCapability).toBeNull();
     expect(bad.hash).toBe("#/");
   });

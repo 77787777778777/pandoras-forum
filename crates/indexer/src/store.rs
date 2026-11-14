@@ -7,8 +7,8 @@ use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::model::ForumModel;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::model::ForumModel;
 use rusqlite::{Connection, OptionalExtension, params};
 
 /// At most this many forum seeds are attributed to one DID (its own declarations, or the forums
@@ -217,7 +217,7 @@ impl Store {
 
     fn add_seed(&self, forum: &str, via: &str, via_host: &str) -> rusqlite::Result<bool> {
         let uri = AtUri::parse(forum).map_err(invalid)?;
-        let fk = lessdugin_lexicon::keys::fk(uri.as_str()).map_err(invalid)?;
+        let fk = pandoras_forum_lexicon::keys::fk(uri.as_str()).map_err(invalid)?;
         let inserted = self.db().execute(
             "INSERT INTO forums(uri,did,rkey,name,created_at,cid,synced_ms,input_digest,fk,via,via_host) VALUES(?1,?2,?3,'','','',0,'',?4,?5,?6) ON CONFLICT(uri) DO NOTHING",
             params![
@@ -262,9 +262,9 @@ impl Store {
         created_ms: i64,
         host: &str,
     ) -> rusqlite::Result<bool> {
-        lessdugin_core::discovery::ForumKey::of_uri(&AtUri::parse(forum).map_err(invalid)?)
+        pandoras_forum_core::discovery::ForumKey::of_uri(&AtUri::parse(forum).map_err(invalid)?)
             .map_err(invalid)?;
-        lessdugin_atp::syntax::Did::parse(did).map_err(invalid)?;
+        pandoras_forum_atp::syntax::Did::parse(did).map_err(invalid)?;
         let db = self.db();
         let known = db
             .query_row(
@@ -311,7 +311,7 @@ impl Store {
         q.query_map(
             params![
                 forum,
-                now_ms - lessdugin_core::discovery::state::REJECTED_RECHECK_MS
+                now_ms - pandoras_forum_core::discovery::state::REJECTED_RECHECK_MS
             ],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
@@ -983,7 +983,7 @@ impl Store {
                 m.input
                     .records
                     .get(*u)
-                    .is_some_and(|s| s.collection == lessdugin_lexicon::nsid::POST)
+                    .is_some_and(|s| s.collection == pandoras_forum_lexicon::nsid::POST)
             })
             .count() as i64;
         let previous_cid: Option<String> = tx
@@ -1233,7 +1233,7 @@ fn migrate_forums(conn: &Connection) -> rusqlite::Result<()> {
         .query_map([], |r| r.get::<_, String>(0))?
         .collect::<Result<Vec<_>, _>>()?;
     for uri in unkeyed {
-        if let Ok(fk) = lessdugin_lexicon::keys::fk(&uri) {
+        if let Ok(fk) = pandoras_forum_lexicon::keys::fk(&uri) {
             conn.execute("UPDATE forums SET fk=?2 WHERE uri=?1", params![uri, fk])?;
         }
     }
@@ -1285,8 +1285,9 @@ mod tests {
     #[test]
     fn candidate_hints_keep_recency_and_rejection_backoff() {
         let store = Store::in_memory().unwrap();
-        let owner = lessdugin_atp::syntax::Did::parse("did:plc:abcdefghijklmnopqrstuvwx").unwrap();
-        let forum = lessdugin_core::discovery::ForumKey::new(&owner, "forum")
+        let owner =
+            pandoras_forum_atp::syntax::Did::parse("did:plc:abcdefghijklmnopqrstuvwx").unwrap();
+        let forum = pandoras_forum_core::discovery::ForumKey::new(&owner, "forum")
             .unwrap()
             .uri
             .to_string();
@@ -1333,7 +1334,7 @@ mod tests {
         );
 
         // An unchanged hint becomes eligible again after the normal rejected-candidate back-off.
-        let retry = 40 + lessdugin_core::discovery::state::REJECTED_RECHECK_MS;
+        let retry = 40 + pandoras_forum_core::discovery::state::REJECTED_RECHECK_MS;
         assert!(
             store.candidates(&forum, retry - 1).is_empty()
                 || store
@@ -1370,15 +1371,15 @@ mod tests {
     #[test]
     fn proof_scope_accepts_any_current_projection_not_just_the_newest() {
         let store = Store::in_memory().unwrap();
-        let record = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.post/r";
+        let record = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.post/r";
         for (forum, synced, cid) in [
             (
-                "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.forum/old",
+                "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.forum/old",
                 10,
                 "old",
             ),
             (
-                "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.forum/new",
+                "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.forum/new",
                 20,
                 "new",
             ),
@@ -1430,8 +1431,7 @@ mod tests {
         counter.load(Ordering::Relaxed)
     }
 
-    const FORUM: &str =
-        "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.temp.forum/big";
+    const FORUM: &str = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.temp.forum/big";
 
     fn grow(store: &Store, from: usize, n: usize) {
         let mut db = store.db();
@@ -1441,9 +1441,7 @@ mod tests {
                 "INSERT INTO record_state(forum,uri,cid) VALUES(?1,?2,'c')",
                 params![
                     FORUM,
-                    format!(
-                        "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.temp.post/r{i}"
-                    )
+                    format!("at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.temp.post/r{i}")
                 ],
             )
             .unwrap();
@@ -1470,11 +1468,11 @@ mod tests {
         for i in 0..200 {
             store
                 .add_forum_seed(&format!(
-                    "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/online.7778777.lessdugin.temp.forum/s{i}"
+                    "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/forum.pandoras.temp.forum/s{i}"
                 ))
                 .unwrap();
         }
-        let probe = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.temp.post/r7";
+        let probe = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.temp.post/r7";
         let fk = store.forum_row(FORUM).unwrap().fk;
         let cost = |store: &Store| {
             [
@@ -1508,7 +1506,7 @@ mod tests {
             for i in from..from + n {
                 store
                     .add_forum_seed(&format!(
-                        "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/online.7778777.lessdugin.temp.forum/s{i}"
+                        "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/forum.pandoras.temp.forum/s{i}"
                     ))
                     .unwrap();
             }
@@ -1534,9 +1532,8 @@ mod tests {
     #[test]
     fn forum_hints_are_capped_per_did_and_per_host() {
         let store = Store::in_memory().unwrap();
-        let forum = |owner: &str, n: usize| {
-            format!("at://did:plc:{owner}/online.7778777.lessdugin.temp.forum/f{n}")
-        };
+        let forum =
+            |owner: &str, n: usize| format!("at://did:plc:{owner}/forum.pandoras.temp.forum/f{n}");
         let spammer = "did:plc:ssssssssssssssssssssssss";
         let mut accepted = 0;
         for n in 0..(SEEDS_PER_DID as usize + 8) {
@@ -1582,8 +1579,8 @@ mod tests {
             .unwrap();
 
         // Pending membership hints: per host, per forum.
-        let real = lessdugin_core::discovery::ForumKey::new(
-            &lessdugin_atp::syntax::Did::parse("did:plc:abcdefghijklmnopqrstuvwx").unwrap(),
+        let real = pandoras_forum_core::discovery::ForumKey::new(
+            &pandoras_forum_atp::syntax::Did::parse("did:plc:abcdefghijklmnopqrstuvwx").unwrap(),
             "real",
         )
         .unwrap()
@@ -1716,8 +1713,8 @@ mod tests {
     #[test]
     fn a_hinted_seed_that_never_syncs_is_dropped_after_a_week_of_failures() {
         let store = Store::in_memory().unwrap();
-        let hinted = "at://did:plc:cccccccccccccccccccccccc/online.7778777.lessdugin.temp.forum/h";
-        let indexed = "at://did:plc:dddddddddddddddddddddddd/online.7778777.lessdugin.temp.forum/i";
+        let hinted = "at://did:plc:cccccccccccccccccccccccc/forum.pandoras.temp.forum/h";
+        let indexed = "at://did:plc:dddddddddddddddddddddddd/forum.pandoras.temp.forum/i";
         for forum in [hinted, indexed] {
             assert!(
                 store
@@ -1769,7 +1766,7 @@ mod tests {
             assert!(store.forum_row(forum).is_some(), "{forum} was dropped");
         }
         // A quarantined seed whose rechecks fail is dropped a week after it was found absent.
-        let gone = "at://did:plc:eeeeeeeeeeeeeeeeeeeeeeee/online.7778777.lessdugin.temp.forum/g";
+        let gone = "at://did:plc:eeeeeeeeeeeeeeeeeeeeeeee/forum.pandoras.temp.forum/g";
         store.add_forum_seed(gone).unwrap();
         store.note_forum_absent(gone, 5).unwrap();
         assert!(

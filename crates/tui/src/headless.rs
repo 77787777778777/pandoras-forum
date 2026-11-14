@@ -15,9 +15,9 @@
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 
-use lessdugin_core::dto::{Event, ThreadView};
-use lessdugin_core::engine::{Engine, EngineError, SubscriptionId};
-use lessdugin_core::host::Host;
+use pandoras_forum_core::dto::{Event, ThreadView};
+use pandoras_forum_core::engine::{Engine, EngineError, SubscriptionId};
+use pandoras_forum_core::host::Host;
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 use ratatui::buffer::Buffer;
@@ -396,7 +396,7 @@ impl Default for CaptureOpts {
 }
 
 /// The parity hook: opens the Thread screen for `uri` over `engine` (a post or a comment; the
-/// default comment sort, as `lessdugin read` and the SPA), settles, shows any pending live
+/// default comment sort, as `pandoras-forum read` and the SPA), settles, shows any pending live
 /// update, and returns the screen and the view it holds.
 pub async fn capture_thread<H: Host>(
     engine: &Engine<H>,

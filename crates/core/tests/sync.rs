@@ -8,27 +8,27 @@ use std::collections::BTreeSet;
 use std::future::Future;
 use std::sync::Arc;
 
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_core::discovery::{DeclProof, DiscState, ForumKey, ForumSync, SyncOpts};
-use lessdugin_core::engine::{Engine, EngineConfig};
-use lessdugin_core::host::Host;
-use lessdugin_core::store::repo::BreakerState;
-use lessdugin_core::store::repo::RangeCursor;
-use lessdugin_core::store::{RecKey, RecordStore, RepoRow, Slot};
-use lessdugin_core::sync::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_core::discovery::{DeclProof, DiscState, ForumKey, ForumSync, SyncOpts};
+use pandoras_forum_core::engine::{Engine, EngineConfig};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::store::repo::BreakerState;
+use pandoras_forum_core::store::repo::RangeCursor;
+use pandoras_forum_core::store::{RecKey, RecordStore, RepoRow, Slot};
+use pandoras_forum_core::sync::{
     Priority, Reason, RepoOutcome, RepoReport, Session, Stats, SyncConfig, SyncRequest, Syncer,
 };
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::nsid;
-use lessdugin_lexicon::records::{
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::nsid;
+use pandoras_forum_lexicon::records::{
     AccessAction, Action, Forum, Markdown, Md, Membership, ModAction, Moderator, Opinion, Post,
     StrongRef,
 };
-use lessdugin_lexicon::values::{AccessLevel, MembershipMode};
-use lessdugin_testkit::fake_pds::{AccountHandle, CursorMode, Fault, PdsHandle, ServiceKind};
-use lessdugin_testkit::repo::tid_at_ms;
-use lessdugin_testkit::{FakeNet, MemHost, resp};
+use pandoras_forum_lexicon::values::{AccessLevel, MembershipMode};
+use pandoras_forum_testkit::fake_pds::{AccountHandle, CursorMode, Fault, PdsHandle, ServiceKind};
+use pandoras_forum_testkit::repo::tid_at_ms;
+use pandoras_forum_testkit::{FakeNet, MemHost, resp};
 use serde_json::{Value, json};
 
 const LIST: &str = "com.atproto.repo.listRecords";
@@ -83,7 +83,7 @@ impl World {
 
     fn put(&self, a: &AccountHandle, coll: &str, rkey: &str, v: &Value) -> String {
         let uri = AtUri::parse(&a.uri(coll, rkey)).unwrap();
-        let validity = lessdugin_lexicon::validity::check_uri(&uri, v);
+        let validity = pandoras_forum_lexicon::validity::check_uri(&uri, v);
         assert!(validity.first_rule().is_none(), "{uri}: {validity:?}");
         a.put(coll, rkey, v);
         uri.to_string()
@@ -190,7 +190,7 @@ impl World {
         block_on(sy.sync_repo(&s, &SyncRequest::forum(a.did().clone(), &f.fk, reason)))
     }
 
-    fn store(&self) -> RecordStore<'_, lessdugin_core::store::mem::MemKv> {
+    fn store(&self) -> RecordStore<'_, pandoras_forum_core::store::mem::MemKv> {
         RecordStore::new(self.host.cache())
     }
 
@@ -223,7 +223,7 @@ impl World {
     }
 }
 
-fn host_row(w: &World, pds: &str) -> lessdugin_core::store::HostRow {
+fn host_row(w: &World, pds: &str) -> pandoras_forum_core::store::HostRow {
     block_on(w.store().host_caps(pds)).unwrap().unwrap()
 }
 
@@ -475,7 +475,7 @@ fn fetch_caps_are_complete_and_byte_caps_partial() {
     );
     assert_eq!(
         repo.repo_status(&f.fk),
-        lessdugin_core::store::RepoStatus::Fresh,
+        pandoras_forum_core::store::RepoStatus::Fresh,
         "a capped range is complete"
     );
 
@@ -501,7 +501,7 @@ fn fetch_caps_are_complete_and_byte_caps_partial() {
     );
     assert_eq!(
         repo.repo_status(&f.fk),
-        lessdugin_core::store::RepoStatus::Unavailable
+        pandoras_forum_core::store::RepoStatus::Unavailable
     );
 }
 
@@ -584,7 +584,7 @@ fn point_fetch_and_own_writes() {
     let out = block_on(sy.point_fetch(&s, &uri, None)).unwrap();
     assert!(matches!(
         out,
-        lessdugin_core::sync::PointOutcome::Admitted {
+        pandoras_forum_core::sync::PointOutcome::Admitted {
             valid: true,
             changed: true,
             ..
@@ -595,7 +595,7 @@ fn point_fetch_and_own_writes() {
     let out = block_on(sy.point_fetch(&s, &uri, None)).unwrap();
     assert_eq!(
         out,
-        lessdugin_core::sync::PointOutcome::NotFound { tombstoned: true }
+        pandoras_forum_core::sync::PointOutcome::NotFound { tombstoned: true }
     );
     assert!(matches!(w.slot(&p.0), Slot::Tomb(_)));
 
@@ -605,7 +605,7 @@ fn point_fetch_and_own_writes() {
     let value = owner
         .get(nsid::POST, uri2.rsplit('/').next().unwrap())
         .unwrap();
-    let commit = lessdugin_atp::xrpc::CommitMeta {
+    let commit = pandoras_forum_atp::xrpc::CommitMeta {
         cid: owner.head().0.to_string(),
         rev: rev.to_string(),
     };
@@ -614,7 +614,7 @@ fn point_fetch_and_own_writes() {
         owner.did(),
         w.host.now(),
         Some(&commit),
-        &[lessdugin_core::sync::OwnWrite {
+        &[pandoras_forum_core::sync::OwnWrite {
             uri: AtUri::parse(&uri2).unwrap(),
             value: Some(value),
             cid: Some(cid2),
@@ -642,7 +642,7 @@ fn head_checks_queue_changed_repos() {
     );
     assert_eq!(
         w.repo(&owner).class_at(w.host.now(), false),
-        lessdugin_core::store::repo::RepoClass::Hot,
+        pandoras_forum_core::store::repo::RepoClass::Hot,
         "the sync just changed rows"
     );
     w.host.advance_ms(31 * 86_400_000);
@@ -658,7 +658,7 @@ fn head_checks_queue_changed_repos() {
     w.host.advance_ms(700_000);
     let fk = f.fk.clone();
     let reps = block_on(sy.run_ready(&s, 10, |_| {
-        vec![lessdugin_core::sync::Scope::Forum(fk.clone())]
+        vec![pandoras_forum_core::sync::Scope::Forum(fk.clone())]
     }));
     assert_eq!(reps.len(), 1);
     assert_eq!(reps[0].outcome, RepoOutcome::Applied);
@@ -801,8 +801,8 @@ fn an_owner_with_a_hint_identity_cannot_be_opened() {
     assert!(
         matches!(
             e,
-            lessdugin_core::discovery::DiscoveryError::Identity(_)
-                | lessdugin_core::discovery::DiscoveryError::OwnerHint(_)
+            pandoras_forum_core::discovery::DiscoveryError::Identity(_)
+                | pandoras_forum_core::discovery::DiscoveryError::OwnerHint(_)
         ),
         "{e:?}"
     );
@@ -815,7 +815,7 @@ fn an_owner_with_a_hint_identity_cannot_be_opened() {
     .unwrap_err();
     assert!(matches!(
         e,
-        lessdugin_core::discovery::DiscoveryError::NotFound(_)
+        pandoras_forum_core::discovery::DiscoveryError::NotFound(_)
     ));
 }
 
@@ -1029,7 +1029,7 @@ fn engine_sync_forum_returns_the_report() {
     assert_eq!(rep.forum, f.uri.to_string());
     assert_eq!((rep.repos_total, rep.repos_complete), (1, 1));
     let e = block_on(w.engine.sync_forum("not a ref", &SyncOpts::default())).unwrap_err();
-    assert_eq!(e.code, lessdugin_core::engine::ErrorCode::InvalidRef);
+    assert_eq!(e.code, pandoras_forum_core::engine::ErrorCode::InvalidRef);
     assert!(w.host.now() > 0);
 }
 
@@ -1134,11 +1134,11 @@ impl Host for CountingHost {
 
     async fn http(
         &self,
-        req: lessdugin_core::host::HttpRequest,
-    ) -> Result<lessdugin_core::host::HttpResponse, lessdugin_core::host::HostError> {
+        req: pandoras_forum_core::host::HttpRequest,
+    ) -> Result<pandoras_forum_core::host::HttpResponse, pandoras_forum_core::host::HostError> {
         let origin = match &req.target {
-            lessdugin_core::host::Target::Anon(u) => u.origin().ascii_serialization(),
-            lessdugin_core::host::Target::UserPds { account, .. } => account.to_string(),
+            pandoras_forum_core::host::Target::Anon(u) => u.origin().ascii_serialization(),
+            pandoras_forum_core::host::Target::UserPds { account, .. } => account.to_string(),
         };
         {
             let mut c = self.counts.lock().unwrap();
@@ -1165,7 +1165,7 @@ impl Host for CountingHost {
         did: Did,
         cid: String,
         max_bytes: u64,
-    ) -> Result<lessdugin_core::host::BlobHandle, lessdugin_core::host::HostError> {
+    ) -> Result<pandoras_forum_core::host::BlobHandle, pandoras_forum_core::host::HostError> {
         self.inner.fetch_blob(pds, did, cid, max_bytes).await
     }
 
@@ -1173,14 +1173,14 @@ impl Host for CountingHost {
         &self,
         url: url::Url,
         max_message_bytes: u32,
-    ) -> Result<Self::Ws, lessdugin_core::host::HostError> {
+    ) -> Result<Self::Ws, pandoras_forum_core::host::HostError> {
         self.inner.websocket(url, max_message_bytes).await
     }
 
     async fn resolve_txt_system(
         &self,
         name: String,
-    ) -> Result<Option<Vec<String>>, lessdugin_core::host::HostError> {
+    ) -> Result<Option<Vec<String>>, pandoras_forum_core::host::HostError> {
         self.inner.resolve_txt_system(name).await
     }
 
@@ -1188,7 +1188,7 @@ impl Host for CountingHost {
         &self,
         name: &str,
         wait: bool,
-    ) -> Result<Option<Self::Lock>, lessdugin_core::host::HostError> {
+    ) -> Result<Option<Self::Lock>, pandoras_forum_core::host::HostError> {
         self.inner.lock(name, wait).await
     }
 
@@ -1224,7 +1224,7 @@ fn the_limiter_caps_requests_in_flight() {
         counts: Arc::default(),
     };
     let mut config = SyncConfig::from_engine(w.engine.config());
-    config.limits = lessdugin_core::sync::NetLimits {
+    config.limits = pandoras_forum_core::sync::NetLimits {
         global: 3,
         per_host: 2,
         plc: 8,
@@ -1257,7 +1257,7 @@ fn read_budgets_hold_background_work_below_half_the_window() {
         w.post(m, &f);
         w.access(&owner, &f, m.did(), AccessLevel::Member);
     }
-    pds2.set_rate_limit(Some(lessdugin_testkit::fake_pds::RateLimit {
+    pds2.set_rate_limit(Some(pandoras_forum_testkit::fake_pds::RateLimit {
         limit: 20,
         window_ms: 60_000,
     }));
@@ -1464,7 +1464,7 @@ fn describe_repo_never_empties_a_range_without_a_listing() {
     );
     assert_eq!(
         repo.repo_status(&f.fk),
-        lessdugin_core::store::RepoStatus::Fresh
+        pandoras_forum_core::store::RepoStatus::Fresh
     );
 
     // a describeRepo that omits the post collection: its stored range is listed anyway
@@ -1539,7 +1539,7 @@ fn a_server_cannot_set_the_send_time() {
     w.net.inject(
         Fault::respond(resp::with_header(
             resp::ok_json(&body),
-            "X-Lessdugin-Sent-At",
+            "X-Pandoras-Forum-Sent-At",
             "9000000000000000000",
         ))
         .on_repo(owner.did().as_str())
@@ -1564,8 +1564,9 @@ const EVIL: &str = "https://evil.example.com";
 
 /// A `getRecord`-shaped entry `{uri, cid, value}` with its true CID.
 fn entry(did: &Did, coll: &str, rkey: &str, v: &Value) -> (String, Value) {
-    let ipld = lessdugin_atp::datamodel::json_to_ipld(v).unwrap();
-    let cid = lessdugin_atp::cid::for_dag_cbor(&lessdugin_atp::dagcbor::encode(&ipld).unwrap());
+    let ipld = pandoras_forum_atp::datamodel::json_to_ipld(v).unwrap();
+    let cid =
+        pandoras_forum_atp::cid::for_dag_cbor(&pandoras_forum_atp::dagcbor::encode(&ipld).unwrap());
     let uri = format!("at://{did}/{coll}/{rkey}");
     (
         uri.clone(),
@@ -1579,10 +1580,10 @@ fn entry(did: &Did, coll: &str, rkey: &str, v: &Value) -> (String, Value) {
 /// row and cannot confirm a membership; a doc-level delete supersedes its rows.
 #[test]
 fn an_identity_hint_never_changes_doc_level_state() {
-    use lessdugin_core::host::HostError;
-    use lessdugin_core::store::admit::{self, Expect, LexiconValidator};
-    use lessdugin_core::store::{Delete, DeleteEvidence, Observation, OrderKey};
-    use lessdugin_testkit::FakeIdentity;
+    use pandoras_forum_core::host::HostError;
+    use pandoras_forum_core::store::admit::{self, Expect, LexiconValidator};
+    use pandoras_forum_core::store::{Delete, DeleteEvidence, Observation, OrderKey};
+    use pandoras_forum_testkit::FakeIdentity;
 
     let host = MemHost::new();
     let engine = Engine::new(host.clone(), EngineConfig::default());
@@ -1735,7 +1736,7 @@ fn an_identity_hint_never_changes_doc_level_state() {
     assert!(
         matches!(
             rep.error,
-            Some(lessdugin_core::sync::SyncError::IdentityHint { .. })
+            Some(pandoras_forum_core::sync::SyncError::IdentityHint { .. })
         ),
         "{rep:?}"
     );
@@ -1779,11 +1780,11 @@ fn a_full_sync_after_a_rollback_forgets_every_scope() {
     let repo = w.repo(&owner);
     assert_eq!(
         repo.repo_status(&f1.fk),
-        lessdugin_core::store::RepoStatus::Fresh
+        pandoras_forum_core::store::RepoStatus::Fresh
     );
     assert_eq!(
         repo.repo_status(&f2.fk),
-        lessdugin_core::store::RepoStatus::Unavailable
+        pandoras_forum_core::store::RepoStatus::Unavailable
     );
 }
 
@@ -1803,7 +1804,7 @@ fn rows_below_a_cap_boundary_stay_out_of_the_model() {
         block_on(sy.point_fetch(&s, &AtUri::parse(u).unwrap(), None)).unwrap();
     }
     assert!(is_rec(&w.slot(&posts[0].0)), "stored by the point fetch");
-    let m = block_on(lessdugin_core::model::ForumModel::build(
+    let m = block_on(pandoras_forum_core::model::ForumModel::build(
         w.host.cache(),
         &f,
         w.host.now() * 1000,
@@ -1881,7 +1882,7 @@ fn a_no_op_own_write_is_not_exact() {
         owner.did(),
         w.host.now(),
         None,
-        &[lessdugin_core::sync::OwnWrite {
+        &[pandoras_forum_core::sync::OwnWrite {
             uri: AtUri::parse(&uri).unwrap(),
             value: Some(value),
             cid: Some(cid),
@@ -1907,7 +1908,7 @@ fn an_own_listing_tombstones_records_deleted_elsewhere() {
     let sy = w.syncer();
     let s = w.session(&sy);
     let mut req = SyncRequest::forum(owner.did().clone(), &f.fk, Reason::Participant);
-    req.scopes = vec![lessdugin_core::sync::Scope::Own];
+    req.scopes = vec![pandoras_forum_core::sync::Scope::Own];
     let r = block_on(sy.sync_repo(&s, &req));
     assert_eq!(r.outcome, RepoOutcome::Applied, "{r:?}");
     assert!(is_rec(&w.slot(&p.0)));
@@ -1979,7 +1980,7 @@ fn an_explicit_sync_refreshes_a_stale_collection_list() {
 /// document before one that must be resolved), and the next explicit sync takes the rest.
 #[test]
 fn an_explicit_sync_rechecks_rejected_candidates_cheapest_first() {
-    use lessdugin_core::discovery::state::REJECTED_RECHECK_BATCH;
+    use pandoras_forum_core::discovery::state::REJECTED_RECHECK_BATCH;
 
     let w = World::new();
     let owner = w.net.add_account("owner.example.com");
@@ -2082,7 +2083,7 @@ fn live_marks_survive_recreate_and_run_ready_uses_cid_hints() {
     );
     assert!(fresh.queue_snapshot().is_empty());
     assert_eq!(w.repo(&owner).marks.get(&uri), Some(&rev));
-    let item = lessdugin_core::sync::DirtyItem::point(
+    let item = pandoras_forum_core::sync::DirtyItem::point(
         owner.did().as_str(),
         &uri,
         Priority::P1,
@@ -2097,7 +2098,7 @@ fn live_marks_survive_recreate_and_run_ready_uses_cid_hints() {
 
     // Overflow is durable and becomes a P1 repo sync, not another point-only item.
     let mut full = w.repo(&owner);
-    for i in 0..lessdugin_core::limits::REPO_MARKS_MAX {
+    for i in 0..pandoras_forum_core::limits::REPO_MARKS_MAX {
         full.marks
             .insert(format!("at://did:plc:owner/x/{i}"), rev.clone());
     }
@@ -2112,5 +2113,8 @@ fn live_marks_survive_recreate_and_run_ready_uses_cid_hints() {
     let queued = fresh.queue_snapshot();
     let item = queued.get(owner.did().as_str()).unwrap();
     assert_eq!(item.priority, Priority::P1);
-    assert_eq!(item.action(), lessdugin_core::sync::queue::Action::Sync);
+    assert_eq!(
+        item.action(),
+        pandoras_forum_core::sync::queue::Action::Sync
+    );
 }

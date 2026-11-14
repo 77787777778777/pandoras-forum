@@ -18,7 +18,7 @@
 //!
 //! **Namespace.** The vectors are in the final namespace (`ns`), which every key and CID hashes,
 //! so this runner exists only in a `final-ns` build:
-//! `cargo test -p lessdugin-core --features final-ns --test social_fold -- --nocapture`.
+//! `cargo test -p pandoras-forum-core --features final-ns --test social_fold -- --nocapture`.
 //!
 //! **wasm32.** On wasm32 (no filesystem) this runner is a module of `social_vectors.rs`, which
 //! embeds the vector files (`cargo xtask test-wasm` runs it there under node).
@@ -29,11 +29,11 @@ use std::collections::BTreeMap;
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
-use lessdugin_core::social::full::karma;
-use lessdugin_core::social::full::{Pending, ProjectError, Query, fold_view, project_fold};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_core::social::time;
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_core::social::full::karma;
+use pandoras_forum_core::social::full::{Pending, ProjectError, Query, fold_view, project_fold};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_core::social::time;
+use pandoras_forum_lexicon::ns::NS;
 use serde_json::{Value, json};
 // Natively this is a libtest test; on wasm32 the same body runs under wasm-bindgen-test in node.
 #[cfg(target_arch = "wasm32")]
@@ -141,7 +141,7 @@ fn compare(want: &Value, got: &Value) -> bool {
     got == want
 }
 
-fn algorithm_ids_match(fold: &Value, view: &lessdugin_core::social::full::ForumView) -> bool {
+fn algorithm_ids_match(fold: &Value, view: &pandoras_forum_core::social::full::ForumView) -> bool {
     let Some(ids) = fold.get("algorithmIds") else {
         return true;
     };

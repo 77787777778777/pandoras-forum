@@ -30,7 +30,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use futures::StreamExt;
-use lessdugin_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::syntax::{AtUri, Did};
 
 use crate::discovery::state::disc_rows_over_cap;
 use crate::dto::{Event, Topic};
@@ -772,7 +772,7 @@ impl<H: Host> Engine<H> {
                     .iter()
                     .any(|did| loaded.model.view.authorities.contains_key(did));
                 if loaded.model.view.policy.membership
-                    == lessdugin_lexicon::values::MembershipMode::Open
+                    == pandoras_forum_lexicon::values::MembershipMode::Open
                     || viewer_authority
                 {
                     cx.newcomer_forums.insert(key.fk.clone());

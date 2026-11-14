@@ -5,19 +5,19 @@
 mod common;
 
 use common::*;
-use lessdugin_core::engine::AccountInfo;
-use lessdugin_core::engine::{EXPORT_VERSION, ExportScope, LocalExport};
-use lessdugin_core::host::{Host, KvOp, KvStore};
-use lessdugin_testkit::identity::{DOH, PLC};
-use lessdugin_testkit::{FakePds, MemHost};
+use pandoras_forum_core::engine::AccountInfo;
+use pandoras_forum_core::engine::{EXPORT_VERSION, ExportScope, LocalExport};
+use pandoras_forum_core::host::{Host, KvOp, KvStore};
+use pandoras_forum_testkit::identity::{DOH, PLC};
+use pandoras_forum_testkit::{FakePds, MemHost};
 
 const PDS: &str = "https://pds.example.com";
 
 fn setup() -> (
     MemHost,
     FakePds,
-    lessdugin_testkit::FakeIdentity,
-    lessdugin_testkit::FakeIdentity,
+    pandoras_forum_testkit::FakeIdentity,
+    pandoras_forum_testkit::FakeIdentity,
 ) {
     let host = MemHost::new();
     let pds = FakePds::install(&host, PDS);
@@ -29,9 +29,10 @@ fn setup() -> (
 
 /// Writes one local-state row straight into the state store.
 fn put(host: &MemHost, parts: &[&str], value: &[u8]) {
-    let parts: Vec<lessdugin_core::store::key::Part> = parts.iter().map(|s| (*s).into()).collect();
+    let parts: Vec<pandoras_forum_core::store::key::Part> =
+        parts.iter().map(|s| (*s).into()).collect();
     block_on(host.state().write(vec![KvOp::Put(
-        lessdugin_core::store::key::encode(&parts),
+        pandoras_forum_core::store::key::encode(&parts),
         value.to_vec(),
     )]))
     .unwrap();
@@ -44,7 +45,7 @@ fn export_of_an_empty_store_is_empty_and_versioned() {
     let x = block_on(e.export_local(ExportScope::Mine)).unwrap();
     assert_eq!(x.version, EXPORT_VERSION);
     assert_eq!(x.scope, "mine");
-    assert_eq!(x.dto.0, lessdugin_core::dto::DTO_VERSION);
+    assert_eq!(x.dto.0, pandoras_forum_core::dto::DTO_VERSION);
     // no accounts logged in, so nothing account-scoped to export
     assert!(x.members.is_empty(), "{:?}", x.members);
 }
@@ -120,11 +121,9 @@ fn import_merges_and_leaves_unmentioned_keys_alone() {
     put(&host, &["loc", "bookmark", "at://added-later"], b"2");
     block_on(
         host.state()
-            .write(vec![KvOp::Delete(lessdugin_core::store::key::encode(&[
-                ("loc").into(),
-                ("bookmark").into(),
-                ("at://keep").into(),
-            ]))]),
+            .write(vec![KvOp::Delete(pandoras_forum_core::store::key::encode(
+                &[("loc").into(), ("bookmark").into(), ("at://keep").into()],
+            ))]),
     )
     .unwrap();
 
@@ -189,7 +188,7 @@ fn a_bad_member_is_counted_not_fatal() {
     put(&host, &["loc", "karmaCadence"], b"daily");
     let mut x = block_on(e.export_local(ExportScope::Mine)).unwrap();
     let good = x.members.len();
-    x.members.push(lessdugin_core::engine::ExportMember {
+    x.members.push(pandoras_forum_core::engine::ExportMember {
         key: "!!!not-base64!!!".into(),
         parts: vec![],
         value: "x".into(),
@@ -256,11 +255,11 @@ fn an_import_never_writes_login_state_outbox_rows_or_bad_settings() {
     let did = alice.did.as_str();
     let mut x = block_on(e.export_local(ExportScope::Mine)).unwrap();
     x.members.clear();
-    let member = |parts: Vec<lessdugin_core::store::key::Part>, value: &[u8]| {
+    let member = |parts: Vec<pandoras_forum_core::store::key::Part>, value: &[u8]| {
         use base64::Engine as _;
         let b = base64::engine::general_purpose::URL_SAFE_NO_PAD;
-        lessdugin_core::engine::ExportMember {
-            key: b.encode(lessdugin_core::store::key::encode(&parts)),
+        pandoras_forum_core::engine::ExportMember {
+            key: b.encode(pandoras_forum_core::store::key::encode(&parts)),
             parts: Vec::new(),
             value: b.encode(value),
         }
@@ -270,13 +269,13 @@ fn an_import_never_writes_login_state_outbox_rows_or_bad_settings() {
     out.push(1i64.into());
     // a notification with any text, and a baseline that silences the forum: computed on this
     // device, never imported
-    let forum = "at://did:plc:x/online.7778777.lessdugin.temp.forum/f";
-    let planted = lessdugin_core::store::row::encode(&serde_json::json!({
+    let forum = "at://did:plc:x/forum.pandoras.temp.forum/f";
+    let planted = pandoras_forum_core::store::row::encode(&serde_json::json!({
         "v": 1, "id": "planted", "reason": "modAction", "atMs": 1,
         "subject": forum, "forum": forum, "preview": "a planted notice", "read": false,
     }))
     .unwrap();
-    let silenced = lessdugin_core::store::row::encode(&serde_json::json!({
+    let silenced = pandoras_forum_core::store::row::encode(&serde_json::json!({
         "v": 1, "obs": i64::MAX, "generation": 0,
     }))
     .unwrap();
@@ -320,32 +319,35 @@ fn an_import_never_writes_login_state_outbox_rows_or_bad_settings() {
     let active = block_on(e.active_account()).unwrap().unwrap();
     assert_eq!(active.did, did, "the active account did not change");
     let s = block_on(e.settings()).unwrap();
-    assert_eq!(s.sources, lessdugin_core::dto::Sources::Direct);
-    assert_eq!(s.verify, lessdugin_core::dto::VerifyMode::Pds);
-    let n = block_on(e.notifications(&lessdugin_core::dto::NotificationsQuery {
-        all: true,
-        limit: 50,
-    }))
+    assert_eq!(s.sources, pandoras_forum_core::dto::Sources::Direct);
+    assert_eq!(s.verify, pandoras_forum_core::dto::VerifyMode::Pds);
+    let n = block_on(
+        e.notifications(&pandoras_forum_core::dto::NotificationsQuery {
+            all: true,
+            limit: 50,
+        }),
+    )
     .unwrap();
     assert!(n.items.is_empty() && n.unread == 0, "{n:?}");
 }
 
 /// A stored draft row (`DraftEntryRow`'s JSON) with id `id`.
 fn draft_row(id: &str) -> Vec<u8> {
-    let draft = lessdugin_core::dto::Draft::Comment {
+    let draft = pandoras_forum_core::dto::Draft::Comment {
         id: Some(id.to_owned()),
-        comment: lessdugin_core::dto::CommentDraft::new("at://did:plc:x/p/y", None, "unsent"),
+        comment: pandoras_forum_core::dto::CommentDraft::new("at://did:plc:x/p/y", None, "unsent"),
     };
     serde_json::to_vec(&serde_json::json!({"id": id, "savedAtMs": 1, "draft": draft})).unwrap()
 }
 
 /// One `loc` member of an export.
-fn loc_member(parts: &[&str], value: &[u8]) -> lessdugin_core::engine::ExportMember {
+fn loc_member(parts: &[&str], value: &[u8]) -> pandoras_forum_core::engine::ExportMember {
     use base64::Engine as _;
     let b = base64::engine::general_purpose::URL_SAFE_NO_PAD;
-    let parts: Vec<lessdugin_core::store::key::Part> = parts.iter().map(|s| (*s).into()).collect();
-    lessdugin_core::engine::ExportMember {
-        key: b.encode(lessdugin_core::store::key::encode(&parts)),
+    let parts: Vec<pandoras_forum_core::store::key::Part> =
+        parts.iter().map(|s| (*s).into()).collect();
+    pandoras_forum_core::engine::ExportMember {
+        key: b.encode(pandoras_forum_core::store::key::encode(&parts)),
         parts: Vec::new(),
         value: b.encode(value),
     }
@@ -355,7 +357,7 @@ fn loc_member(parts: &[&str], value: &[u8]) -> lessdugin_core::engine::ExportMem
 /// than one batch holds, and refuses a file past its caps before writing anything.
 #[test]
 fn an_import_is_capped_deduplicated_and_written_in_batches() {
-    use lessdugin_core::engine::IMPORT_MAX_MEMBERS;
+    use pandoras_forum_core::engine::IMPORT_MAX_MEMBERS;
     let (host, _pds, alice, _bob) = setup();
     let e = engine(&host);
     block_on(e.add_account(AccountInfo::app_password(alice.did.as_str(), PDS))).unwrap();
@@ -368,7 +370,8 @@ fn an_import_is_capped_deduplicated_and_written_in_batches() {
     let report = block_on(e.import_local(&x, ExportScope::Mine)).unwrap();
     assert_eq!(report.imported, 2_500, "{report:?}");
     assert_eq!(report.kinds, [("follow".to_owned(), 2_500)]);
-    let k = lessdugin_core::store::key::encode(&["loc".into(), "follow".into(), "fk00007".into()]);
+    let k =
+        pandoras_forum_core::store::key::encode(&["loc".into(), "follow".into(), "fk00007".into()]);
     let v = block_on(host.state().get_many(vec![k])).unwrap();
     assert_eq!(v[0].as_deref(), Some(&b"2"[..]), "the last duplicate wins");
 
@@ -379,10 +382,11 @@ fn an_import_is_capped_deduplicated_and_written_in_batches() {
     let err = block_on(e.import_local(&big, ExportScope::Mine)).unwrap_err();
     assert_eq!(
         err.code,
-        lessdugin_core::engine::ErrorCode::TooLarge,
+        pandoras_forum_core::engine::ErrorCode::TooLarge,
         "{err:?}"
     );
-    let k = lessdugin_core::store::key::encode(&["loc".into(), "follow".into(), "big0".into()]);
+    let k =
+        pandoras_forum_core::store::key::encode(&["loc".into(), "follow".into(), "big0".into()]);
     assert_eq!(
         block_on(host.state().get_many(vec![k])).unwrap(),
         vec![None]
@@ -400,7 +404,7 @@ fn an_import_is_capped_deduplicated_and_written_in_batches() {
     let err = block_on(e.import_local(&heavy, ExportScope::Mine)).unwrap_err();
     assert_eq!(
         err.code,
-        lessdugin_core::engine::ErrorCode::TooLarge,
+        pandoras_forum_core::engine::ErrorCode::TooLarge,
         "{err:?}"
     );
 }
@@ -414,10 +418,11 @@ fn a_purge_deletes_the_accounts_notifications_acks_and_drafts() {
     let e = engine(&host);
     block_on(e.add_account(AccountInfo::app_password(alice.did.as_str(), PDS))).unwrap();
     let (a, b) = (alice.did.as_str(), bob.did.as_str());
-    block_on(e.acknowledge_public_action(lessdugin_core::dto::PublicActionKind::Vote)).unwrap();
-    block_on(e.save_draft(&lessdugin_core::dto::Draft::Comment {
+    block_on(e.acknowledge_public_action(pandoras_forum_core::dto::PublicActionKind::Vote))
+        .unwrap();
+    block_on(e.save_draft(&pandoras_forum_core::dto::Draft::Comment {
         id: None,
-        comment: lessdugin_core::dto::CommentDraft::new("at://did:plc:x/p/y", None, "unsent"),
+        comment: pandoras_forum_core::dto::CommentDraft::new("at://did:plc:x/p/y", None, "unsent"),
     }))
     .unwrap();
     put(&host, &["loc", "notif", a, "n1"], b"{}");
@@ -449,7 +454,7 @@ fn a_purge_deletes_the_accounts_notifications_acks_and_drafts() {
 /// turn a user who chose `direct` back to `assisted` (Slingshot).
 #[test]
 fn an_import_sets_the_switches_only_toward_the_stricter_value() {
-    use lessdugin_core::engine::Sources;
+    use pandoras_forum_core::engine::Sources;
     let (host, _pds, alice, _bob) = setup();
     let e = engine(&host);
     block_on(e.add_account(AccountInfo::app_password(alice.did.as_str(), PDS))).unwrap();
@@ -464,7 +469,8 @@ fn an_import_sets_the_switches_only_toward_the_stricter_value() {
     assert_eq!((report.refused, report.imported), (2, 1), "{report:?}");
     assert_eq!(block_on(e.sources()).unwrap(), Sources::Direct);
     let stored = |k: &str| {
-        let k = lessdugin_core::store::key::encode(&["loc".into(), "setting".into(), k.into()]);
+        let k =
+            pandoras_forum_core::store::key::encode(&["loc".into(), "setting".into(), k.into()]);
         block_on(host.state().get_many(vec![k]))
             .unwrap()
             .pop()
@@ -486,7 +492,7 @@ fn an_import_sets_the_switches_only_toward_the_stricter_value() {
 /// after earlier ones were written; then it prunes each account's drafts to `MAX_DRAFTS`.
 #[test]
 fn an_import_caps_drafts_and_values_like_a_save() {
-    use lessdugin_core::engine::{DRAFT_MAX_BYTES, MAX_DRAFTS};
+    use pandoras_forum_core::engine::{DRAFT_MAX_BYTES, MAX_DRAFTS};
     let (host, _pds, alice, _bob) = setup();
     let e = engine(&host);
     block_on(e.add_account(AccountInfo::app_password(alice.did.as_str(), PDS))).unwrap();
@@ -574,9 +580,9 @@ fn an_import_takes_only_well_formed_continue_reading_rows() {
     let e = engine(&host);
     block_on(e.add_account(AccountInfo::app_password(alice.did.as_str(), PDS))).unwrap();
     let mut x = block_on(e.export_local(ExportScope::Mine)).unwrap();
-    let seq = "at://did:plc:x/online.7778777.lessdugin.temp.sequence/s";
-    let good = lessdugin_core::store::row::encode(&serde_json::json!({
-        "v": 1, "post": "at://did:plc:x/online.7778777.lessdugin.temp.post/p", "at": 5,
+    let seq = "at://did:plc:x/forum.pandoras.temp.sequence/s";
+    let good = pandoras_forum_core::store::row::encode(&serde_json::json!({
+        "v": 1, "post": "at://did:plc:x/forum.pandoras.temp.post/p", "at": 5,
     }))
     .unwrap();
     x.members = vec![
@@ -585,7 +591,7 @@ fn an_import_takes_only_well_formed_continue_reading_rows() {
             &[
                 "loc",
                 "seqpos",
-                "at://did:plc:x/online.7778777.lessdugin.temp.sequence/t",
+                "at://did:plc:x/forum.pandoras.temp.sequence/t",
             ],
             b"1",
         ),

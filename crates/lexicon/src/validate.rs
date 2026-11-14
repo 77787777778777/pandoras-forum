@@ -29,7 +29,7 @@
 
 pub mod formats;
 
-use lessdugin_atp::syntax::RecordKey;
+use pandoras_forum_atp::syntax::RecordKey;
 use serde_json::{Map, Value};
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -49,7 +49,7 @@ pub(crate) const MAX_SAFE_INTEGER: u64 = 9_007_199_254_740_991;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Options {
     /// Accept the legacy blob form `{"cid": …, "mimeType": …}` (the Lexicon spec allows it for
-    /// reading). lessdugin records reject it (rule G3).
+    /// reading). Pandora's Forum records reject it (rule G3).
     pub allow_legacy_blobs: bool,
     /// Maximum nesting depth (containers on the path from the root; the root object is 1).
     pub max_depth: usize,
@@ -942,7 +942,7 @@ impl<'a> Walker<'a> {
     fn bytes(&mut self, b: &BytesDef, v: &Value) {
         let decoded = match v.as_object() {
             Some(m) if m.len() == 1 => match m.get("$bytes") {
-                Some(Value::String(s)) => lessdugin_atp::datamodel::decode_base64(s)
+                Some(Value::String(s)) => pandoras_forum_atp::datamodel::decode_base64(s)
                     .map_err(|_| "$bytes is not valid base64".to_owned()),
                 Some(_) => Err("$bytes must be a string".to_owned()),
                 None => Err("expected a {\"$bytes\": …} object".to_owned()),
@@ -987,7 +987,7 @@ impl<'a> Walker<'a> {
                 match m.get("ref") {
                     Some(r) => match cid_link(r) {
                         Err(e) => problems.push(format!("ref: {e}")),
-                        Ok(c) if c.codec() != lessdugin_atp::cid::RAW => {
+                        Ok(c) if c.codec() != pandoras_forum_atp::cid::RAW => {
                             problems.push("ref must be a CID with the raw codec".to_owned());
                         }
                         Ok(_) => {}
@@ -1040,7 +1040,7 @@ impl<'a> Walker<'a> {
                         "legacy {cid, mimeType} blob; the typed form is required".into(),
                     ),
                     Some((c, mt)) => {
-                        if !lessdugin_atp::cid::is_valid_cid_syntax(c) {
+                        if !pandoras_forum_atp::cid::is_valid_cid_syntax(c) {
                             self.push(Code::Blob, "legacy blob cid is not a CID".into());
                         }
                         self.accept(b, mt);
@@ -1064,7 +1064,7 @@ impl<'a> Walker<'a> {
 
 /// Checks a `{"$link": cid}` object: a canonical string of a blessed CID (`/specs/data-model`:
 /// only the blessed CID types are allowed; the same check as the data-model conversion).
-fn cid_link(v: &Value) -> Result<lessdugin_atp::Cid, String> {
+fn cid_link(v: &Value) -> Result<pandoras_forum_atp::Cid, String> {
     let Some(m) = v.as_object() else {
         return Err(format!("expected a $link object, found {}", kind(v)));
     };
@@ -1073,7 +1073,7 @@ fn cid_link(v: &Value) -> Result<lessdugin_atp::Cid, String> {
     }
     match m.get("$link") {
         Some(Value::String(s)) => {
-            lessdugin_atp::cid::parse_blessed(s).map_err(|e| format!("$link: {e}"))
+            pandoras_forum_atp::cid::parse_blessed(s).map_err(|e| format!("$link: {e}"))
         }
         Some(_) => Err("$link must be a string".into()),
         None => Err("expected a {\"$link\": …} object".into()),

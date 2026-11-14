@@ -2,7 +2,7 @@
 
 # social-ref: notes on the reference model
 
-`lessdugin_ref/` is an independent reference model of the lessdugin social fold. It was written
+`pandoras_forum_ref/` is an independent reference model of the Pandora's Forum social fold. It was written
 only from `docs/spec/social.md`, `docs/spec/data-model.md` (§3 keys, §6 records, §7 validity),
 `docs/spec/limits.md` and the lexicons. The Rust fold was neither read nor consulted (N-version
 discipline). The model generates the normative vectors under `testdata/vectors/`, and the Rust and
@@ -16,9 +16,9 @@ python3 -I -B testdata/vectors/social-ref/gen_social.py --list    # files and ve
 python3 -I -B testdata/vectors/social-ref/gen_social.py --emit-shared DIR   # see "thread/" below
 ```
 
-Always pass `-B` (or set `sys.dont_write_bytecode` before importing `lessdugin_ref`): Python
+Always pass `-B` (or set `sys.dont_write_bytecode` before importing `pandoras_forum_ref`): Python
 writes a package's own `__init__` bytecode before the package can switch caching off, so an
-import without it leaves `lessdugin_ref/__pycache__/` behind.
+import without it leaves `pandoras_forum_ref/__pycache__/` behind.
 
 Only the Python 3 standard library is used. Keys come from `testdata/vectors/keys/gen_keys.py`,
 imported by path. Every record in a vector has its genuine DAG-CBOR CID. The DAG-CBOR encoder
@@ -41,7 +41,7 @@ this stage proposed normative wording for the spec owner to fold into `social.md
    in numeric order. A vector with a deliberately invalid record names the rule it breaks in
    `note`, and asserts only the consequence (for example `Excluded`). `data-model.md` §14 item 23
    says the first failing rule is exact, so §7 should state this order (proposed).
-2. **Namespace.** Vectors use the final namespace `online.7778777.lessdugin`, recorded as the
+2. **Namespace.** Vectors use the final namespace `forum.pandoras`, recorded as the
    file-level field `ns`. Every `fk`, `h16` and CID depends on the namespace (`data-model.md`
    §1.3), so a runner cannot map prefixes by rewriting strings. It evaluates the fold with
    NS = `ns`, the same convention as `keys/rkeys.json` (`input.ns`). A `.temp` build cannot do
@@ -437,7 +437,7 @@ Three injected faults were caught: seedUp counted from all voters (P7), K1 from 
 ### M3 integration (`social.md` §20.1 items 43–51)
 
 62. **CIDs written in records compare by canonical form** (`social.md` §0.4, §20.1 item 45;
-    `lessdugin_ref/cids.py`). canon(s) decodes the multibase (base16, base32 and base32pad in both
+    `pandoras_forum_ref/cids.py`). canon(s) decodes the multibase (base16, base32 and base32pad in both
     cases, base32hex, base32z, base36, base58btc, base58flickr, base64 and its url and padded
     forms; strictly: one case per alphabet, no non-zero trailing bits), requires the bytes of a
     CIDv1 (version 1, codec, multihash code and length as minimal varints, nothing after the
@@ -451,7 +451,7 @@ Three injected faults were caught: seedUp counted from all voters (P7), K1 from 
     `tag-head-spellings-agree` (also in `karma/tags.json`), `karma/scores.json`
     `earlier-ignores-cid-spelling` and `thread/thread.json` `versions-on-revision-n`.
 63. **Versions and the edited badge** (`social.md` §11 step 6 and "Edited", §20.1 item 46;
-    `lessdugin_ref/versions.py`, fields `versions` of kind `thread` and `edited` of kind `time`).
+    `pandoras_forum_ref/versions.py`, fields `versions` of kind `thread` and `edited` of kind `time`).
     `versions` lists every non-Excluded comment of the input, whatever the query's thread. A
     parent comment that is in `records` and not Excluded but under another root is a Missing
     placeholder in the comment's thread (§11 step 2), and §11 step 6 does not say whether a

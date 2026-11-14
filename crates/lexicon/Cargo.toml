@@ -1,6 +1,6 @@
 [package]
-name = "lessdugin-lexicon"
-description = "lessdugin record types, data-driven lexicon validator and record-key derivation"
+name = "pandoras-forum-lexicon"
+description = "Pandora's Forum record types, data-driven lexicon validator and record-key derivation"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -17,7 +17,7 @@ default = []
 final-ns = []
 
 [dependencies]
-lessdugin-atp.workspace = true
+pandoras-forum-atp.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true

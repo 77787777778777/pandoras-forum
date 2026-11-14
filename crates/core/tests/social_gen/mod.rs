@@ -3,7 +3,7 @@
 //! (`social_props.rs`, `social_perf.rs`, `social_parity.rs`; `social.md` §6.3, §19).
 //!
 //! A [`Spec`] (a proptest value, so failures shrink) is built into a [`Forum`]: the declaration
-//! and every record of one forum, each under its canonical key (`lessdugin_lexicon::keys`) with
+//! and every record of one forum, each under its canonical key (`pandoras_forum_lexicon::keys`) with
 //! its genuine CIDv1 (dag-cbor, sha256). [`Forum::input`] turns any subset of the records into a
 //! well-formed `FoldInput` (§1.1): `absent` holds exactly the confirmed-deleted uris that some
 //! kept opinion names, `obs` and `repoStatus` cover exactly the kept records and the authorities.
@@ -28,16 +28,16 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::datamodel::record_cid;
-use lessdugin_atp::tid::Tid;
-use lessdugin_core::social::full::project::FIELDS;
-use lessdugin_core::social::full::query::{
+use pandoras_forum_atp::datamodel::record_cid;
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_core::social::full::project::FIELDS;
+use pandoras_forum_core::social::full::query::{
     CommentQuery, CommentSort, PostFilter, PostQuery, PostSort,
 };
-use lessdugin_core::social::full::{ForumView, Query, fold_view, project};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_core::social::full::{ForumView, Query, fold_view, project};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
 use proptest::prelude::*;
 use serde_json::{Map, Value, json};
 

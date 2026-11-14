@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
-# ADR 0007 — S1: native OAuth uses jacquard-oauth's building blocks behind a lessdugin facade
+# ADR 0007 — S1: native OAuth uses jacquard-oauth's building blocks behind a Pandora's Forum facade
 
 - Status: Accepted, pending user run
 - Date: 2026-10-16
@@ -31,8 +31,8 @@ XRPC. The normative requirements that a library has to fit:
   (`crates/cli/tests/support/oauth_approve.mjs`): it opens the printed authorization URL, signs
   in with the account's password, presses **Authorize**, and either records the failed redirect
   to `http://127.0.0.1:<port>/callback` (paste-back) or lets it reach the CLI's listener.
-- Test: `crates/cli/tests/e2e_devnet.rs` (run with `LESSDUGIN_E2E=1`), which starts and kills
-  its own devnet. The binary under test is the real `lessdugin` with `LESSDUGIN_KEYRING=off`
+- Test: `crates/cli/tests/e2e_devnet.rs` (run with `PANDORAS_FORUM_E2E=1`), which starts and kills
+  its own devnet. The binary under test is the real `pandoras-forum` with `PANDORAS_FORUM_KEYRING=off`
   (headless Linux has no Secret Service, so the 0600 file fallback is exercised).
 - No public infrastructure was contacted.
 
@@ -49,7 +49,7 @@ XRPC. The normative requirements that a library has to fit:
 | Token response | `token_type: DPoP`, `sub` = the account DID |
 | Login binding (core) | fresh DID document → PDS → its protected-resource metadata lists `iss`; issuer pinned, shown as "first login: pinned" |
 | `whoami` (`getSession`, DPoP to the PDS) | 401 `use_dpop_nonce`, then 200 |
-| `putRecord` of `online.7778777.lessdugin.temp.post` through the stored OAuth session | 200; `lessdugin verify` of the record: `proven` |
+| `putRecord` of `forum.pandoras.temp.post` through the stored OAuth session | 200; `pandoras-forum verify` of the record: `proven` |
 | Refresh (stored expiry forced into the past) | new DPoP-bound tokens, refresh token rotated, saved under the refresh lock |
 | `logout` | revocation at the revocation endpoint accepted; session file deleted; `whoami` → exit 3 |
 | App-password path, same test | `createSession` → `whoami` → `resolve` → raw-XRPC record → `verify` `proven` / `absent`; proactive and reactive (`400 InvalidToken`) refresh; `deleteSession` on logout |
@@ -84,21 +84,21 @@ Not used, with the reason (each one a gap of 0.12.2 against our requirements):
    `use_dpop_nonce`).
 5. `OAuthClient`/`OAuthSession` (the high-level API) own their store, cache and refresh logic
    with no cross-process lock. The facade keeps its own session (`OAuthSession` in
-   `lessdugin_native::auth::oauth`), refreshing under `<data>/locks/refresh-<h(did)>.lock` and
+   `pandoras_forum_native::auth::oauth`), refreshing under `<data>/locks/refresh-<h(did)>.lock` and
    re-reading the stored session first.
 6. `revoke` expects HTTP 204 only; the facade also accepts 200 (RFC 7009).
 
 ## Decision
 
-1. Native OAuth is `lessdugin_native::auth::oauth` over `jacquard-oauth` `=0.12.2`'s low-level
+1. Native OAuth is `pandoras_forum_native::auth::oauth` over `jacquard-oauth` `=0.12.2`'s low-level
    pieces as listed above; the 1.5k-line fallback client is not needed.
 2. A login is: core identity resolution → PAR (scope candidates; hosted metadata after
    `invalid_client`) → browser or paste-back → `state`/`iss` check → token request with the PKCE
    verifier → `Engine::bind_login` + `add_account` → only then the session is stored and used.
 3. OAuth and app-password sessions are stored as one JSON secret in the OS keyring (service
-   `lessdugin`, account = DID) or, without a keyring, in `<data>/sessions/<h(did)>.json` (0600,
+   `pandoras-forum`, account = DID) or, without a keyring, in `<data>/sessions/<h(did)>.json` (0600,
    `O_EXCL | O_NOFOLLOW`, atomic rename; refused if a symlink or group/world accessible).
-   `LESSDUGIN_KEYRING=off` forces the file.
+   `PANDORAS_FORUM_KEYRING=off` forces the file.
 4. Every native `AuthSession` applies the AUTH-4 allowlist before authenticating a request.
 
 ## Consequences
@@ -110,7 +110,7 @@ Not used, with the reason (each one a gap of 0.12.2 against our requirements):
     deployed `deploy/site/oauth/cli-client-metadata.json` (the devnet cannot fetch it). That file
     lists final-namespace scopes only, so a `.temp` build using the hosted client is expected to
     get `invalid_scope`; release builds (`final-ns`) are unaffected;
-  - `include:online.7778777.lessdugin.authFull` with a `final-ns` build after the permission set
+  - `include:forum.pandoras.authFull` with a `final-ns` build after the permission set
     is published (S8 records how an unresolvable `include:` fails at PAR);
   - the OS keyring backends on macOS, Windows and a Linux desktop (only the file fallback ran
     here).

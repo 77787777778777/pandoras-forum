@@ -38,7 +38,7 @@ export function isRecordUri(uri: string): boolean {
 
 export type RecordKind = "post" | "comment" | "sequence" | "forum" | "wikiRevision" | "other";
 
-const OUR_NS = /^online\.7778777\.lessdugin(\.temp)?\.(post|comment|sequence|forum|wikiRevision)$/;
+const OUR_NS = /^forum\.pandoras(\.temp)?\.(post|comment|sequence|forum|wikiRevision)$/;
 
 /** The kind of one of our collections, or `other` (including foreign ones). */
 export function recordKind(collection: string): RecordKind {

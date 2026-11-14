@@ -5,9 +5,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use futures::executor::block_on;
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_atp::{Cid, datamodel};
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_atp::{Cid, datamodel};
+use pandoras_forum_lexicon::ns::NS;
 use proptest::prelude::*;
 use serde_json::json;
 
@@ -21,8 +21,8 @@ use crate::store::schema::{self, RecKey, tag};
 
 const DID: &str = "did:plc:ewvi7nxzyoun6zhxrhs64oiz";
 const DID2: &str = "did:plc:abcdefghijklmnopqrstuvwx";
-const FK: &str = "uetjixxr3a33";
-const FK2: &str = "2xbiijsnjtau";
+const FK: &str = "nkglkm5wsp3d";
+const FK2: &str = "rij47lga3p74";
 
 fn coll(short: &str) -> String {
     format!("{NS}.{short}")
@@ -40,7 +40,7 @@ fn post_uri(n: u32) -> AtUri {
 fn content(c: &str, n: u64) -> (Vec<u8>, Cid) {
     let v = json!({"$type": c, "n": n});
     let cbor = datamodel::record_to_cbor(&v).unwrap();
-    let cid = lessdugin_atp::cid::for_dag_cbor(&cbor);
+    let cid = pandoras_forum_atp::cid::for_dag_cbor(&cbor);
     (cbor, cid)
 }
 
@@ -418,7 +418,7 @@ fn store_put_get_and_i2() {
         ));
         // a raw-codec CID is refused too
         let mut raw = version(&u, 2, "3l2b", 20);
-        raw.cid = lessdugin_atp::cid::for_raw(&raw.cbor);
+        raw.cid = pandoras_forum_atp::cid::for_raw(&raw.cbor);
         assert!(b.put_version(raw).await.is_err());
         assert!(b.is_empty());
         assert_eq!(b.commit().await.unwrap().ops, 0);
@@ -1313,7 +1313,7 @@ fn check_store(kv: &MemKv) -> Result<(), TestCaseError> {
     for (k, v) in all {
         if let Some(rk) = RecKey::parse(&k, tag::REC) {
             let r: RecordRow = row::decode(&v).unwrap();
-            prop_assert!(lessdugin_atp::cid::verify(&r.cid, &r.cbor).is_ok());
+            prop_assert!(pandoras_forum_atp::cid::verify(&r.cid, &r.cbor).is_ok());
             prop_assert_eq!(&rk, &RecKey::new(&rk.collection, &rk.did, &rk.rkey));
             prop_assert!(r.first_seen_uri <= r.first_seen);
             recs.insert(rk.uri());

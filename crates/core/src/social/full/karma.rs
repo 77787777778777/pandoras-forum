@@ -30,8 +30,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::values::{Agreement, Capability, VoteValue, Voting};
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::values::{Agreement, Capability, VoteValue, Voting};
 use serde_json::Value;
 
 use crate::social::full::cx::Cx;

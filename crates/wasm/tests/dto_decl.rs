@@ -8,7 +8,7 @@
 //! enum variants. This test fails when the file is not what the Rust types generate;
 //!
 //! ```text
-//! LESSDUGIN_BLESS=1 cargo test -p lessdugin-wasm --features dto-decl --test dto_decl
+//! PANDORAS_FORUM_BLESS=1 cargo test -p pandoras-forum-wasm --features dto-decl --test dto_decl
 //! ```
 //!
 //! rewrites it (then update `types.ts` until the vitest passes).
@@ -20,8 +20,8 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use lessdugin_core::dto::*;
-use lessdugin_core::engine::{AccountInfo, EngineError, ErrorCode};
+use pandoras_forum_core::dto::*;
+use pandoras_forum_core::engine::{AccountInfo, EngineError, ErrorCode};
 use tsify::Tsify;
 
 /// `(name, declaration)` of every listed type.
@@ -228,7 +228,7 @@ fn generate() -> String {
         "// SPDX-License-Identifier: AGPL-3.0-or-later\n\
          // GENERATED from the Rust DTOs (crates/core/src/dto.rs, plus EngineError, ErrorCode and\n\
          // AccountInfo) by their tsify derives; do not edit. Regenerate with\n\
-         //   LESSDUGIN_BLESS=1 cargo test -p lessdugin-wasm --features dto-decl --test dto_decl\n\
+         //   PANDORAS_FORUM_BLESS=1 cargo test -p pandoras-forum-wasm --features dto-decl --test dto_decl\n\
          // packages/engine/src/types.parity.test.ts compares packages/engine/src/types.ts with it.\n\
          \n\
          export type Value = null | boolean | number | string | Value[] | { [key: string]: Value };\n",
@@ -266,7 +266,7 @@ fn every_dto_is_declared() {
 fn the_declarations_are_current() {
     let want = generate();
     let path = path();
-    if std::env::var("LESSDUGIN_BLESS").is_ok_and(|v| v == "1") {
+    if std::env::var("PANDORAS_FORUM_BLESS").is_ok_and(|v| v == "1") {
         std::fs::create_dir_all(path.parent().expect("parent")).expect("mkdir");
         std::fs::write(&path, &want).expect("write");
         return;
@@ -274,9 +274,9 @@ fn the_declarations_are_current() {
     let have = std::fs::read_to_string(&path).unwrap_or_default();
     assert!(
         have == want,
-        "{} is not what the Rust DTOs generate; run\n  LESSDUGIN_BLESS=1 cargo test -p \
-         lessdugin-wasm --features dto-decl --test dto_decl\nthen update \
-         packages/engine/src/types.ts until `pnpm --filter @lessdugin/engine test` passes",
+        "{} is not what the Rust DTOs generate; run\n  PANDORAS_FORUM_BLESS=1 cargo test -p \
+         pandoras-forum-wasm --features dto-decl --test dto_decl\nthen update \
+         packages/engine/src/types.ts until `pnpm --filter @pandoras-forum/engine test` passes",
         path.display()
     );
 }

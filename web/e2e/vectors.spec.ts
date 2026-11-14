@@ -51,7 +51,7 @@ test.beforeAll(async () => {
       lib: {
         entry: resolve(webDir, "src/lib/sanitize.ts"),
         formats: ["iife"],
-        name: "LessduginSanitize",
+        name: "PandorasForumSanitize",
         fileName: () => "sanitize.js",
       },
     },
@@ -64,8 +64,9 @@ test("the sanitiser leaves every vector's renderer output byte-identical", async
   await page.setContent("<!doctype html><html><head></head><body></body></html>");
   await page.addScriptTag({ path: resolve(OUT, "sanitize.js") });
   const changed = await page.evaluate((vs) => {
-    const s = (window as unknown as { LessduginSanitize: { sanitizeLfm: (h: string) => string } })
-      .LessduginSanitize;
+    const s = (
+      window as unknown as { PandorasForumSanitize: { sanitizeLfm: (h: string) => string } }
+    ).PandorasForumSanitize;
     return vs
       .filter((v) => s.sanitizeLfm(v.html) !== v.html)
       .map((v) => ({ id: v.id, out: s.sanitizeLfm(v.html) }));

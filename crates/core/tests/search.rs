@@ -9,19 +9,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use common::block_on;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::dto::{
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::dto::{
     CommentDraft, Draft, EditOpts, ForumDraft, MembershipMode, PostDraft, SearchItem, SearchQuery,
     SearchResults, SyncOpts, WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig};
-use lessdugin_core::host::{
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig};
+use pandoras_forum_core::host::{
     BlobHandle, Dir, Host, HostError, HttpRequest, HttpResponse, KeyRange, KvOp, KvStore,
 };
-use lessdugin_core::search::snippet;
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::search::snippet;
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 
 const MINUTE: i64 = 60_000;
 
@@ -434,22 +434,22 @@ fn comments_under_a_missing_root_are_neither_found_nor_listed() {
 /// was cut from P_x).
 #[test]
 fn a_pending_spilled_body_is_searched_by_its_excerpt() {
-    use lessdugin_core::limits::BODY_BLOB_RETRY_MS;
-    use lessdugin_lexicon::collection::nsid;
+    use pandoras_forum_core::limits::BODY_BLOB_RETRY_MS;
+    use pandoras_forum_lexicon::collection::nsid;
     let w = World::new();
     let at = w.bob.host.now_ms();
     let blob = w.bob.account.upload_blob(
         b"# Whole body\n\nOnly the zqsource word.\n".to_vec(),
         "text/markdown",
     );
-    let created = lessdugin_atp::syntax::Datetime::from_millis(at).unwrap();
+    let created = pandoras_forum_atp::syntax::Datetime::from_millis(at).unwrap();
     let value = serde_json::json!({
         "$type": nsid::POST, "forum": w.forum, "title": "Long",
         "body": {"$type": nsid::MARKDOWN, "profile": "lfm/1", "textBlob": blob},
         "excerpt": "The zqexcerpt words", "createdAt": created.as_str(),
     });
-    let tid = lessdugin_testkit::repo::tid_at_ms(at);
-    let rkey = lessdugin_lexicon::keys::post_rkey(&w.forum, tid.as_str()).unwrap();
+    let tid = pandoras_forum_testkit::repo::tid_at_ms(at);
+    let rkey = pandoras_forum_lexicon::keys::post_rkey(&w.forum, tid.as_str()).unwrap();
     w.bob.account.put(nsid::POST, &rkey, &value);
     let uri = w.bob.account.uri(nsid::POST, &rkey);
     w.tick();

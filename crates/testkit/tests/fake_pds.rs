@@ -1,26 +1,26 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `FakeNet` over `MemHost`: proofs verify with `lessdugin_atp::proof` and the engine,
+//! `FakeNet` over `MemHost`: proofs verify with `pandoras_forum_atp::proof` and the engine,
 //! `listRecords` cursor semantics (ADR 0004), write and swap semantics (ADR 0005), sessions,
 //! blobs, faults, account states, equivocation, relays, PLC and DoH.
 
 use futures::executor::block_on;
-use lessdugin_atp::Cid;
-use lessdugin_atp::proof::{ProofCaps, ProofError, verify_record_proof};
-use lessdugin_atp::syntax::{Did, Nsid, RecordKey, Tid};
-use lessdugin_core::dto::VerifyOutcome;
-use lessdugin_core::engine::{Engine, EngineConfig};
-use lessdugin_core::host::{Host, HostError, HttpRequest, HttpResponse, Target};
-use lessdugin_core::xrpc::{CallOpts, Service, Xrpc, XrpcCallError};
-use lessdugin_testkit::MemHost;
-use lessdugin_testkit::fake_pds::{
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::proof::{ProofCaps, ProofError, verify_record_proof};
+use pandoras_forum_atp::syntax::{Did, Nsid, RecordKey, Tid};
+use pandoras_forum_core::dto::VerifyOutcome;
+use pandoras_forum_core::engine::{Engine, EngineConfig};
+use pandoras_forum_core::host::{Host, HostError, HttpRequest, HttpResponse, Target};
+use pandoras_forum_core::xrpc::{CallOpts, Service, Xrpc, XrpcCallError};
+use pandoras_forum_testkit::MemHost;
+use pandoras_forum_testkit::fake_pds::{
     AccountHandle, AccountStatus, CursorMode, DEFAULT_PDS, FakeNet, Fault, ForkSelector, OpAction,
     RateLimit, RepoEventKind, tiny_png,
 };
 use serde_json::{Value, json};
 
-const POST: &str = "online.7778777.lessdugin.post";
-const OPINION: &str = "online.7778777.lessdugin.opinion";
-const REVISION: &str = "online.7778777.lessdugin.revision";
+const POST: &str = "forum.pandoras.post";
+const OPINION: &str = "forum.pandoras.opinion";
+const REVISION: &str = "forum.pandoras.revision";
 
 struct W {
     host: MemHost,
@@ -52,7 +52,7 @@ impl W {
     }
 
     fn xrpc_get(&self, acct: &AccountHandle, nsid: &str, qs: &[(&str, &str)]) -> (u16, Value) {
-        let q = lessdugin_atp::xrpc::query_string(qs);
+        let q = pandoras_forum_atp::xrpc::query_string(qs);
         self.get(&format!("{}/xrpc/{nsid}?{q}", acct.pds_base()))
     }
 
@@ -100,7 +100,7 @@ impl W {
         coll: &str,
         rkey: &str,
     ) -> Result<Option<Cid>, ProofError> {
-        let q = lessdugin_atp::xrpc::query_string(&[
+        let q = pandoras_forum_atp::xrpc::query_string(&[
             ("did", acct.did().as_str()),
             ("collection", coll),
             ("rkey", rkey),
@@ -166,9 +166,9 @@ fn proofs_verify_with_atp_for_presence_and_absence() {
         }
     });
     alice.put(
-        "online.7778777.lessdugin.profile",
+        "forum.pandoras.profile",
         "self",
-        &json!({"$type": "online.7778777.lessdugin.profile"}),
+        &json!({"$type": "forum.pandoras.profile"}),
     );
     for i in [0, 75, 149] {
         let rkey = format!("aaaaaaaaaaaa-3l2s5xxv2z{i:03}");
@@ -187,14 +187,14 @@ fn proofs_verify_with_atp_for_presence_and_absence() {
     let rev = Tid::parse(&rev).unwrap();
     assert_eq!(rev.timestamp_micros() / 1000, w.host.now() as u64);
     // a commit signed by the wrong key fails with a bad signature
-    alice.resign_with(&lessdugin_testkit::identity::fake_key("mallory"));
+    alice.resign_with(&pandoras_forum_testkit::identity::fake_key("mallory"));
     let err = w
         .proof(&alice, POST, "aaaaaaaaaaaa-3l2s5xxv2z000")
         .unwrap_err();
     assert!(
         matches!(
             err,
-            ProofError::Commit(lessdugin_atp::commit::CommitError::Signature(_))
+            ProofError::Commit(pandoras_forum_atp::commit::CommitError::Signature(_))
         ),
         "{err:?}"
     );
@@ -224,7 +224,7 @@ fn the_engine_verifies_records_end_to_end() {
     assert_eq!(id.identity.did, *alice.did(), "{id:?}");
     assert_eq!(
         id.identity.handle_state,
-        lessdugin_core::dto::HandleState::Verified
+        pandoras_forum_core::dto::HandleState::Verified
     );
     assert!(w.net.count("plc") >= 1 && w.net.count("doh") >= 1);
     // after a key rotation the old commit no longer verifies; the next commit does
@@ -261,9 +261,9 @@ fn adr4(w: &W) -> AccountHandle {
             b.put(POST, k, &post(i as i64));
         }
         b.put(
-            "online.7778777.lessdugin.postx",
+            "forum.pandoras.postx",
             "aaaaaaaaaaaa-x",
-            &json!({"$type": "online.7778777.lessdugin.postx"}),
+            &json!({"$type": "forum.pandoras.postx"}),
         );
     });
     a
@@ -364,7 +364,7 @@ fn list_records_matches_the_reference_cursor_behaviour() {
     );
     let (s, _) = w.list(&a, POST, &[("limit", "0")]);
     assert_eq!(s, 400);
-    let (s, v) = w.list(&a, "online.7778777.lessdugin.nothing", &[]);
+    let (s, v) = w.list(&a, "forum.pandoras.nothing", &[]);
     assert_eq!((s, v), (200, json!({"records": []})));
     // handles work as the repo parameter; uris use the DID
     let (_, v) = w.xrpc_get(
@@ -396,10 +396,7 @@ fn list_records_matches_the_reference_cursor_behaviour() {
         "com.atproto.repo.describeRepo",
         &[("repo", a.did().as_str())],
     );
-    assert_eq!(
-        v["collections"],
-        json!([POST, "online.7778777.lessdugin.postx"])
-    );
+    assert_eq!(v["collections"], json!([POST, "forum.pandoras.postx"]));
     assert_eq!(v["handle"], "alice.example.com");
     assert_eq!(v["didDoc"]["id"], a.did().as_str());
 }
@@ -519,11 +516,7 @@ fn create_record_semantics() {
     assert_eq!(s, 200);
     assert_eq!(a.get(POST, "notype").unwrap()["$type"], POST);
     for (record, rkey, validate) in [
-        (
-            json!({"$type": "online.7778777.lessdugin.comment"}),
-            "a",
-            None,
-        ),
+        (json!({"$type": "forum.pandoras.comment"}), "a", None),
         (json!({"$type": POST, "score": 1.5}), "b", None),
         (json!({"$type": POST}), "c", Some(true)),
         (json!({"$type": POST}), "bad/rkey", None),
@@ -735,8 +728,8 @@ fn apply_writes_is_atomic_and_strict() {
 
 #[test]
 fn the_core_client_parses_write_responses() {
-    use lessdugin_atp::syntax::AtIdentifier;
-    use lessdugin_atp::xrpc::{ApplyWrites, PutRecord, WriteOp, WriteResult};
+    use pandoras_forum_atp::syntax::AtIdentifier;
+    use pandoras_forum_atp::xrpc::{ApplyWrites, PutRecord, WriteOp, WriteResult};
     let w = world();
     let a = w.net.add_account("alice.example.com");
     let x = Xrpc::new(&w.host);
@@ -837,7 +830,7 @@ fn sessions_and_bearer_auth() {
         assert_eq!(v["handle"], "alice.example.com");
         assert_eq!(v["active"], true);
     }
-    assert!(lessdugin_core::engine::is_app_password_shape(
+    assert!(pandoras_forum_core::engine::is_app_password_shape(
         &a.app_password()
     ));
     let (_, sess) = w.post(
@@ -974,7 +967,7 @@ fn blobs_follow_the_reference_lifecycle() {
         json_of(&r)["blob"].clone()
     };
     let get_blob = |cid: &str| {
-        let q = lessdugin_atp::xrpc::query_string(&[("did", a.did().as_str()), ("cid", cid)]);
+        let q = pandoras_forum_atp::xrpc::query_string(&[("did", a.did().as_str()), ("cid", cid)]);
         w.send(HttpRequest::get(Target::Anon(url(&format!(
             "{base}/xrpc/com.atproto.sync.getBlob?{q}"
         )))))
@@ -984,7 +977,10 @@ fn blobs_follow_the_reference_lifecycle() {
     assert_eq!(blob_a["mimeType"], "image/png");
     assert_eq!(blob_a["size"], tiny_png(1).len());
     let cid_a = blob_a["ref"]["$link"].as_str().unwrap().to_owned();
-    assert_eq!(cid_a, lessdugin_atp::cid::for_raw(&tiny_png(1)).to_string());
+    assert_eq!(
+        cid_a,
+        pandoras_forum_atp::cid::for_raw(&tiny_png(1)).to_string()
+    );
     let blob_b = upload(tiny_png(2), "image/png");
     let blob_c = upload(tiny_png(3), "image/png");
     let text = upload(b"hello".to_vec(), "text/plain; charset=utf-8");
@@ -1014,7 +1010,7 @@ fn blobs_follow_the_reference_lifecycle() {
     let mut big = blob_c.clone();
     big["size"] = json!(999);
     let mut unknown = blob_c.clone();
-    unknown["ref"]["$link"] = json!(lessdugin_atp::cid::for_raw(b"never").to_string());
+    unknown["ref"]["$link"] = json!(pandoras_forum_atp::cid::for_raw(b"never").to_string());
     for (blob, err) in [
         (wrong, "InvalidMimeType"),
         (big, "InvalidSize"),
@@ -1049,8 +1045,8 @@ fn blobs_follow_the_reference_lifecycle() {
     );
     assert_eq!(s, 200);
     assert_eq!(get_blob(&cid_a).status, 400);
-    assert!(!a.has_blob(&lessdugin_atp::cid::parse(&cid_a).unwrap()));
-    let cid_c = lessdugin_atp::cid::parse(blob_c["ref"]["$link"].as_str().unwrap()).unwrap();
+    assert!(!a.has_blob(&pandoras_forum_atp::cid::parse(&cid_a).unwrap()));
+    let cid_c = pandoras_forum_atp::cid::parse(blob_c["ref"]["$link"].as_str().unwrap()).unwrap();
     assert!(a.has_blob(&cid_c));
     assert_eq!(w.net.gc_blobs(), 2); // C and the text blob
     assert!(!a.has_blob(&cid_c));
@@ -1073,7 +1069,7 @@ fn blobs_follow_the_reference_lifecycle() {
     let blob = a.upload_blob(tiny_png(9), "application/octet-stream");
     assert_eq!(blob["mimeType"], "image/png");
     a.put(POST, "q", &json!({"$type": POST, "img": blob}));
-    assert!(a.serves_blob(&lessdugin_atp::cid::for_raw(&tiny_png(9))));
+    assert!(a.serves_blob(&pandoras_forum_atp::cid::for_raw(&tiny_png(9))));
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1357,7 +1353,7 @@ fn identity_documents_handles_and_doh() {
     assert_eq!(a.handle(), "alice.example.com");
     let (s, doc) = w.get(&format!("{}/{}", w.net.plc(), a.did()));
     assert_eq!(s, 200);
-    let parsed = lessdugin_atp::did_doc::DidDocument::from_json(&doc).unwrap();
+    let parsed = pandoras_forum_atp::did_doc::DidDocument::from_json(&doc).unwrap();
     assert_eq!(parsed.signing_key().unwrap(), a.public_key());
     assert_eq!(parsed.pds_endpoint().unwrap(), DEFAULT_PDS);
     assert_eq!(parsed.handle().unwrap().as_str(), "alice.example.com");
@@ -1374,8 +1370,8 @@ fn identity_documents_handles_and_doh() {
     ));
     assert_eq!((s, v["error"].as_str()), (400, Some("HandleNotFound")));
     for doh in [
-        lessdugin_testkit::identity::DOH,
-        lessdugin_testkit::identity::DOH2,
+        pandoras_forum_testkit::identity::DOH,
+        pandoras_forum_testkit::identity::DOH2,
     ] {
         let (_, v) = w.get(&format!("{doh}?name=_atproto.alice.example.com&type=TXT"));
         assert_eq!(v["Answer"][0]["data"], format!("\"did={}\"", a.did()));
@@ -1386,7 +1382,7 @@ fn identity_documents_handles_and_doh() {
     a.set_handle("alice2.example.com");
     let (_, v) = w.get(&format!(
         "{}?name=_atproto.alice.example.com&type=TXT",
-        lessdugin_testkit::identity::DOH
+        pandoras_forum_testkit::identity::DOH
     ));
     assert_eq!(v["Status"], 3);
     assert_eq!(a.doc()["alsoKnownAs"], json!(["at://alice2.example.com"]));
@@ -1422,9 +1418,9 @@ fn relays_list_repos_by_collection() {
         };
         if i != 3 {
             acct.put(
-                "online.7778777.lessdugin.membership",
+                "forum.pandoras.membership",
                 "aaaaaaaaaaaa",
-                &json!({"$type": "online.7778777.lessdugin.membership"}),
+                &json!({"$type": "forum.pandoras.membership"}),
             );
             dids.push(acct.did().to_string());
         }
@@ -1438,7 +1434,7 @@ fn relays_list_repos_by_collection() {
         let mut got = Vec::new();
         let mut cursor = String::new();
         loop {
-            let (s, v) = w.get(&format!("{relay}/xrpc/com.atproto.sync.listReposByCollection?collection=online.7778777.lessdugin.membership&limit=2&cursor={cursor}"));
+            let (s, v) = w.get(&format!("{relay}/xrpc/com.atproto.sync.listReposByCollection?collection=forum.pandoras.membership&limit=2&cursor={cursor}"));
             assert_eq!(s, 200);
             got.extend(
                 v["repos"]

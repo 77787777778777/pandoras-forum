@@ -5,7 +5,7 @@
 // edit, the author is told when it will suspend a keep or a pin (social.md §4.5; the engine
 // says which, `editPreflight`).
 
-import type { CommentNode, MediaRef, TextQuote } from "@lessdugin/engine/types";
+import type { CommentNode, MediaRef, TextQuote } from "@pandoras-forum/engine/types";
 import { useEffect, useState } from "react";
 import { useEngine } from "../engine/context.tsx";
 import { SpilledBodySourceError, useCoherentEditSource } from "../engine/editSource.ts";

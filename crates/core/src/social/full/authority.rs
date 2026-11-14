@@ -10,8 +10,8 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_lexicon::values::Role;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_lexicon::values::Role;
 
 use crate::discovery::roster;
 use crate::social::FoldError;

@@ -2,8 +2,8 @@
 //! The wasm-bindgen exports: `WasmEngine` and `engineVersion`.
 
 use js_sys::{Function, Promise};
-use lessdugin_core::dto::Event;
-use lessdugin_core::engine::{Engine, EngineError, SubscriptionId};
+use pandoras_forum_core::dto::Event;
+use pandoras_forum_core::engine::{Engine, EngineError, SubscriptionId};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::future_to_promise;
 
@@ -15,12 +15,12 @@ pub fn engine_version() -> String {
     super::engine_version().to_owned()
 }
 
-/// The NSID prefix this module reads and writes (`online.7778777.lessdugin.temp` until the
+/// The NSID prefix this module reads and writes (`forum.pandoras.temp` until the
 /// `final-ns` build). The main thread's AuthBridge has its own build-time copy and the worker
 /// refuses to start when they differ.
 #[wasm_bindgen(js_name = engineNamespace)]
 pub fn engine_namespace() -> String {
-    lessdugin_lexicon::ns::NS.to_owned()
+    pandoras_forum_lexicon::ns::NS.to_owned()
 }
 
 /// An `EngineError` as the JSON text a rejected `call` carries.
@@ -40,7 +40,7 @@ pub(crate) fn install_panic_hook() {
     static ONCE: std::sync::Once = std::sync::Once::new();
     ONCE.call_once(|| {
         std::panic::set_hook(Box::new(|info| {
-            console_error(&format!("lessdugin-wasm: {info}"))
+            console_error(&format!("pandoras-forum-wasm: {info}"))
         }));
     });
 }
@@ -86,13 +86,13 @@ impl WasmEngine {
     pub fn prepare_media(&self, bytes: Vec<u8>, input_json: String) -> Promise {
         let engine = self.engine.clone();
         future_to_promise(async move {
-            let input: Option<lessdugin_core::dto::MediaInput> = serde_json::from_str(&input_json)
-                .map_err(|e| {
+            let input: Option<pandoras_forum_core::dto::MediaInput> =
+                serde_json::from_str(&input_json).map_err(|e| {
                     error_json(&EngineError::invalid_input(format!(
                         "prepareMedia: bad arguments: {e}"
                     )))
                 })?;
-            let input = input.unwrap_or(lessdugin_core::dto::MediaInput {
+            let input = input.unwrap_or(pandoras_forum_core::dto::MediaInput {
                 declared_mime: None,
                 alt: None,
                 name: None,

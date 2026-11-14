@@ -29,8 +29,8 @@
 
 use std::collections::BTreeSet;
 
-use lessdugin_atp::syntax::{AtIdentifier, Did, Nsid};
-use lessdugin_atp::xrpc::ListRecords;
+use pandoras_forum_atp::syntax::{AtIdentifier, Did, Nsid};
+use pandoras_forum_atp::xrpc::ListRecords;
 
 use crate::host::Host;
 use crate::limits;
@@ -594,7 +594,7 @@ mod tests {
     #[test]
     fn caps() {
         let t = ListTuning::default();
-        let ns = lessdugin_lexicon::ns::NS;
+        let ns = pandoras_forum_lexicon::ns::NS;
         assert_eq!(t.cap(&format!("{ns}.opinion")), 100_000);
         assert_eq!(t.cap(&format!("{ns}.post")), 20_000);
         assert_eq!(

@@ -6,8 +6,8 @@
 mod common;
 
 use common::{MINUTE, block_on, scenario, tui};
-use lessdugin_core::dto::{PostDraft, SyncOpts};
-use lessdugin_tui::app::ScreenKind;
+use pandoras_forum_core::dto::{PostDraft, SyncOpts};
+use pandoras_forum_tui::app::ScreenKind;
 
 const SIZES: [(u16, u16); 2] = [(80, 24), (160, 48)];
 
@@ -38,7 +38,7 @@ fn home_without_forums_says_how_to_join_one() {
     // the TUI's own commands, not the CLI's
     assert!(screen.contains("`:open <owner>/<slug>`"), "{screen}");
     assert!(screen.contains("`:join`"), "{screen}");
-    assert!(!screen.contains("lessdugin join"), "{screen}");
+    assert!(!screen.contains("pandoras-forum join"), "{screen}");
     insta::assert_snapshot!("home_empty_80x24", screen);
     // and so does `R`, which has nothing to sync
     block_on(t.press("R"));
@@ -114,7 +114,7 @@ fn thread_navigation_folds_and_parents() {
     let t1 = block_on(
         carol
             .engine
-            .comment(&lessdugin_core::dto::CommentDraft::new(
+            .comment(&pandoras_forum_core::dto::CommentDraft::new(
                 &s.welcome,
                 Some(s.bob_c1.clone()),
                 "Agreed.",
@@ -125,11 +125,14 @@ fn thread_navigation_folds_and_parents() {
     let c2 = carol.done(&t1);
     s.w.tick(MINUTE);
     bob.sync(&s.forum);
-    let t2 = block_on(bob.engine.comment(&lessdugin_core::dto::CommentDraft::new(
-        &s.welcome,
-        Some(c2.clone()),
-        "Thanks, carol.",
-    )))
+    let t2 = block_on(
+        bob.engine
+            .comment(&pandoras_forum_core::dto::CommentDraft::new(
+                &s.welcome,
+                Some(c2.clone()),
+                "Thanks, carol.",
+            )),
+    )
     .unwrap();
     bob.flush();
     let c3 = bob.done(&t2);
@@ -147,7 +150,7 @@ fn thread_navigation_folds_and_parents() {
         .map(|c| c.uri.clone())
         .collect();
     assert_eq!(uris, [s.bob_c1.clone(), c2.clone(), c3.clone()]);
-    let selected = |t: &lessdugin_tui::Headless<_>| {
+    let selected = |t: &pandoras_forum_tui::Headless<_>| {
         let th = t.state.top_thread().unwrap();
         th.layout.items[th.pos.selected].uri.clone()
     };
@@ -192,7 +195,7 @@ fn a_live_update_shows_a_banner_and_never_moves_the_cursor() {
     block_on(t.start(Some(s.forum.clone())));
     // select the welcome post (the second)
     block_on(t.press("j"));
-    let cursor = |t: &lessdugin_tui::Headless<_>| match &t.state.top().unwrap().kind {
+    let cursor = |t: &pandoras_forum_tui::Headless<_>| match &t.state.top().unwrap().kind {
         ScreenKind::Forum(f) => f.selected().unwrap().uri.clone(),
         _ => panic!("not on the forum"),
     };
@@ -237,7 +240,7 @@ fn a_new_comment_shows_a_banner_on_the_thread() {
     block_on(t.start(None));
     block_on(t.open_thread(&s.welcome));
     block_on(t.press("j"));
-    let selected = |t: &lessdugin_tui::Headless<_>| {
+    let selected = |t: &pandoras_forum_tui::Headless<_>| {
         let th = t.state.top_thread().unwrap();
         (th.layout.items[th.pos.selected].uri.clone(), th.pos.scroll)
     };
@@ -249,7 +252,7 @@ fn a_new_comment_shows_a_banner_on_the_thread() {
     block_on(
         s.w.bob
             .engine
-            .comment(&lessdugin_core::dto::CommentDraft::new(
+            .comment(&pandoras_forum_core::dto::CommentDraft::new(
                 &s.welcome,
                 None,
                 "One more thing.",
@@ -276,9 +279,9 @@ fn a_new_comment_shows_a_banner_on_the_thread() {
 /// (`social.md` §2.3): a backdated item shows when it was first seen.
 #[test]
 fn the_displayed_time_is_t_rank_not_the_claimed_created_at() {
-    use lessdugin_core::dto::{ListPostsQuery, ThreadOpts};
-    use lessdugin_tui::app::ThreadData;
-    use lessdugin_tui::text::{post_meta, time};
+    use pandoras_forum_core::dto::{ListPostsQuery, ThreadOpts};
+    use pandoras_forum_tui::app::ThreadData;
+    use pandoras_forum_tui::text::{post_meta, time};
     let s = scenario();
     let list = block_on(
         s.w.carol
@@ -307,7 +310,7 @@ fn the_displayed_time_is_t_rank_not_the_claimed_created_at() {
         view,
         bodies: Default::default(),
     };
-    let doc: String = lessdugin_tui::thread::layout(&data, &Default::default(), 80)
+    let doc: String = pandoras_forum_tui::thread::layout(&data, &Default::default(), 80)
         .lines
         .iter()
         .flat_map(|l| l.spans.iter().map(|s| s.content.to_string()))
@@ -321,7 +324,7 @@ fn the_displayed_time_is_t_rank_not_the_claimed_created_at() {
 /// recent-comments sort, and on a thread `s` sorts the comments (`social.md` §12.2-§12.4).
 #[test]
 fn filters_and_every_sort_are_reachable() {
-    use lessdugin_core::dto::{CommentSort, ForumDraft, PostFilter, PostSort};
+    use pandoras_forum_core::dto::{CommentSort, ForumDraft, PostFilter, PostSort};
     let s = scenario();
     let (alice, carol) = (&s.w.alice, &s.w.carol);
     let t = block_on(
@@ -399,8 +402,8 @@ fn filters_and_every_sort_are_reachable() {
 /// approval forum, complete without third-party servers, does not.
 #[test]
 fn an_open_forum_says_it_relies_on_public_relays() {
-    use lessdugin_core::dto::{DefaultTier, ForumDraft, MembershipMode};
-    use lessdugin_tui::view::OPEN_MODE_LABEL;
+    use pandoras_forum_core::dto::{DefaultTier, ForumDraft, MembershipMode};
+    use pandoras_forum_tui::view::OPEN_MODE_LABEL;
     let s = scenario();
     let (alice, carol) = (&s.w.alice, &s.w.carol);
     let mut draft = ForumDraft::new("open", "Open");
@@ -422,8 +425,8 @@ fn an_open_forum_says_it_relies_on_public_relays() {
     // read the same, so the engine's is given other words): the TUI falls back to its label
     // only when the view carries no such banner
     fn banners(
-        t: &mut lessdugin_tui::Headless<lessdugin_testkit::MemHost>,
-    ) -> &mut Vec<lessdugin_core::dto::Banner> {
+        t: &mut pandoras_forum_tui::Headless<pandoras_forum_testkit::MemHost>,
+    ) -> &mut Vec<pandoras_forum_core::dto::Banner> {
         let ScreenKind::Forum(f) = &mut t.state.stack.last_mut().unwrap().kind else {
             panic!("not the forum screen")
         };
@@ -454,9 +457,9 @@ fn an_open_forum_says_it_relies_on_public_relays() {
 /// kept, since the newcomer collapse is for other readers (§10.3, decision O-4).
 #[test]
 fn collapsed_comments_fold_except_the_viewers_own_newcomer_ones() {
-    use lessdugin_core::dto::{CollapseReason, ItemState, ThreadOpts};
-    use lessdugin_tui::app::ThreadData;
-    use lessdugin_tui::body::Body;
+    use pandoras_forum_core::dto::{CollapseReason, ItemState, ThreadOpts};
+    use pandoras_forum_tui::app::ThreadData;
+    use pandoras_forum_tui::body::Body;
     use std::collections::BTreeSet;
     let s = scenario();
     let mut view = block_on(
@@ -467,25 +470,26 @@ fn collapsed_comments_fold_except_the_viewers_own_newcomer_ones() {
     .unwrap();
     let bob = s.w.bob.did();
     assert_eq!(view.comments[0].author.did, bob);
-    let doc =
-        |view: &lessdugin_core::dto::ThreadView, toggled: &BTreeSet<String>, me: Option<&str>| {
-            let c = &view.comments[0];
-            let data = ThreadData {
-                bodies: [(c.uri.clone(), Body::from_record(None, &c.body))].into(),
-                view: view.clone(),
-            };
-            lessdugin_tui::thread::layout_for(&data, toggled, 80, me, &Default::default())
-                .lines
-                .iter()
-                .map(|l| {
-                    l.spans
-                        .iter()
-                        .map(|s| s.content.to_string())
-                        .collect::<String>()
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
+    let doc = |view: &pandoras_forum_core::dto::ThreadView,
+               toggled: &BTreeSet<String>,
+               me: Option<&str>| {
+        let c = &view.comments[0];
+        let data = ThreadData {
+            bodies: [(c.uri.clone(), Body::from_record(None, &c.body))].into(),
+            view: view.clone(),
         };
+        pandoras_forum_tui::thread::layout_for(&data, toggled, 80, me, &Default::default())
+            .lines
+            .iter()
+            .map(|l| {
+                l.spans
+                    .iter()
+                    .map(|s| s.content.to_string())
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
     let none = BTreeSet::new();
     let body = "Thanks for the forum!";
     for reason in [CollapseReason::NewUser, CollapseReason::LowScore] {
@@ -527,9 +531,9 @@ fn collapsed_comments_fold_except_the_viewers_own_newcomer_ones() {
 /// O-4).
 #[test]
 fn the_thread_screen_shows_the_viewers_own_newcomer_comment_expanded() {
-    use lessdugin_core::dto::{CollapseReason, ItemState, ThreadOpts};
-    use lessdugin_tui::app::{Origin, ThreadData};
-    use lessdugin_tui::{Action, Headless, HeadlessOpts};
+    use pandoras_forum_core::dto::{CollapseReason, ItemState, ThreadOpts};
+    use pandoras_forum_tui::app::{Origin, ThreadData};
+    use pandoras_forum_tui::{Action, Headless, HeadlessOpts};
     let s = scenario();
     let body = "Thanks for the forum!";
     let bob_tui = block_on(Headless::new(
@@ -579,8 +583,8 @@ fn the_thread_screen_shows_the_viewers_own_newcomer_comment_expanded() {
 /// body (headings, emphasis), rather than showing the view's plain text.
 #[test]
 fn a_spilled_body_is_styled_from_its_fetched_source() {
-    use lessdugin_core::dto::{BodyDraft, ThreadOpts, ThreadRoot};
-    use lessdugin_tui::body::BodyDoc;
+    use pandoras_forum_core::dto::{BodyDraft, ThreadOpts, ThreadRoot};
+    use pandoras_forum_tui::body::BodyDoc;
     let s = scenario();
     let bob = &s.w.bob;
     let mut source = "# Chapter one\n\nIt was a **dark** night.\n\n".to_owned();
@@ -624,9 +628,9 @@ fn a_spilled_body_is_styled_from_its_fetched_source() {
 /// re-queries and shows it.
 #[test]
 fn a_pending_spilled_body_shows_when_it_arrives() {
-    use lessdugin_core::dto::PostDraft;
-    use lessdugin_core::limits::BODY_BLOB_RETRY_MS;
-    use lessdugin_core::model::render::NOTICE_SPILLED;
+    use pandoras_forum_core::dto::PostDraft;
+    use pandoras_forum_core::limits::BODY_BLOB_RETRY_MS;
+    use pandoras_forum_core::model::render::NOTICE_SPILLED;
     let s = scenario();
     let (bob, carol) = (&s.w.bob, &s.w.carol);
     let mut source = "The opening.\n\n".to_owned();

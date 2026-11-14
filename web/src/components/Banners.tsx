@@ -9,7 +9,7 @@
 // Unknown codes render their message as-is; every banner keeps its `code` as `data-banner` so
 // the e2e specs and styles can address it.
 
-import type { Banner, MembershipMode } from "@lessdugin/engine/types";
+import type { Banner, MembershipMode } from "@pandoras-forum/engine/types";
 import { cx } from "../lib/cx.ts";
 import styles from "./Banners.module.css";
 

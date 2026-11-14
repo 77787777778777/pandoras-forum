@@ -3,8 +3,8 @@
 //! helpers that install them as [`MemHost`] routes.
 
 use k256::ecdsa::SigningKey;
-use lessdugin_atp::crypto::PublicKey;
-use lessdugin_atp::syntax::Did;
+use pandoras_forum_atp::crypto::PublicKey;
+use pandoras_forum_atp::syntax::Did;
 use serde_json::{Value, json};
 
 use crate::memhost::MemHost;
@@ -20,7 +20,8 @@ pub const DOH2: &str = "https://dns.google/resolve";
 
 /// A deterministic `did:plc` for a seed.
 pub fn fake_plc_did(seed: &str) -> Did {
-    let digest = lessdugin_atp::cid::sha256(format!("lessdugin-testkit-did:{seed}").as_bytes());
+    let digest =
+        pandoras_forum_atp::cid::sha256(format!("pandoras-forum-testkit-did:{seed}").as_bytes());
     let b32 = data_encoding::BASE32_NOPAD
         .encode(&digest)
         .to_ascii_lowercase();
@@ -31,8 +32,8 @@ pub fn fake_plc_did(seed: &str) -> Did {
 pub fn fake_key(seed: &str) -> SigningKey {
     let mut counter = 0u32;
     loop {
-        let digest = lessdugin_atp::cid::sha256(
-            format!("lessdugin-testkit-key:{seed}:{counter}").as_bytes(),
+        let digest = pandoras_forum_atp::cid::sha256(
+            format!("pandoras-forum-testkit-key:{seed}:{counter}").as_bytes(),
         );
         if let Ok(k) = SigningKey::from_slice(&digest) {
             return k;
@@ -219,7 +220,7 @@ mod tests {
         assert_eq!(fake_key("a").to_bytes(), fake_key("a").to_bytes());
         let id = FakeIdentity::plc("alice", "alice.example.com", "https://pds.example.com");
         let doc = id.doc();
-        let parsed = lessdugin_atp::did_doc::DidDocument::from_json(&doc).unwrap();
+        let parsed = pandoras_forum_atp::did_doc::DidDocument::from_json(&doc).unwrap();
         assert_eq!(parsed.signing_key().unwrap(), id.public_key());
         assert_eq!(parsed.pds_endpoint().unwrap(), "https://pds.example.com");
         assert_eq!(parsed.handle().unwrap().as_str(), "alice.example.com");

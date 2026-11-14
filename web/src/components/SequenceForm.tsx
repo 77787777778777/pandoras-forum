@@ -4,7 +4,7 @@
 // Posts are added by link or at-uri (`parse_ref`); the posts may be by other authors. The draft
 // replaces the sequence's editable content when it is saved, as one write.
 
-import type { SequenceDraft } from "@lessdugin/engine/types";
+import type { SequenceDraft } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { type FormEvent, useId, useRef, useState } from "react";
 import { useEngine } from "../engine/context.tsx";

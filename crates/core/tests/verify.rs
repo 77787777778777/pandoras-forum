@@ -4,13 +4,13 @@
 mod common;
 
 use common::*;
-use lessdugin_core::dto::{VerifyOutcome, VerifyReport};
-use lessdugin_core::engine::ErrorCode;
-use lessdugin_core::host::{HostError, Redirects};
-use lessdugin_core::verify::checks;
-use lessdugin_testkit::identity::{DOH, PLC, did_doc, fake_key, install_doc, multikey};
-use lessdugin_testkit::repo::{tid_at_micros, tid_at_ms};
-use lessdugin_testkit::resp;
+use pandoras_forum_core::dto::{VerifyOutcome, VerifyReport};
+use pandoras_forum_core::engine::ErrorCode;
+use pandoras_forum_core::host::{HostError, Redirects};
+use pandoras_forum_core::verify::checks;
+use pandoras_forum_testkit::identity::{DOH, PLC, did_doc, fake_key, install_doc, multikey};
+use pandoras_forum_testkit::repo::{tid_at_micros, tid_at_ms};
+use pandoras_forum_testkit::resp;
 use serde_json::json;
 
 fn names(r: &VerifyReport) -> Vec<&str> {
@@ -143,7 +143,7 @@ fn a_tampered_proof_fails() {
     let honest_commit = repo.commit(rev);
     let mut blocks = forged.proof_blocks(POST, RKEY, &forged.commit(rev));
     blocks[0] = (honest_commit.cid, honest_commit.block.clone());
-    let car = lessdugin_atp::car::write_car(
+    let car = pandoras_forum_atp::car::write_car(
         &[honest_commit.cid],
         blocks.iter().map(|(c, b)| (c, b.as_slice())),
     );
@@ -247,7 +247,7 @@ fn deep_is_reported_but_does_not_decide() {
     assert!(deep.ok);
     assert_eq!(
         deep.detail.as_deref(),
-        Some(lessdugin_core::verify::DEEP_SKIPPED)
+        Some(pandoras_forum_core::verify::DEEP_SKIPPED)
     );
     assert!(r.checks.iter().all(|c| c.ok), "{:?}", r.checks);
 }
@@ -357,7 +357,7 @@ fn engine_futures_are_send() {
     assert_send(&g);
     let h = e.accounts();
     assert_send(&h);
-    let i = e.add_account(lessdugin_core::engine::AccountInfo::app_password(
+    let i = e.add_account(pandoras_forum_core::engine::AccountInfo::app_password(
         "did:plc:x",
         PDS,
     ));

@@ -6,7 +6,7 @@
 //! and `parityNowMs` are test-only: the worker passes them only from an e2e or development build
 //! (threat-model INFRA-9, `engine-api.md` §2.1); this module accepts what it is given.
 
-use lessdugin_core::engine::{
+use pandoras_forum_core::engine::{
     EngineConfig, EngineError, IndexerConsent, IndexerMode, Platform, Sources, VerifyMode,
 };
 use serde::Deserialize;

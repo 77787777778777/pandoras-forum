@@ -58,7 +58,7 @@
 }:
 
 let
-  throwSystem = throw "lessdugin playwright-browsers: unsupported system ${system}";
+  throwSystem = throw "Pandora's Forum playwright-browsers: unsupported system ${system}";
 
   chromiumRevision = "1194";
   ffmpegRevision = "1011";

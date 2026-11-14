@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { CommentNode, ItemState } from "@lessdugin/engine/types";
+import type { CommentNode, ItemState } from "@pandoras-forum/engine/types";
 import { describe, expect, it } from "vitest";
 import {
   buildRows,
@@ -18,7 +18,7 @@ function node(
   const n: CommentNode = {
     uri,
     cid: `cid-${uri}`,
-    root: "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.post/p",
+    root: "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.post/p",
     depth,
     author: {
       did: "did:plc:abcdefghijklmnopqrstuvwx",

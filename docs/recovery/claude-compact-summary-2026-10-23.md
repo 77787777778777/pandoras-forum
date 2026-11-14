@@ -5,7 +5,7 @@ Summary:
 1. **Primary Request and Intent:**
    - **Original request:** "Design a rich text (markdown) and media forum based on atproto. It should be simple enough to work from the command line and not require the user to trust any given website or for anyone to run anything server-side or keep another database other than the pds, but allow for optional extensions that make it a richer experience like https://github.com/ForumMagnum/ForumMagnum - which should serve as the model of what functionality users might want. Use rust and javascript/typescript. Think long and hard about this, let's get this right from the start. Create a cli, tui and SPA implementation."
    - **User decisions:**
-     - NSID authority `lessdugin.7778777.online`, giving the prefix `online.7778777.lessdugin.*`.
+     - NSID authority `pandoras.forum`, giving the prefix `forum.pandoras.*`.
      - Rust core shared to the SPA via WASM; React + Vite.
      - MVP plus the optional indexer.
      - Licensing split: apps AGPL-3.0-or-later; lexicons, spec and vectors CC0-1.0; the atp and lexicon crates MIT OR Apache-2.0. The user said: "AGPL is just the default for me" and "if the license is incompatible with something we really need it's fine to change it".
@@ -31,21 +31,21 @@ Summary:
    - **Outbox:** one write in flight per account; swapCommit taken from a fresh getLatestCommit; create-if-absent through putRecord with `swapRecord: null`.
    - **Locking:** Host::lock is the cross-process outbox lock (fd-lock natively, Web Locks in the browser).
    - **Social fold:** a deterministic fold (social.md) with mod/1, karma/1, magic/1 and default/1. The full fold is `social::full::fold_view_with` (the M2 fold was deleted in M3).
-   - **Parity mode:** `EngineConfig.parity_now_ms`, enabled by `LESSDUGIN_PARITY_NOW_MS` in devnet only. The SPA enables it only in e2e builds.
+   - **Parity mode:** `EngineConfig.parity_now_ms`, enabled by `PANDORAS_FORUM_PARITY_NOW_MS` in devnet only. The SPA enables it only in e2e builds.
    - **Size:** ADR 0008 makes the wasm size a tripwire.
    - **Browser engine:**
      - The wasm engine runs in a Web Worker.
      - JsHost uses IndexedDB, fetch with byte caps, and Web Locks.
      - The AuthBridge sits on the main thread and talks to the worker over a fixed-schema MessagePort.
      - Leader election uses Web Locks plus BroadcastChannel.
-   - **`lessdugin web` bridge (threat-model §7):**
+   - **`pandoras-forum web` bridge (threat-model §7):**
      - Loopback only, with Host and Origin checks.
      - Single-use capabilities with revoke-on-reuse.
      - Endpoints: /bridge/session, /bridge/xrpc, /bridge/kv, /bridge/login and /bridge/lock.
    - **SPA:** hosted OAuth via @atproto/oauth-client-browser 0.5.9; CSP plus Trusted Types.
    - **Testing strategy:**
      - N-version discipline: a Python reference model generates the vectors and the Rust side must not read it.
-     - Devnet via packages/e2e/devnet.mjs; Rust tests that need it are gated by `LESSDUGIN_E2E=1`.
+     - Devnet via packages/e2e/devnet.mjs; Rust tests that need it are gated by `PANDORAS_FORUM_E2E=1`.
      - Playwright with Chromium at /opt/pw-browsers.
    - **Workflow tool notes:**
      - Resume with the same script and the same args to get cache hits.
@@ -85,9 +85,9 @@ Summary:
        const WASM_WARN_RAW: u64 = 4_000_000;
        ```
      - The report line reads "(warn above {}, fail above {})".
-     - `xtask ci` runs `cargo test -p lessdugin-core --features final-ns --test social_vectors --test social_fold --test social_query`. The M3 views agent also added `--test model_reorder`.
+     - `xtask ci` runs `cargo test -p pandoras-forum-core --features final-ns --test social_vectors --test social_fold --test social_query`. The M3 views agent also added `--test model_reorder`.
      - Other subcommands: `test-wasm`, `wasm [--release|--dev] [--budget] [--report] [--kv-test]`, and `e2e [--rust] [--web] [--parity] [--no-build]`.
-   - **`.github/workflows/ci.yml`:** has the same final-ns social tests, a wasm-tests job, and a web-e2e job with `LESSDUGIN_KV_TEST=1`.
+   - **`.github/workflows/ci.yml`:** has the same final-ns social tests, a wasm-tests job, and a web-e2e job with `PANDORAS_FORUM_KV_TEST=1`.
    - **`.github/workflows/e2e.yml`:** two jobs, rust and web.
    - **`Cargo.toml`:**
      - `libm = "=0.2.16"`, with a comment that the hot() bit patterns are normative.
@@ -136,7 +136,7 @@ Summary:
    - **M1:** done (873be08).
    - **M2:** done (fdc5b8e). Gate green:
      - `cargo xtask ci`;
-     - `LESSDUGIN_E2E=1 cargo test --workspace` (957 tests);
+     - `PANDORAS_FORUM_E2E=1 cargo test --workspace` (957 tests);
      - mock Playwright 22/22 and devnet Playwright 8/8;
      - parity byte-identical across clients;
      - cold sync 2.5 s.
@@ -203,7 +203,7 @@ Summary:
      - push;
      - launch the M4 integration workflow (media pipeline, streaming blobs, editor, TUI images, export, media parity).
    - If a session limit kills the workflows again, make a WIP commit and resume with the same scriptPath and resumeFromRunId once the limit resets.
-   - If the disk watch fires, delete stale test executables and incremental dirs in /home/user/lessdugin/target and /home/user/target-m4.
+   - If the disk watch fires, delete stale test executables and incremental dirs in /home/user/pandoras-forum/target and /home/user/target-m4.
 
 If you need specific details from before compaction (like exact code snippets, error messages, or content you generated), read the full transcript at: /root/.claude/projects/-home-user/ceecc645-bbf9-531d-a32e-64c609b00879.jsonl
 Continue the conversation from where it left off without asking the user any further questions. Resume directly — do not acknowledge the summary, do not recap what was happening, do not preface with "I'll continue" or similar. Pick up the last task as if the break never happened.

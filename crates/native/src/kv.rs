@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
-use lessdugin_core::host::{Dir, HostError, KeyRange, KvOp, KvStore};
+use pandoras_forum_core::host::{Dir, HostError, KeyRange, KvOp, KvStore};
 use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params_from_iter};
 
 use crate::fsutil;
@@ -344,20 +344,20 @@ mod tests {
     async fn conformance_on_file() {
         let dir = tempfile::tempdir().unwrap();
         let kv = SqliteKv::open(&dir.path().join("cache.sqlite"), Durability::Normal).unwrap();
-        lessdugin_testkit::kv::kv_conformance(&kv).await;
+        pandoras_forum_testkit::kv::kv_conformance(&kv).await;
     }
 
     #[tokio::test]
     async fn conformance_on_file_full_durability() {
         let dir = tempfile::tempdir().unwrap();
         let kv = SqliteKv::open(&dir.path().join("state.sqlite"), Durability::Full).unwrap();
-        lessdugin_testkit::kv::kv_conformance(&kv).await;
+        pandoras_forum_testkit::kv::kv_conformance(&kv).await;
     }
 
     #[tokio::test]
     async fn conformance_in_memory() {
         let kv = SqliteKv::open_in_memory().unwrap();
-        lessdugin_testkit::kv::kv_conformance(&kv).await;
+        pandoras_forum_testkit::kv::kv_conformance(&kv).await;
     }
 
     #[test]
@@ -365,7 +365,7 @@ mod tests {
         // Outside Tokio the store runs SQLite inline.
         let dir = tempfile::tempdir().unwrap();
         let kv = SqliteKv::open(&dir.path().join("x.sqlite"), Durability::Normal).unwrap();
-        futures::executor::block_on(lessdugin_testkit::kv::kv_conformance(&kv));
+        futures::executor::block_on(pandoras_forum_testkit::kv::kv_conformance(&kv));
     }
 
     #[tokio::test]

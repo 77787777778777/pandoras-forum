@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// `lessdugin web --dev` (threat-model §7) serving the SPA, against the devnet: the one-time
+// `pandoras-forum web --dev` (threat-model §7) serving the SPA, against the devnet: the one-time
 // capability link, the bridge session in sessionStorage, anonymous reading with the `state`
 // store behind `/bridge/kv`, the sign-in through `/bridge/login` (the CLI's loopback OAuth at
 // the devnet PDS), a comment written through `/bridge/xrpc` with the CLI's session, and the
 // refusal of a link used twice.
 //
-// Needs a `lessdugin` binary that embeds an e2e build of the SPA (only those accept the devnet
-// endpoints): `LESSDUGIN_WEB_DIST=$PWD/web/dist-e2e cargo build -p lessdugin`, then
-// `LESSDUGIN_BIN=<that binary>` (default target/debug/lessdugin). Skipped when the binary is
+// Needs a `pandoras-forum` binary that embeds an e2e build of the SPA (only those accept the devnet
+// endpoints): `PANDORAS_FORUM_WEB_DIST=$PWD/web/dist-e2e cargo build -p pandoras-forum`, then
+// `PANDORAS_FORUM_BIN=<that binary>` (default target/debug/pandoras-forum). Skipped when the binary is
 // missing or embeds another build.
 
 import { type ChildProcess, spawn } from "node:child_process";
@@ -22,8 +22,8 @@ import { approveAtPds, e2eState, route, watchStrict, withDevnet } from "./state.
 
 const s = e2eState();
 const BIN =
-  process.env.LESSDUGIN_BIN ??
-  fileURLToPath(new URL("../../../target/debug/lessdugin", import.meta.url));
+  process.env.PANDORAS_FORUM_BIN ??
+  fileURLToPath(new URL("../../../target/debug/pandoras-forum", import.meta.url));
 
 function freePort(): Promise<number> {
   return new Promise((ok, ko) => {
@@ -54,16 +54,16 @@ const SIGN_IN_PROMPT = "Accept this sign-in? [y/N]";
 
 async function startWeb(): Promise<Web> {
   const port = await freePort();
-  const dir = mkdtempSync(join(tmpdir(), "lessdugin-web-e2e-"));
+  const dir = mkdtempSync(join(tmpdir(), "pandoras-forum-web-e2e-"));
   const env: NodeJS.ProcessEnv = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (!k.startsWith("LESSDUGIN_") && k !== "RUST_LOG" && k !== "BROWSER") env[k] = v;
+    if (!k.startsWith("PANDORAS_FORUM_") && k !== "RUST_LOG" && k !== "BROWSER") env[k] = v;
   }
   Object.assign(env, {
-    LESSDUGIN_DATA_DIR: dir,
-    LESSDUGIN_KEYRING: "off",
-    LESSDUGIN_PLC_URL: s.devnet.plc,
-    LESSDUGIN_PDS_URL: s.devnet.pds,
+    PANDORAS_FORUM_DATA_DIR: dir,
+    PANDORAS_FORUM_KEYRING: "off",
+    PANDORAS_FORUM_PLC_URL: s.devnet.plc,
+    PANDORAS_FORUM_PDS_URL: s.devnet.pds,
     NO_COLOR: "1",
   });
   const child = spawn(BIN, ["--dev", "web", "--no-open", "--port", String(port)], {
@@ -105,7 +105,7 @@ async function startWeb(): Promise<Web> {
       if (l) return Promise.resolve(l);
       return new Promise((ok, ko) => {
         const t = setTimeout(
-          () => ko(new Error(`no link from lessdugin web: ${stderr.join("")}`)),
+          () => ko(new Error(`no link from pandoras-forum web: ${stderr.join("")}`)),
           60_000,
         );
         waiters.push((x) => {
@@ -118,7 +118,7 @@ async function startWeb(): Promise<Web> {
       const before = stderr.join("").length;
       return new Promise((ok, ko) => {
         const t = setTimeout(
-          () => ko(new Error(`no sign-in prompt from lessdugin web: ${stderr.join("")}`)),
+          () => ko(new Error(`no sign-in prompt from pandoras-forum web: ${stderr.join("")}`)),
           60_000,
         );
         prompted = () => {
@@ -179,11 +179,11 @@ test.afterAll(async () => {
   rmSync(web.dir, { recursive: true, force: true });
 });
 
-test("lessdugin web: capability link, anonymous read, sign-in through the CLI, a comment", async ({
+test("pandoras-forum web: capability link, anonymous read, sign-in through the CLI, a comment", async ({
   page,
   browser,
 }) => {
-  test.skip(!web, `no lessdugin binary at ${BIN} (set LESSDUGIN_BIN)`);
+  test.skip(!web, `no pandoras-forum binary at ${BIN} (set PANDORAS_FORUM_BIN)`);
   if (!web) return;
   const w = await watchStrict(page);
   await withDevnet(page, s);
@@ -193,23 +193,23 @@ test("lessdugin web: capability link, anonymous read, sign-in through the CLI, a
     if (new URL(r.url()).pathname === "/bridge/lock") locks.push(r.postData() ?? "");
   });
   const link = await web.nextLink();
-  expect(link).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#lessdugin-cap=[A-Za-z0-9_-]{43}$/);
+  expect(link).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/#pandoras-forum-cap=[A-Za-z0-9_-]{43}$/);
   const resp = await page.goto(link);
   expect(resp?.headers()["content-security-policy"]).toBe(DEV_CSP);
   const isE2E = await page
-    .waitForFunction(() => window.__lessduginE2E !== undefined, null, { timeout: 15_000 })
+    .waitForFunction(() => window.__pandorasForumE2E !== undefined, null, { timeout: 15_000 })
     .then(
       () => true,
       () => false,
     );
-  test.skip(!isE2E, `${BIN} does not embed an e2e build (LESSDUGIN_WEB_DIST=web/dist-e2e)`);
+  test.skip(!isE2E, `${BIN} does not embed an e2e build (PANDORAS_FORUM_WEB_DIST=web/dist-e2e)`);
 
   // The capability left the address bar before the router mounted; the token is in
   // sessionStorage only.
   await expect(page).toHaveURL(`${web.origin}/#/`);
-  const token = await page.evaluate(() => sessionStorage.getItem("lessdugin-bridge-token"));
+  const token = await page.evaluate(() => sessionStorage.getItem("pandoras-forum-bridge-token"));
   expect(token).toMatch(/^[A-Za-z0-9_-]{43}$/);
-  await expect(page.getByTestId("engine-banner")).toContainText("lessdugin web");
+  await expect(page.getByTestId("engine-banner")).toContainText("pandoras-forum web");
 
   // Anonymous read (the cache in IndexedDB, the `state` store behind /bridge/kv).
   await page.goto(`${web.origin}/${route(s.post.uri)}`);
@@ -230,7 +230,9 @@ test("lessdugin web: capability link, anonymous read, sign-in through the CLI, a
   await approveAtPds(page, carol.password, web.origin);
   expect(await accepted).toContain(carol.did);
   await expect(page.getByRole("button", { name: new RegExp(carol.handle) })).toBeVisible();
-  expect(await page.evaluate(() => sessionStorage.getItem("lessdugin-bridge-token"))).toBe(token);
+  expect(await page.evaluate(() => sessionStorage.getItem("pandoras-forum-bridge-token"))).toBe(
+    token,
+  );
   // The browser holds no OAuth state of its own in this mode (threat-model AUTH-12).
   const dbs = await page.evaluate(async () => (await indexedDB.databases()).map((d) => d.name));
   expect(dbs).not.toContain("@atproto-oauth-client");
@@ -242,20 +244,20 @@ test("lessdugin web: capability link, anonymous read, sign-in through the CLI, a
   if (scopes.missing.length > 0) {
     test.info().annotations.push({
       type: "fixme",
-      description: `lessdugin web refuses /bridge/kv keys under ${scopes.missing.join(", ")} (crates/cli/src/web/kv.rs SCOPES): writes from the tab fail until it allows them`,
+      description: `pandoras-forum web refuses /bridge/kv keys under ${scopes.missing.join(", ")} (crates/cli/src/web/kv.rs SCOPES): writes from the tab fail until it allows them`,
     });
   } else {
     await page.goto(`${web.origin}/${route(s.post.uri)}`);
     await page.getByRole("textbox", { name: "New comment" }).click();
-    await page.keyboard.type("carol, via **lessdugin web**.");
+    await page.keyboard.type("carol, via **pandoras-forum web**.");
     await page.getByRole("button", { name: "Comment", exact: true }).click();
     await expect(
-      page.getByRole("article").filter({ hasText: "carol, via lessdugin web." }),
+      page.getByRole("article").filter({ hasText: "carol, via pandoras-forum web." }),
     ).toBeVisible();
     await expect
       .poll(async () => {
         const r = await fetch(
-          `${s.devnet.pds}/xrpc/com.atproto.repo.listRecords?repo=${carol.did}&collection=online.7778777.lessdugin.temp.comment&limit=100`,
+          `${s.devnet.pds}/xrpc/com.atproto.repo.listRecords?repo=${carol.did}&collection=forum.pandoras.temp.comment&limit=100`,
         );
         const { records } = (await r.json()) as {
           records: { value: { root?: { uri?: string } } }[];

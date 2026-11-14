@@ -2,8 +2,8 @@
 // @vitest-environment jsdom
 // (Previews render bodies through DOMPurify; see lib/sanitize.test.ts.)
 
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { PostSummary, PostView } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { PostSummary, PostView } from "@pandoras-forum/engine/types";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { qk } from "../engine/queries.ts";
@@ -51,7 +51,7 @@ describe("HoverPreview (lfm-1.md §5.3)", () => {
     const parseRef = vi.spyOn(engine, "parseRef");
     preview(engine, post.uri);
     const dialog = await screen.findByRole("dialog", { name: "Link preview" });
-    await waitFor(() => expect(dialog.textContent).toContain("Welcome to LessDugin"));
+    await waitFor(() => expect(dialog.textContent).toContain("Welcome to Pandora's Forum"));
     expect(parseRef).toHaveBeenCalledWith(post.uri, {});
   });
 
@@ -70,7 +70,7 @@ describe("HoverPreview (lfm-1.md §5.3)", () => {
     preview(engine, post.uri);
     const dialog = await screen.findByRole("dialog", { name: "Link preview" });
     await waitFor(() => expect(dialog.textContent).toContain("This item is not shown."));
-    expect(dialog.textContent).not.toContain("Welcome to LessDugin");
+    expect(dialog.textContent).not.toContain("Welcome to Pandora's Forum");
     expect(dialog.querySelector("[data-rendered-root]")).toBeNull();
     expect(within(dialog).getByRole("link", { name: "Open →" })).toBeTruthy();
   });

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `lessdugin login` (`docs/design/synthesis-v1.md` §6.7, `threat-model.md` AUTH-1…AUTH-5, F25).
+//! `pandoras-forum login` (`docs/design/synthesis-v1.md` §6.7, `threat-model.md` AUTH-1…AUTH-5, F25).
 //!
 //! The account is resolved first, without the cache ([`resolve_login_target`]); a handle found
 //! only through a hint is refused. When the input handle is not the account's handle verified
@@ -8,9 +8,9 @@
 
 use std::time::Duration;
 
-use lessdugin_core::engine::{EngineError, ErrorCode, PinStatus, is_app_password_shape};
-use lessdugin_native::auth::oauth::{self, ClientKind, OAuthOptions};
-use lessdugin_native::auth::{
+use pandoras_forum_core::engine::{EngineError, ErrorCode, PinStatus, is_app_password_shape};
+use pandoras_forum_native::auth::oauth::{self, ClientKind, OAuthOptions};
+use pandoras_forum_native::auth::{
     AppPassword, Backend, LoginOutcome, LoginTarget, login_app_password, resolve_login_target,
 };
 
@@ -26,8 +26,8 @@ fn argv_password_refusal() -> CliError {
     CliError::usage(
         "passwords are never accepted as command-line arguments (they leak through shell \
          history and the process list). If that was a real app password, revoke it in your \
-         PDS's settings. Use the prompt (`lessdugin login <handle> --app-password`), \
-         --password-stdin, or LESSDUGIN_APP_PASSWORD.",
+         PDS's settings. Use the prompt (`pandoras-forum login <handle> --app-password`), \
+         --password-stdin, or PANDORAS_FORUM_APP_PASSWORD.",
     )
 }
 
@@ -42,7 +42,7 @@ fn read_app_password(args: &LoginArgs) -> Result<AppPassword, CliError> {
     if !prompt::stdin_is_tty() {
         return Err(CliError::usage(
             "no terminal to prompt for the app password: use --password-stdin or \
-             LESSDUGIN_APP_PASSWORD",
+             PANDORAS_FORUM_APP_PASSWORD",
         ));
     }
     let secret = prompt::read_secret("App password (xxxx-xxxx-xxxx-xxxx): ")
@@ -109,7 +109,7 @@ fn confirm_target(ctx: &Ctx, target: &LoginTarget, can_ask: bool) -> Result<(), 
     }
 }
 
-/// `lessdugin login`.
+/// `pandoras-forum login`.
 pub async fn run(ctx: &Ctx, args: LoginArgs) -> Result<(), CliError> {
     if args.password_argv.is_some() || !args.extra.is_empty() {
         return Err(argv_password_refusal());
@@ -120,7 +120,7 @@ pub async fn run(ctx: &Ctx, args: LoginArgs) -> Result<(), CliError> {
     // a hosted client id is the URL an authorization server fetches (config.toml's is checked
     // when it is loaded)
     if let Some(u) = &args.oauth_client_id {
-        lessdugin_native::config::oauth_client_id(u)
+        pandoras_forum_native::config::oauth_client_id(u)
             .map_err(|e| CliError::usage(format!("--oauth-client-id: {e}")))?;
     }
     let app_password_mode = args.app_password || args.password_stdin;

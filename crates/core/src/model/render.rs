@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Rendering bodies through `lessdugin_markdown` into [`RenderedBody`] DTOs, with the in-memory
+//! Rendering bodies through `pandoras_forum_markdown` into [`RenderedBody`] DTOs, with the in-memory
 //! LRU keyed by `(cid, RENDERER_VERSION)` (`sync.md` §13, `lfm-1.md` §1.2).
 //!
 //! A body is an `NS.markdown` union value (`data-model.md` §5): inline `text`, or a `textBlob`.
@@ -14,8 +14,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_markdown::{MediaItem, RENDERER_VERSION, RenderOpts, Rendered};
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_markdown::{MediaItem, RENDERER_VERSION, RenderOpts, Rendered};
 use serde_json::Value;
 
 use crate::dto::{AspectRatio, MediaView, RenderedBody, TocEntry};
@@ -62,7 +62,7 @@ fn notices(r: &Rendered) -> Vec<String> {
         n.push(e.notice().to_owned());
     }
     if r.flags.truncated {
-        n.push(lessdugin_markdown::html::fixed::TRUNCATED.to_owned());
+        n.push(pandoras_forum_markdown::html::fixed::TRUNCATED.to_owned());
     }
     if r.flags.depth_limited {
         n.push(NOTICE_DEPTH.to_owned());
@@ -154,7 +154,7 @@ fn cached_markdown(src: &str, media: &Value, profile: Option<&str>) -> CachedBod
         text: true,
     };
     cached_rendered(
-        lessdugin_markdown::render_profile(src, &items, profile, &opts),
+        pandoras_forum_markdown::render_profile(src, &items, profile, &opts),
         media,
     )
 }
@@ -197,7 +197,7 @@ pub enum Spilled {
     /// The decoded source (UTF-8, one leading U+FEFF stripped).
     Text(Arc<str>),
     /// It cannot be rendered: not UTF-8, or larger than the lexicon allows.
-    Error(lessdugin_markdown::BodyError),
+    Error(pandoras_forum_markdown::BodyError),
     /// The bytes did not match the CID (`data-model.md` §5.2 rule 3).
     Unverified,
     /// The author's PDS does not have the blob (`sync.md` §11.1: missing, not retried).
@@ -209,7 +209,9 @@ fn render_spilled_cached(md: &Value, spilled: &Spilled) -> CachedBody {
     let profile = md.get("profile").and_then(Value::as_str);
     match spilled {
         Spilled::Text(src) => cached_markdown(src, &media, profile),
-        Spilled::Error(e) => cached_rendered(lessdugin_markdown::render_error(*e, profile), &media),
+        Spilled::Error(e) => {
+            cached_rendered(pandoras_forum_markdown::render_error(*e, profile), &media)
+        }
         Spilled::Unverified => CachedBody {
             body: placeholder(NOTICE_UNVERIFIED_BODY, &media),
             links: Vec::new(),
@@ -669,12 +671,12 @@ pub struct BodyItem<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_lexicon::ns::NS;
+    use pandoras_forum_lexicon::ns::NS;
     use serde_json::json;
 
     #[test]
     fn renders_inline_spilled_and_unknown() {
-        let ns = lessdugin_lexicon::ns::NS;
+        let ns = pandoras_forum_lexicon::ns::NS;
         let md = json!({"$type": format!("{ns}.markdown"), "text": "# Hi\n\nSome *text*."});
         let b = render_md(&md, ns, None);
         assert!(b.html.starts_with("<div class=\"lfm\""));
@@ -692,10 +694,8 @@ mod tests {
     #[test]
     fn links_come_from_rendering_not_record_hints() {
         let cache = RenderCache::default();
-        let target =
-            "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/zone.lessdugin.post/uetjixxr3a33-3jzfcijpj2z2a";
-        let hint =
-            "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/zone.lessdugin.post/uetjixxr3a33-3jzfcijpj2z2b";
+        let target = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/zone.pandoras-forum.post/nkglkm5wsp3d-3jzfcijpj2z2a";
+        let hint = "at://did:plc:bbbbbbbbbbbbbbbbbbbbbbbb/zone.pandoras-forum.post/nkglkm5wsp3d-3jzfcijpj2z2b";
         let md = json!({
             "$type": format!("{NS}.markdown"),
             "text": format!("[target]({target})"),

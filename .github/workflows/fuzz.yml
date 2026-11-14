@@ -24,7 +24,7 @@ env:
   CARGO_TERM_COLOR: always
   # The nightly cargo-fuzz builds with (sanitizer flags); the xtask itself runs on the pinned
   # stable toolchain of rust-toolchain.toml.
-  LESSDUGIN_FUZZ_TOOLCHAIN: nightly-2026-10-22
+  PANDORAS_FORUM_FUZZ_TOOLCHAIN: nightly-2026-10-22
 jobs:
   fuzz:
     runs-on: ubuntu-latest
@@ -41,13 +41,13 @@ jobs:
           toolchain: "1.97.0"
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
         with:
-          toolchain: ${{ env.LESSDUGIN_FUZZ_TOOLCHAIN }}
+          toolchain: ${{ env.PANDORAS_FORUM_FUZZ_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: |
             . -> target
           key: fuzz-${{ matrix.target }}
-      - run: cargo +${{ env.LESSDUGIN_FUZZ_TOOLCHAIN }} install cargo-fuzz --version =0.13.2 --locked
+      - run: cargo +${{ env.PANDORAS_FORUM_FUZZ_TOOLCHAIN }} install cargo-fuzz --version =0.13.2 --locked
       - run: cargo xtask fuzz ${{ matrix.target }} --seconds ${{ inputs.seconds || '600' }}
       - if: failure()
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6

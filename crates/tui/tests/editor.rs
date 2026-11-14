@@ -5,14 +5,14 @@
 mod common;
 
 use common::{block_on, editor, editor_script, scenario};
-use lessdugin_core::dto::{ThreadOpts, ThreadRoot};
-use lessdugin_tui::{Headless, HeadlessOpts};
+use pandoras_forum_core::dto::{ThreadOpts, ThreadRoot};
+use pandoras_forum_tui::{Headless, HeadlessOpts};
 
 fn tui_with_editor(
     s: &common::Scenario,
     dir: &std::path::Path,
     text: &str,
-) -> Headless<lessdugin_testkit::MemHost> {
+) -> Headless<pandoras_forum_testkit::MemHost> {
     let script = editor_script(dir, text);
     block_on(Headless::new(
         s.w.carol.engine.clone(),
@@ -123,10 +123,10 @@ fn new_post_in_the_editor() {
     let list = block_on(
         s.w.carol
             .engine
-            .list_posts(&lessdugin_core::dto::ListPostsQuery {
-                filter: lessdugin_core::dto::PostFilter::All,
-                sort: lessdugin_core::dto::PostSort::New,
-                ..lessdugin_core::dto::ListPostsQuery::new(&s.forum)
+            .list_posts(&pandoras_forum_core::dto::ListPostsQuery {
+                filter: pandoras_forum_core::dto::PostFilter::All,
+                sort: pandoras_forum_core::dto::PostSort::New,
+                ..pandoras_forum_core::dto::ListPostsQuery::new(&s.forum)
             }),
     )
     .unwrap();
@@ -166,7 +166,7 @@ fn writing_needs_an_account() {
 /// is kept as a revision. Someone else's comment is refused.
 #[test]
 fn the_edit_command_edits_your_comment() {
-    use lessdugin_core::dto::CommentDraft;
+    use pandoras_forum_core::dto::CommentDraft;
     let s = scenario();
     let carol = &s.w.carol;
     let t = block_on(
@@ -181,7 +181,7 @@ fn the_edit_command_edits_your_comment() {
     let mut t = tui_with_editor(&s, dir.path(), "Second version.");
     block_on(t.start(None));
     block_on(t.open_thread(&s.welcome));
-    let run = |t: &mut Headless<lessdugin_testkit::MemHost>, line: &str| {
+    let run = |t: &mut Headless<pandoras_forum_testkit::MemHost>, line: &str| {
         block_on(t.press(":"));
         for c in line.chars() {
             block_on(t.press(&c.to_string()));
@@ -210,7 +210,7 @@ fn the_edit_command_edits_your_comment() {
 }
 
 /// Types `line` into the `:` overlay and runs it.
-fn run(t: &mut Headless<lessdugin_testkit::MemHost>, line: &str) {
+fn run(t: &mut Headless<pandoras_forum_testkit::MemHost>, line: &str) {
     block_on(t.press(":"));
     for c in line.chars() {
         block_on(t.press(&c.to_string()));
@@ -231,7 +231,7 @@ fn post_of(s: &common::Scenario, uri: &str) -> (Option<String>, String) {
 /// first line of the text stays in the body, and a one-line take is not emptied.
 #[test]
 fn the_edit_command_edits_a_quick_takes_body() {
-    use lessdugin_core::dto::{BodyDraft, PostDraft, PostKind};
+    use pandoras_forum_core::dto::{BodyDraft, PostDraft, PostKind};
     let s = scenario();
     let carol = &s.w.carol;
     let draft = PostDraft {
@@ -285,7 +285,7 @@ fn tui_with_sed(
     dir: &std::path::Path,
     expr: &str,
     record: bool,
-) -> Headless<lessdugin_testkit::MemHost> {
+) -> Headless<pandoras_forum_testkit::MemHost> {
     let script = dir.join("sed-editor.sh");
     let keep = if record {
         format!("cp \"$1\" '{}'\n", dir.join("seen.txt").display())
@@ -318,7 +318,7 @@ fn tui_with_sed(
 /// its source as the engine fetched it, and the new version spills again.
 #[test]
 fn the_edit_command_edits_a_spilled_body() {
-    use lessdugin_core::dto::PostDraft;
+    use pandoras_forum_core::dto::PostDraft;
     let s = scenario();
     let carol = &s.w.carol;
     let mut source = "The old opening.\n\n".to_owned();
@@ -334,10 +334,11 @@ fn the_edit_command_edits_a_spilled_body() {
     carol.flush();
     let post = carol.done(&t);
     let record = |uri: &str| {
-        use lessdugin_core::host::Host as _;
-        let u = lessdugin_atp::syntax::AtUri::parse(uri).unwrap();
+        use pandoras_forum_core::host::Host as _;
+        let u = pandoras_forum_atp::syntax::AtUri::parse(uri).unwrap();
         block_on(
-            lessdugin_core::store::records::RecordStore::new(carol.engine.host().cache()).get(&u),
+            pandoras_forum_core::store::records::RecordStore::new(carol.engine.host().cache())
+                .get(&u),
         )
         .unwrap()
         .unwrap()
@@ -379,7 +380,7 @@ fn the_edit_command_edits_a_spilled_body() {
 /// included, and takes the edited body.
 #[test]
 fn the_edit_command_keeps_an_unchanged_title() {
-    use lessdugin_core::dto::PostDraft;
+    use pandoras_forum_core::dto::PostDraft;
     let s = scenario();
     let carol = &s.w.carol;
     let t = block_on(carol.engine.publish(&PostDraft::article(
@@ -426,7 +427,9 @@ fn the_edit_command_keeps_an_unchanged_title() {
 /// edits.
 #[test]
 fn the_edit_command_asks_before_suspending_a_pin() {
-    use lessdugin_core::dto::{ModActionIntent, ModActionValue, ModScope, PinScope, PostDraft};
+    use pandoras_forum_core::dto::{
+        ModActionIntent, ModActionValue, ModScope, PinScope, PostDraft,
+    };
     let s = scenario();
     let (alice, carol) = (&s.w.alice, &s.w.carol);
     let t = block_on(carol.engine.publish(&PostDraft::article(
@@ -483,20 +486,22 @@ fn the_edit_command_asks_before_suspending_a_pin() {
 
 /// A user's cached record `uri` as JSON (what the engine wrote back once the write was done).
 fn record(u: &common::User, uri: &str) -> serde_json::Value {
-    use lessdugin_core::host::Host as _;
-    let u_ = lessdugin_atp::syntax::AtUri::parse(uri).unwrap();
-    block_on(lessdugin_core::store::records::RecordStore::new(u.engine.host().cache()).get(&u_))
-        .unwrap()
-        .unwrap()
-        .value_json()
-        .unwrap()
+    use pandoras_forum_core::host::Host as _;
+    let u_ = pandoras_forum_atp::syntax::AtUri::parse(uri).unwrap();
+    block_on(
+        pandoras_forum_core::store::records::RecordStore::new(u.engine.host().cache()).get(&u_),
+    )
+    .unwrap()
+    .unwrap()
+    .value_json()
+    .unwrap()
 }
 
 /// `prepare_media` of a tiny PNG with alt text `alt`.
-fn picture(u: &common::User, seed: u8, alt: &str) -> lessdugin_core::dto::MediaRef {
+fn picture(u: &common::User, seed: u8, alt: &str) -> pandoras_forum_core::dto::MediaRef {
     block_on(u.engine.prepare_media(
-        lessdugin_testkit::fake_pds::tiny_png(seed),
-        &lessdugin_core::dto::MediaInput {
+        pandoras_forum_testkit::fake_pds::tiny_png(seed),
+        &pandoras_forum_core::dto::MediaInput {
             declared_mime: Some("image/png".into()),
             alt: Some(alt.into()),
             name: None,
@@ -511,7 +516,7 @@ fn picture(u: &common::User, seed: u8, alt: &str) -> lessdugin_core::dto::MediaR
 /// `cid:` image of the text still resolves; before, the new version had no `media` at all.
 #[test]
 fn the_edit_command_keeps_the_bodys_media() {
-    use lessdugin_core::dto::{CommentDraft, PostDraft};
+    use pandoras_forum_core::dto::{CommentDraft, PostDraft};
     let s = scenario();
     let carol = &s.w.carol;
     let pic = picture(carol, 1, "a picture");
@@ -601,7 +606,7 @@ fn the_edit_command_keeps_the_bodys_media() {
 /// the bare uri.
 #[test]
 fn the_edit_command_keeps_a_link_posts_card() {
-    use lessdugin_core::dto::{ExternalLinkDraft, PostDraft, PostKind};
+    use pandoras_forum_core::dto::{ExternalLinkDraft, PostDraft, PostKind};
     let s = scenario();
     let carol = &s.w.carol;
     let mut d = PostDraft::article(&s.forum, "A link", "Why it matters.");
@@ -645,7 +650,7 @@ fn the_edit_command_keeps_a_link_posts_card() {
 /// which `:edit` alone keeps; the editor says so. A comment has no card to drop.
 #[test]
 fn the_edit_command_can_drop_a_link_posts_card() {
-    use lessdugin_core::dto::{ExternalLinkDraft, PostDraft, PostKind};
+    use pandoras_forum_core::dto::{ExternalLinkDraft, PostDraft, PostKind};
     let s = scenario();
     let carol = &s.w.carol;
     let mut d = PostDraft::article(&s.forum, "A link", "Why it matters.");
@@ -687,7 +692,7 @@ fn the_edit_command_can_drop_a_link_posts_card() {
     let c = block_on(
         carol
             .engine
-            .comment(&lessdugin_core::dto::CommentDraft::new(
+            .comment(&pandoras_forum_core::dto::CommentDraft::new(
                 &post,
                 None,
                 "A comment.",
@@ -708,8 +713,8 @@ fn the_edit_command_can_drop_a_link_posts_card() {
 /// edits unchecked.
 #[test]
 fn an_edit_whose_preflight_failed_asks_before_editing_unchecked() {
-    use lessdugin_core::dto::{CommentDraft, Draft};
-    use lessdugin_tui::app::{Action, Compose, EditStart, EditorRequest, Effect};
+    use pandoras_forum_core::dto::{CommentDraft, Draft};
+    use pandoras_forum_tui::app::{Action, Compose, EditStart, EditorRequest, Effect};
     let s = scenario();
     let dir = tempfile::tempdir().unwrap();
     let mut t = tui_with_sed(&s, dir.path(), "s/x/y/", true);
@@ -753,7 +758,7 @@ fn an_edit_whose_preflight_failed_asks_before_editing_unchecked() {
 
     let fx = t.state.update(unchecked());
     assert!(fx.is_empty());
-    let y = lessdugin_tui::keys::parse_key("y").unwrap();
+    let y = pandoras_forum_tui::keys::parse_key("y").unwrap();
     let fx = t.state.update(Action::Key(y));
     assert_eq!(fx, [Effect::Editor(request)]);
     assert!(t.state.confirm.is_none());

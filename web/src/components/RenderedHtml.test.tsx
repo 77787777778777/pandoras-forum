@@ -2,8 +2,8 @@
 // @vitest-environment jsdom
 // (DOMPurify needs a spec-compliant parser; see lib/sanitize.test.ts.)
 
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { MediaView } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { MediaView } from "@pandoras-forum/engine/types";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { qk } from "../engine/queries.ts";

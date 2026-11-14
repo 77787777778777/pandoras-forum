@@ -41,7 +41,7 @@ export async function loadEngine(choice: EngineChoice): Promise<EngineHandle> {
   if (choice === "mock") {
     if (!MOCK_BUILD) throw new Error("this build does not include the demo engine");
     const { createMockHandle } = await import("./mock.ts");
-    const { MockEngine } = await import("@lessdugin/engine/mock");
+    const { MockEngine } = await import("@pandoras-forum/engine/mock");
     // `?spilled`: bodies served as blobs; `?wikirace`: the first wiki save meets a newer head
     const params = new URLSearchParams(location.search);
     return createMockHandle(

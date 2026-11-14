@@ -9,7 +9,7 @@ import type {
   IndexerConsent,
   Json,
   Settings,
-} from "@lessdugin/engine/types";
+} from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useId, useState } from "react";
@@ -201,7 +201,7 @@ function BuildInfo() {
       </dl>
       <p className={ui.small}>
         Compare the build hash with the one published for the release. For a zero-trust setup, run{" "}
-        <code>lessdugin web</code> and use the app it serves from your own machine.
+        <code>pandoras-forum web</code> and use the app it serves from your own machine.
       </p>
     </section>
   );
@@ -215,7 +215,7 @@ function LocalData() {
   const exportLocal = async (): Promise<void> => {
     const json = await engine.exportLocal();
     const blob = new Blob([`${JSON.stringify(json, null, 2)}\n`], { type: "application/json" });
-    downloadBlob(blob, "lessdugin-local-state.json");
+    downloadBlob(blob, "pandoras-forum-local-state.json");
   };
   const importLocal = async (file: File): Promise<void> => {
     try {

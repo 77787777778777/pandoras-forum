@@ -3,7 +3,7 @@
 // through the #/at/* resolver). A post opened from a sequence carries it (`?seq=`), so the post
 // page navigates that sequence (engine-api.md §3.4 `get_post(uri, sequence)`).
 
-import type { Ref } from "@lessdugin/engine/types";
+import type { Ref } from "@pandoras-forum/engine/types";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback } from "react";
 import { parseAtUri, recordKind } from "../lib/uri.ts";

@@ -2,9 +2,9 @@
 //! M5 organisation queries and writes: wiki tags and library sequences. Records and bodies come
 //! from the synced local model.
 
-use lessdugin_atp::syntax::{AtUri, Datetime};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::{Chapter, Md, Sequence, StrongRef, WikiRevision};
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::{Chapter, Md, Sequence, StrongRef, WikiRevision};
 use serde_json::{Map, Value};
 
 use crate::dto::{

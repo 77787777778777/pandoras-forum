@@ -1,9 +1,8 @@
 ---
 source: crates/tui/tests/screens.rs
-assertion_line: 161
 expression: screen
 ---
- lessdugin › Welcome                                         @carol.example.com
+ Pandora's Forum › Welcome                                   @carol.example.com
  Meta · synced
   Welcome
   @alice.example.com · 2025-10-09 08:54 UTC · 3 comments · 1 point
@@ -15,7 +14,7 @@ expression: screen
   • Be kind.
   • Stay on topic; see the guide ⟨example.com⟩.
 
-  lessdugin tui
+  pandoras-forum tui
 
   3 comments
 

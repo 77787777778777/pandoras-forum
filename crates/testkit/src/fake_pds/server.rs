@@ -5,10 +5,10 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use lessdugin_atp::Cid;
-use lessdugin_atp::datamodel::{self, DataModelError};
-use lessdugin_atp::syntax::{Nsid, RecordKey};
-use lessdugin_core::host::{HostError, HttpResponse};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::datamodel::{self, DataModelError};
+use pandoras_forum_atp::syntax::{Nsid, RecordKey};
+use pandoras_forum_core::host::{HostError, HttpResponse};
 use serde_json::{Map, Value, json};
 
 use super::blob::sniff_mime;
@@ -178,7 +178,7 @@ fn swap_field(b: &Map<String, Value>, name: &str) -> Result<Option<Option<Cid>>,
     match b.get(name) {
         None => Ok(None),
         Some(Value::Null) => Ok(Some(None)),
-        Some(Value::String(s)) => lessdugin_atp::cid::parse(s)
+        Some(Value::String(s)) => pandoras_forum_atp::cid::parse(s)
             .map(|c| Some(Some(c)))
             .map_err(|_| bad(&format!("Input/{name} must be a cid string"))),
         Some(_) => Err(bad(&format!("Input/{name} must be a cid string"))),
@@ -218,7 +218,7 @@ fn prepare_record(coll: &str, v: &Value, validate: Option<bool>) -> Result<Rec, 
     Ok(Rec::from_cbor(cbor))
 }
 
-fn commit_json(cid: &Cid, rev: &lessdugin_atp::syntax::Tid) -> Value {
+fn commit_json(cid: &Cid, rev: &pandoras_forum_atp::syntax::Tid) -> Value {
     json!({ "cid": cid.to_string(), "rev": rev.to_string() })
 }
 
@@ -571,7 +571,9 @@ impl NetState {
             return Ok(resp::xrpc_error(404, "NotFound", "Not Found"));
         };
         if nsid == "_health" {
-            return Ok(resp::ok_json(&json!({ "version": "lessdugin-fake-pds" })));
+            return Ok(resp::ok_json(
+                &json!({ "version": "pandoras-forum-fake-pds" }),
+            ));
         }
         let procedure = PROCEDURES.contains(&nsid);
         let want = if procedure {
@@ -892,7 +894,7 @@ impl NetState {
 
     fn get_blob(&mut self, base: &str, p: &BTreeMap<String, String>, ctx: &mut Ctx<'_>) -> R {
         let (did, cid) = (need(p, "did")?, need(p, "cid")?);
-        let cid = lessdugin_atp::cid::parse(cid).map_err(|_| bad("Invalid cid"))?;
+        let cid = pandoras_forum_atp::cid::parse(cid).map_err(|_| bad("Invalid cid"))?;
         match self.accounts.get(did) {
             Some(a) if a.known_at(base) && a.status == AccountStatus::Active => {}
             Some(a) if a.known_at(base) => return Err(status_error(did, a.status)),
@@ -1365,7 +1367,7 @@ impl NetState {
         }
         let declared = inc.header("content-type").unwrap_or_default();
         let mime = sniff_mime(bytes, declared);
-        let cid = lessdugin_atp::cid::for_raw(bytes);
+        let cid = pandoras_forum_atp::cid::for_raw(bytes);
         let a = self.accounts.get_mut(&did).expect("account");
         let stored = a.blobs.entry(cid).or_insert_with(|| StoredBlob {
             bytes: Arc::new(bytes.to_vec()),
@@ -1388,7 +1390,7 @@ impl NetState {
     fn plc(&self, route: &Route) -> HttpResponse {
         let p = route.path.trim_start_matches('/');
         if p == "_health" {
-            return resp::ok_json(&json!({ "version": "lessdugin-fake-plc" }));
+            return resp::ok_json(&json!({ "version": "pandoras-forum-fake-plc" }));
         }
         let did = p.split('/').next().unwrap_or_default();
         match self.accounts.get(did) {

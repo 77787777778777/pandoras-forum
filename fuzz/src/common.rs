@@ -30,8 +30,8 @@ pub const LIVE_KEY: &str = "zQ3shQo6TF2moaqMTrUZEM1jeuYRQXeHEx4evX9751y2qPqRA";
 /// Collections of generated repo keys (valid NSIDs).
 pub const COLLECTIONS: &[&str] = &[
     "app.bsky.feed.post",
-    "online.7778777.lessdugin.temp.post",
-    "online.7778777.lessdugin.temp.comment",
+    "forum.pandoras.temp.post",
+    "forum.pandoras.temp.comment",
     "app.bsky.actor.profile",
     "a.b.c",
 ];

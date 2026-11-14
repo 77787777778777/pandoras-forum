@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use lessdugin_lexicon::Collection;
-use lessdugin_markdown::{PlainProjection, plain_projection};
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_markdown::{PlainProjection, plain_projection};
 use serde_json::Value;
 
 use crate::discovery::forum_ref::ForumKey;
@@ -52,7 +52,7 @@ impl<H: Host> Engine<H> {
         }
         let mut keys = Vec::new();
         for uri in uris {
-            if let Ok(uri) = lessdugin_atp::syntax::AtUri::parse(&uri)
+            if let Ok(uri) = pandoras_forum_atp::syntax::AtUri::parse(&uri)
                 && let Ok(key) = ForumKey::of_uri(&uri)
             {
                 keys.push(key);

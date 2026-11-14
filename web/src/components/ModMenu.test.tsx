@@ -5,17 +5,17 @@
 // exist; a moderator undoes their own action by removing their own record; a post's author gets
 // only the author-scope actions of social.md §4.9.
 
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ActionTicket, ModActionIntent } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ActionTicket, ModActionIntent } from "@pandoras-forum/engine/types";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../test/render.tsx";
 import { ModMenu, type ModSubject, modChoices, RETROACTIVE } from "./ModMenu.tsx";
 
-const FORUM = "at://did:plc:ownerownerownerownerowne/online.7778777.lessdugin.temp.forum/f";
+const FORUM = "at://did:plc:ownerownerownerownerowne/forum.pandoras.temp.forum/f";
 const SUBJECT: ModSubject = {
   kind: "comment",
-  uri: "at://did:plc:authorauthorauthorauthor/online.7778777.lessdugin.temp.comment/3kabc",
+  uri: "at://did:plc:authorauthorauthorauthor/forum.pandoras.temp.comment/3kabc",
   cid: "bafyreiexample",
   author: "did:plc:authorauthorauthorauthor",
   pinned: false,

@@ -1,6 +1,6 @@
 [package]
-name = "lessdugin-native"
-description = "Native host for the lessdugin engine: HTTP, SQLite storage, WebSockets, keyring sessions, OAuth"
+name = "pandoras-forum-native"
+description = "Native host for the Pandora's Forum engine: HTTP, SQLite storage, WebSockets, keyring sessions, OAuth"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,12 +11,12 @@ repository.workspace = true
 default = ["oauth"]
 oauth = ["dep:jacquard-oauth", "dep:jacquard-common", "dep:jacquard-identity"]
 # Request the final namespace's scopes (`include:NS.authFull` first; `data-model.md` §10.3).
-final-ns = ["lessdugin-lexicon/final-ns"]
+final-ns = ["pandoras-forum-lexicon/final-ns"]
 
 [dependencies]
-lessdugin-atp.workspace = true
-lessdugin-lexicon.workspace = true
-lessdugin-core.workspace = true
+pandoras-forum-atp.workspace = true
+pandoras-forum-lexicon.workspace = true
+pandoras-forum-core.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
 thiserror.workspace = true
@@ -46,7 +46,7 @@ base64.workspace = true
 libc.workspace = true
 
 [dev-dependencies]
-lessdugin-testkit = { path = "../testkit", default-features = false, features = ["http"] }
+pandoras-forum-testkit = { path = "../testkit", default-features = false, features = ["http"] }
 tempfile.workspace = true
 axum.workspace = true
 flate2.workspace = true

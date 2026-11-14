@@ -5,18 +5,18 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::datamodel::record_cid;
-use lessdugin_atp::syntax::{AtUri, Datetime};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::dto::{CommentSort, Completeness, ForumRole, HiddenReason, ItemState};
-use lessdugin_core::model::views::{Viewer, Views};
-use lessdugin_core::model::{ForumModel, RenderCache};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_core::store::records::Level;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_testkit::repo::tid_at_ms;
+use pandoras_forum_atp::datamodel::record_cid;
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::dto::{CommentSort, Completeness, ForumRole, HiddenReason, ItemState};
+use pandoras_forum_core::model::views::{Viewer, Views};
+use pandoras_forum_core::model::{ForumModel, RenderCache};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_core::store::records::Level;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_testkit::repo::tid_at_ms;
 use serde_json::{Value, json};
 
 const OWNER: &str = "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa";
@@ -43,7 +43,7 @@ fn md(text: &str) -> Value {
 impl Input {
     fn add(&mut self, did: &str, coll: &str, rkey: &str, v: Value, seen_ms: i64) -> String {
         let uri = format!("at://{did}/{coll}/{rkey}");
-        let check = lessdugin_lexicon::validity::check_uri(&AtUri::parse(&uri).unwrap(), &v);
+        let check = pandoras_forum_lexicon::validity::check_uri(&AtUri::parse(&uri).unwrap(), &v);
         assert!(check.valid, "{uri}: {check:?}");
         self.records.push((uri.clone(), v));
         self.obs.push((uri.clone(), seen_ms * 1000));
@@ -119,7 +119,7 @@ impl Input {
 }
 
 fn validity(uri: &str, v: &Value) -> (bool, Option<String>) {
-    let c = lessdugin_lexicon::validity::check_uri(&AtUri::parse(uri).unwrap(), v);
+    let c = pandoras_forum_lexicon::validity::check_uri(&AtUri::parse(uri).unwrap(), v);
     (c.valid, c.first_rule().map(|r| r.to_string()))
 }
 
@@ -127,10 +127,10 @@ fn validity(uri: &str, v: &Value) -> (bool, Option<String>) {
 fn views_of_an_injected_input() {
     let key = ForumKey::new(&OWNER.parse().unwrap(), "meta").unwrap();
     let forum = key.uri.to_string();
-    let mut decl = serde_json::to_value(lessdugin_lexicon::records::Forum::create(
+    let mut decl = serde_json::to_value(pandoras_forum_lexicon::records::Forum::create(
         "Meta",
         Datetime::from_millis(T0).unwrap(),
-        lessdugin_lexicon::values::MembershipMode::Approval,
+        pandoras_forum_lexicon::values::MembershipMode::Approval,
     ))
     .unwrap();
     decl["defaultTier"] = json!("frontpage");
@@ -271,10 +271,10 @@ fn build(decl: &Value, i: &Input, now: i64) -> ForumModel {
     .unwrap()
 }
 
-fn base(mode: lessdugin_lexicon::values::MembershipMode) -> (String, Value, Input) {
+fn base(mode: pandoras_forum_lexicon::values::MembershipMode) -> (String, Value, Input) {
     let key = ForumKey::new(&OWNER.parse().unwrap(), "meta").unwrap();
     let forum = key.uri.to_string();
-    let mut decl = serde_json::to_value(lessdugin_lexicon::records::Forum::create(
+    let mut decl = serde_json::to_value(pandoras_forum_lexicon::records::Forum::create(
         "Meta",
         Datetime::from_millis(T0).unwrap(),
         mode,
@@ -295,7 +295,7 @@ fn views<'a>(
     values: &'a BTreeMap<String, Value>,
     renders: &'a RenderCache,
     pending: &'a BTreeSet<String>,
-    actors: &'a BTreeMap<String, lessdugin_core::dto::ActorView>,
+    actors: &'a BTreeMap<String, pandoras_forum_core::dto::ActorView>,
     completeness: &'a Completeness,
 ) -> Views<'a> {
     Views {
@@ -324,7 +324,7 @@ fn actors_pds() -> &'static BTreeMap<String, String> {
 /// title, link, tags and labels are blank like the body.
 #[test]
 fn a_hidden_post_shows_no_title_link_tags_or_labels() {
-    let (forum, decl, mut i) = base(lessdugin_lexicon::values::MembershipMode::Approval);
+    let (forum, decl, mut i) = base(pandoras_forum_lexicon::values::MembershipMode::Approval);
     i.membership(EVE, T0 + 3);
     let v = json!({
         "$type": nsid::POST, "forum": forum, "kind": "link", "title": "BUY CHEAP PILLS",
@@ -370,7 +370,7 @@ fn a_hidden_post_shows_no_title_link_tags_or_labels() {
 #[test]
 fn karma_only_scores_have_no_agreement() {
     for (voting, present) in [(Some("karmaOnly"), false), (None, true)] {
-        let (_, mut decl, mut i) = base(lessdugin_lexicon::values::MembershipMode::Open);
+        let (_, mut decl, mut i) = base(pandoras_forum_lexicon::values::MembershipMode::Open);
         if let Some(v) = voting {
             decl["policy"] = json!({ "voting": v });
         }
@@ -396,7 +396,7 @@ fn karma_only_scores_have_no_agreement() {
 /// M5 organisation views consume Library without manufacturing unavailable post summaries.
 #[test]
 fn sequence_views_filter_entries_and_navigate_displayable_neighbors() {
-    let (forum, decl, mut i) = base(lessdugin_lexicon::values::MembershipMode::Open);
+    let (forum, decl, mut i) = base(pandoras_forum_lexicon::values::MembershipMode::Open);
     let p1 = i.post(OWNER, "One", "first", T0 + HOUR);
     let p2 = i.post(OWNER, "Two", "second", T0 + 2 * HOUR);
     let missing = format!(
@@ -405,7 +405,7 @@ fn sequence_views_filter_entries_and_navigate_displayable_neighbors() {
         keys::post_rkey(&forum, tid_at_ms(T0 + 3 * HOUR).as_str()).unwrap()
     );
     let wrong_forum = format!(
-        "at://{OWNER}/{}/uetjixxr3a33-{}",
+        "at://{OWNER}/{}/nkglkm5wsp3d-{}",
         nsid::POST,
         tid_at_ms(T0 + 4 * HOUR)
     );
@@ -425,7 +425,7 @@ fn sequence_views_filter_entries_and_navigate_displayable_neighbors() {
         T0,
     );
     let mut model = build(&decl, &i, T0 + 5 * HOUR);
-    model.view.library = Ok(lessdugin_core::social::full::sequences::Library {
+    model.view.library = Ok(pandoras_forum_core::social::full::sequences::Library {
         eligible: BTreeSet::from([seq.clone()]),
         listed: vec![seq.clone()],
         entries: BTreeMap::from([(

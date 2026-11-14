@@ -13,9 +13,9 @@ votes with power 1.
 
 from __future__ import annotations
 
-from lessdugin_ref.build import MIN, T0, Forum, did, rec
-from lessdugin_ref.cids import upper_spelling
-from lessdugin_ref.fold import fold_vector_input
+from pandoras_forum_ref.build import MIN, T0, Forum, did, rec
+from pandoras_forum_ref.cids import upper_spelling
+from pandoras_forum_ref.fold import fold_vector_input
 
 from . import kcast
 from .util import file_doc, vector

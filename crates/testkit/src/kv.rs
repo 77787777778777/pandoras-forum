@@ -6,7 +6,7 @@
 use std::collections::BTreeMap;
 use std::ops::Bound;
 
-use lessdugin_core::host::{Dir, KeyRange, KvOp, KvStore};
+use pandoras_forum_core::host::{Dir, KeyRange, KvOp, KvStore};
 
 /// Every key written by the suite starts with this prefix.
 const P: &[u8] = b"\x02kvc\x00";

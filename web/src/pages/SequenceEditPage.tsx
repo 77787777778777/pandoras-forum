@@ -3,7 +3,7 @@
 // (`raw`), so entries the sequence view leaves out (hidden or unavailable posts) are kept, and
 // the save replaces the title, introduction and chapters as one write.
 
-import type { SequenceDraft } from "@lessdugin/engine/types";
+import type { SequenceDraft } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { SequenceFormView } from "../components/SequenceForm.tsx";

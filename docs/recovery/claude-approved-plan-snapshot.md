@@ -1,15 +1,15 @@
-# lessdugin: a serverless markdown and media forum on atproto (plan)
+# Pandora's Forum: a serverless markdown and media forum on atproto (plan)
 
 ## Context
-- **Repo.** `77787777778777/lessdugin` is greenfield: it holds only an AGPL LICENSE. Work happens on branch `claude/exciting-keller-17oykr`. The `DS2SRandomizer` repo is unrelated.
+- **Repo.** `77787777778777/pandoras-forum` is greenfield: it holds only an AGPL LICENSE. Work happens on branch `claude/exciting-keller-17oykr`. The `DS2SRandomizer` repo is unrelated.
 - **Goal.** A ForumMagnum-class forum (posts, threaded comments, karma and agree/disagree voting, reacts, tags/wiki, sequences, moderation). All content lives in users' own atproto PDS repos.
 - **Constraints.**
-  - The core works with nothing but PDSes: no lessdugin server, no extra database, no trusted website.
+  - The core works with nothing but PDSes: no Pandora's Forum server, no extra database, no trusted website.
   - It must be usable from the command line.
   - Optional, verifiable extensions add a richer experience.
   - Rust and TypeScript; CLI, TUI and SPA clients.
 - **User decisions.**
-  - NSID authority `lessdugin.7778777.online`, so the prefix is `online.7778777.lessdugin.*`.
+  - NSID authority `pandoras.forum`, so the prefix is `forum.pandoras.*`.
   - The Rust core is shared with the SPA through wasm.
   - The SPA uses React and Vite.
   - The first pass is the MVP in all three clients plus the optional indexer.
@@ -27,7 +27,7 @@
   - ADRs 0000–0006;
   - 30 lexicons (goat lint and `@atproto/lexicon` clean) and key vectors (134);
   - scaffold, CI, devnet (boots in 0.9 s), and the spikes S3, S4, S5, S6, S7, S9, S10 and S12.
-- `lessdugin-atp` is complete: 121 tests, reviewed and fixed.
+- `pandoras-forum-atp` is complete: 121 tests, reviewed and fixed.
 
 **Implemented but missing their review/fix stage** (the usage limit killed those agents; the code is on disk and partly in WIP commits)
 
@@ -36,7 +36,7 @@
 | LFM/1 renderer (`crates/markdown`, 505 vectors and XSS/terminal/MathML corpora) | implement, review | **fix**: review found a CRITICAL math-core exponential-time hang on unmatched delimiters, output-amplification DoS, sanitiser-equality breaks, spoiler/real-host leaks; plus the ADR 0002 math follow-ups (K3) |
 | SPA shell (`web/`, `packages/engine` types/api/mock; 62 unit + 7 Playwright tests) | implement, review | **fix**: 1 high, 23 medium and 7 low findings |
 | M1 foundations (core identity/xrpc/verify/engine/accounts + testkit MemHost; native host + SqliteKv + config; auth + CLI) | three implementation agents | **review + fix** |
-| `lessdugin-lexicon` (141 tests per namespace) | implement | **review + fix** |
+| `pandoras-forum-lexicon` (141 tests per namespace) | implement | **review + fix** |
 | M2 engine | FakePds (`testkit::fake_pds`), record store + admission | **sync + discovery, outbox, engine wiring, review, fix** |
 
 **Resumption steps** (in order)
@@ -53,14 +53,14 @@
    - core identity/doc using `DidDocument::atproto_with(policy)`;
    - strict JSON admission (already in the store brief; verify it);
    - reconcile `AccountView` between `dto.rs` and the SPA `types.ts`;
-   - add the `lessdugin-worker` Trusted Types policy to `_headers`;
+   - add the `pandoras-forum-worker` Trusted Types policy to `_headers`;
    - fold the SPA review's engine-integration requirements into the M2 clients brief.
-5. **Gate M1.** Once the M1 and lexicon fixes land, run `cargo xtask ci` plus the `LESSDUGIN_E2E=1` devnet tests, then commit "M1 complete".
+5. **Gate M1.** Once the M1 and lexicon fixes land, run `cargo xtask ci` plus the `PANDORAS_FORUM_E2E=1` devnet tests, then commit "M1 complete".
 6. **M2 clients workflow**, after m2-engine's fix stage:
    - wasm bindings, JsHost and the real engine adapter in the SPA;
    - CLI read/ls/post/comment/sync/forum/join/edit/delete with drafts;
    - TUI screens with reply via `$EDITOR`;
-   - the `lessdugin web` bridge;
+   - the `pandoras-forum web` bridge;
    - the devnet parity e2e.
 7. **M3 → M6** as in the milestone table below. Each milestone is one workflow (implement in parallel by crate, then review, then fix, then the CI gate), with a commit and push per milestone. Stop before M7.
 
@@ -87,17 +87,17 @@
 7. **Dependency tiers.**
    - **CORE:** PDS, PLC, DoH.
    - **CORE+:** relay `listReposByCollection`, Jetstream v2, Constellation, Slingshot.
-   - **EXT:** lessdugin indexer.
+   - **EXT:** Pandora's Forum indexer.
    - Approval-mode forums are fully complete at CORE. Open mode needs CORE+ only to discover brand-new newcomers.
 
-## Protocol (lexicons in `lexicons/online/7778777/lessdugin/`)
+## Protocol (lexicons in `lexicons/forum/pandoras/`)
 **Namespace**
-- One flat group `NS = online.7778777.lessdugin`, with one DNS TXT record. A second group `NS.index` covers indexer queries.
+- One flat group `NS = forum.pandoras`, with one DNS TXT record. A second group `NS.index` covers indexer queries.
 - Development and dogfooding use the unpublished `NS.temp` namespace. It is a build constant and switches to `NS` in M7. `xtask migrate-temp` copies records across.
 
 **Record keys**
-- `fk = b32s(sha256("lessdugin-fk/1" ‖ forumUri))[..12]`.
-- `h16 = b32s(H("lessdugin-sk/1", collection, parts…))[..16]`.
+- `fk = b32s(sha256("pandoras-forum-fk/1" ‖ forumUri))[..12]`.
+- `h16 = b32s(H("pandoras-forum-sk/1", collection, parts…))[..16]`.
 - A record whose rkey isn't the canonical one is invalid.
 
 **Collections**
@@ -181,7 +181,7 @@
 - Our own CAR parser with caps.
 - Commit: version 3, the DID matches, low-S ECDSA signature (k256 or p256).
 - Walk the MST to `collection/rkey`, then check the record's CID.
-- `lessdugin verify <ref> --deep` also checks strongRefs, revision CIDs and blob CIDs.
+- `pandoras-forum verify <ref> --deep` also checks strongRefs, revision CIDs and blob CIDs.
 
 **Store**
 - `cache` (disposable): records, repo state, identity, tombstones, blobs, cursors.
@@ -257,10 +257,10 @@ Hidden items that have visible children become tombstones. Cycles in parent chai
 
 ## Architecture
 ```
-lessdugin/
+pandoras-forum/
   Cargo.toml (workspace) rust-toolchain.toml (1.97 + wasm32) deny.toml clippy.toml (bans SystemTime::now etc. in wasm-safe crates)
   package.json pnpm-workspace.yaml biome.json tsconfig.base.json
-  lexicons/online/7778777/lessdugin/{...}.json (CC0)    testdata/vectors/<kind>/*.json (CC0)   testdata/interop/ (vendored)
+  lexicons/forum/pandoras/{...}.json (CC0)    testdata/vectors/<kind>/*.json (CC0)   testdata/interop/ (vendored)
   crates/
     atp/        (MIT/Apache, wasm-safe) syntax types, JSON⇄DAG-CBOR, CID, CAR reader, MST proof walk, commit verify, did:key, XRPC structs
     lexicon/    (MIT/Apache, wasm-safe) hand-written serde structs (+flatten extra) + data-driven validator from embedded lexicon JSON; rkey derivation; NS const
@@ -268,9 +268,9 @@ lessdugin/
     core/       (wasm-safe) Host/KvStore traits, identity, discovery, sync, Jetstream parsing, outbox, verify orchestration, social fold, ForumModel, search index, notifications, media (sniff/strip/CID), limits, DTOs, Engine<H>
     native/     NativeHost: reqwest(rustls)+SSRF guard, SqliteKv (rusqlite bundled), tokio-tungstenite, keyring sessions, app-password + OAuth facade (jacquard-oauth =0.12.2), image re-encode
     tui/        ratatui 0.30.2 + crossterm + ratatui-image 11.1 (no chafa) + tui-textarea; Elm-style State/Action/Effect
-    cli/        bin `lessdugin` (clap 4): command tree, drafts, `tui`, `web` (axum + rust-embed SPA + local bridge)
+    cli/        bin `pandoras-forum` (clap 4): command tree, drafts, `tui`, `web` (axum + rust-embed SPA + local bridge)
     wasm/       wasm-bindgen + tsify bindings, JsHost, WasmEngine (size budget ~900 KB gz, CI fails >1.1 MB)
-    indexer/    bin `lessdugin-indexer` (axum, same engine + SQLite side tables + fts5)
+    indexer/    bin `pandoras-forum-indexer` (axum, same engine + SQLite side tables + fts5)
     testkit/    MemHost, FakePds (fault injection, cursor modes, proofs), mini-Jetstream, fake Constellation, vector runner, synthetic forums
   xtask/        wasm, web, dist, site, devnet, e2e, vectors [--bless], lex lint|breaking|publish|check-dns, migrate-temp, ci
   packages/engine/  worker.ts (wasm in Web Worker, idb stores, fetch, WebSocket, DoH; Comlink), client.ts, auth-bridge.ts, leader.ts
@@ -292,10 +292,10 @@ lessdugin/
   - Sessions live in the OS keyring. Refresh runs under an `fd-lock`. Sessions last about 14 days, with a re-login warning.
 - **Hosting modes**
   - **Static site:** prefer Cloudflare Pages or Netlify so the CSP is sent as a header; GitHub Pages is the fallback. Strict CSP plus Trusted Types; reproducible build hash.
-  - **`lessdugin web`** (the zero-trust path): 127.0.0.1 only with a Host-header check. A per-launch capability travels in the URL fragment. The CLI keeps the session and the SPA writes through `/bridge/xrpc`; drafts go through `/bridge/kv`. The browser holds no secrets.
+  - **`pandoras-forum web`** (the zero-trust path): 127.0.0.1 only with a Host-header check. A per-launch capability travels in the URL fragment. The CLI keeps the session and the SPA writes through `/bridge/xrpc`; drafts go through `/bridge/kv`. The browser holds no secrets.
 
 ## Clients
-- **CLI** (`lessdugin`). Reading never needs login. Bare `lessdugin` on a TTY opens the TUI.
+- **CLI** (`pandoras-forum`). Reading never needs login. Bare `pandoras-forum` on a TTY opens the TUI.
   - Commands:
     - Auth and identity: `login`, `logout`, `whoami`, `accounts`, `resolve`, `doctor`, `verify`.
     - Forums: `forum discover|ls|follow|use|show|create|edit`, `join`, `leave`, `members`, `approve`, `mods add|rm`.
@@ -343,12 +343,12 @@ Execution: each milestone runs as a workflow, with parallel agents on independen
 |---|---|---|
 | **M0 Spec, scaffold, spikes** | Commit the spec, ADRs and draft `.temp` lexicons (`goat lex lint`). Generate key vectors. Workspace, toolchain (`rustup target add wasm32-unknown-unknown`, wasm-bindgen-cli pinned, binaryen), CI skeleton, devnet script. Spikes runnable here: S3/S10 wasm size and math; S4 (lexicon tooling with the digit NSID; Jetstream wildcard; relay and Constellation queries, read-only); S5 devnet in CI; S6; S7/S9 (`listRecords` cursor behaviour and read limits on public bsky repos, read-only); S12 against the devnet. Spikes that need real accounts (S1 OAuth on bsky.social, S2 browser OAuth on production, S8, S11 Safari) are built and run against the devnet and recorded as "pending user run". | ADR per spike; `cargo xtask ci` green; devnet boots 3 accounts in < 30 s |
 | **M1 Protocol foundations** | atp, lexicon plus validator, keys, identity (DoH/PLC/did:web), XRPC subset, NativeHost, auth (app password, OAuth loopback, hosted, no-browser, refresh lock), TermText. CLI: `login`, `logout`, `whoami`, `accounts`, `resolve`, `verify`, `doctor`. | Interop vectors pass. `verify` proves a real public bsky record and tampered fixtures fail. Devnet login works. Concurrent refresh is safe. |
-| **M2 Walking skeleton** (text) | KvStores (SQLite, IndexedDB, memory); range sync; outbox; forum create/join/post/comment/edit/delete/retract; threads; basic LFM. CLI `read`, `ls`, `post`, `comment`, `sync`. TUI read and reply. Wasm worker, JsHost, AuthBridge, leader election. SPA read, login and comment. `lessdugin web` with the bridge. | Devnet parity scenario byte-identical across CLI, SPA and TUI. 50-member FakePds cold sync in < 5 s. No CSP violations. Wasm size reported. |
+| **M2 Walking skeleton** (text) | KvStores (SQLite, IndexedDB, memory); range sync; outbox; forum create/join/post/comment/edit/delete/retract; threads; basic LFM. CLI `read`, `ls`, `post`, `comment`, `sync`. TUI read and reply. Wasm worker, JsHost, AuthBridge, leader election. SPA read, login and comment. `pandoras-forum web` with the bridge. | Devnet parity scenario byte-identical across CLI, SPA and TUI. 50-member FakePds cold sync in < 5 s. No CSP violations. Wasm size reported. |
 | **M3 Social core** | Opinions (undo, merge), `karma/1`, scores, agreement, `magic/1` sorts, Recent Discussion, `mod/1` (author tier, CID-bound, ban, lock, restrict, fail closed), approval and open modes, closure, newcomer collapse, mod queue/log/adopt, grants, notifications and unread, public-action interstitials, reacts with gates. Engine API v0 frozen. | All social vectors and property tests pass. With a mod PDS offline, spam stays hidden. Every action reachable in all three clients. Clean parity diffs. |
 | **M4 Rich content and media** | Full LFM/1 (math, footnotes/sidenotes, ToC, alerts, spoilers, captions, hover previews, verified mentions); media pipeline (strip, orient, downscale, CID); autoload policy; history view and redaction; SPA editor; TUI images; `export`. | ≥ 150 LFM vectors plus XSS, mXSS and terminal-escape corpora. DOMPurify and ammonia leave output unchanged. 10-minute fuzz run without panics. EXIF, GPS and MP4 `udta` removed. |
 | **M5 Organisation and discovery** | Tags, relevance and linear wiki; sequences; local search; forum directory; live Jetstream; open-mode discovery; `include:` scope with PAR fallback; hosted-SPA configuration (client metadata, `_headers`); mobile layout. | Open-mode devnet scenario passes with mini-Jetstream and fake Constellation. Cached forum renders in < 1.5 s. axe accessibility ≥ 90. |
 | **M6 Optional indexer** | Ingest, backfill, poll mode; the XRPC list above; client assisted mode, cold start via proofs, `--audit`; Docker image; operator docs. | Devnet view converges within 5 s of a write. Identical views with and without the indexer. SPA cold-paints a 2k-participant synthetic forum in < 2 s. `--audit` catches an injected omission and a forged proof. |
-| **M7 Release 0.1** (**needs the user; not run automatically**) | Security review; switch `.temp` to `NS`; publish lexicons and permission sets from a publisher account; DNS TXT `_lexicon.lessdugin.7778777.online` and `_lexicon.index.…`; deploy the site; release pipeline; guides. | `goat lex check-dns` passes; `include:` works on bsky.social; fresh-machine install → login → post appears in the hosted SPA and in `lessdugin web`. |
+| **M7 Release 0.1** (**needs the user; not run automatically**) | Security review; switch `.temp` to `NS`; publish lexicons and permission sets from a publisher account; DNS TXT `_lexicon.pandoras.forum` and `_lexicon.index.…`; deploy the site; release pipeline; guides. | `goat lex check-dns` passes; `include:` works on bsky.social; fresh-machine install → login → post appears in the hosted SPA and in `pandoras-forum web`. |
 
 **Deferred**
 - **P2:** Q&A answers; quick-take feed; co-authors (`karma/2`); side-comment and inline-react margin UI; moderation styles and guidelines; `ratelimit/1`; sealed reports; bulk mod actions; public bookmarks; standard.site syndication; labelers; thumbnails; forum lock; wiki forks and merges; personalised magic and tag filters.
@@ -376,5 +376,5 @@ Execution: each milestone runs as a workflow, with parallel agents on independen
 - **Library and protocol churn.** jacquard is alpha: pin it exactly, keep it behind a facade, and fall back to our own OAuth client. Wasm size: feature-gate, lazy-load `verify.wasm`. Constellation and Jetstream are best-effort: approval mode and the closure don't need them.
 - **Rate limits.** If the PDS read limit is shared across Bluesky hosts, cold syncs slow down (S9). Mitigations: progressive paint, persistent cache, and indexer thresholds.
 - **Social design limits.** Public votes change the social dynamics compared with ForumMagnum, so the UI explains it. Bans hide past content; an item-level keep mitigates this.
-- **Needs the user.** DNS records for `lessdugin.7778777.online`; a publisher account with an offline rotation key; a static host account (Cloudflare Pages or Netlify preferred); test accounts for production smoke tests and the real-account spikes; and publishing at M7.
+- **Needs the user.** DNS records for `pandoras.forum`; a publisher account with an offline rotation key; a static host account (Cloudflare Pages or Netlify preferred); test accounts for production smoke tests and the real-account spikes; and publishing at M7.
 

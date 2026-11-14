@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
-use lessdugin_core::engine::{EngineError, ErrorCode};
+use pandoras_forum_core::engine::{EngineError, ErrorCode};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use url::Url;
@@ -201,17 +201,17 @@ async fn serve(mut stream: TcpStream, expected: &Expected<'_>) -> Option<Checked
     let response = match &outcome {
         Checked::Code(_) => page(
             "200 OK",
-            "lessdugin: signed in",
+            "Pandora's Forum: signed in",
             "Authorization complete. You can close this tab and return to the terminal.",
         ),
         Checked::Denied(_) => page(
             "400 Bad Request",
-            "lessdugin: sign-in failed",
+            "Pandora's Forum: sign-in failed",
             "The authorization did not complete. See the terminal for details.",
         ),
         Checked::Foreign => page(
             "400 Bad Request",
-            "lessdugin: unknown request",
+            "Pandora's Forum: unknown request",
             "This callback does not belong to the pending login.",
         ),
     };

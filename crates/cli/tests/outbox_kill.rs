@@ -19,8 +19,8 @@ use std::process::{Child, Stdio};
 use std::time::{Duration, Instant};
 
 use fakenet::{Net, User, s, text};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::Fault;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::Fault;
 use serde_json::Value;
 
 /// Waits until the fake network has logged a request for `nsid` (by `did`) after `after`.
@@ -63,7 +63,7 @@ fn count(net: &Net, nsid: &str, did: &str, after: u64) -> usize {
         .count()
 }
 
-/// Starts `lessdugin --json <args>` in the background.
+/// Starts `pandoras-forum --json <args>` in the background.
 fn spawn(u: &User, args: &[&str]) -> Child {
     u.std_cmd()
         .arg("--json")

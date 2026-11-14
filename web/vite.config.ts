@@ -5,7 +5,7 @@ import { defineConfig, type Plugin } from "vite";
 import { injectMetaCsp } from "./csp.mjs";
 
 /** What kind of build this is, recorded in `build-info.json`: `release` and `pages` are the
- * builds a release `lessdugin` binary may embed (crates/cli/build.rs, `RELEASE_MODES`);
+ * builds a release `pandoras-forum` binary may embed (crates/cli/build.rs, `RELEASE_MODES`);
  * `e2e` (`VITE_E2E=1`) and `demo` (`VITE_DEMO=1`, the mock engine) never are (WEB-5, SUP-3). */
 export function buildMode(viteMode: string, env: NodeJS.ProcessEnv = process.env): string {
   if (env.VITE_E2E === "1") return "e2e";
@@ -22,7 +22,7 @@ export function buildMode(viteMode: string, env: NodeJS.ProcessEnv = process.env
  */
 function buildInfo(mode: string): Plugin {
   return {
-    name: "lessdugin-build-info",
+    name: "pandoras-forum-build-info",
     apply: "build",
     enforce: "post",
     generateBundle(_options, bundle) {
@@ -51,14 +51,14 @@ function buildInfo(mode: string): Plugin {
  */
 function pagesMetaCsp(): Plugin {
   return {
-    name: "lessdugin-pages-meta-csp",
+    name: "pandoras-forum-pages-meta-csp",
     apply: "build",
     transformIndexHtml: { order: "post", handler: (html) => injectMetaCsp(html) },
   };
 }
 
 export default defineConfig(({ mode }) => ({
-  // Relative base so the static build works from any path (static hosts, IPFS, `lessdugin web`).
+  // Relative base so the static build works from any path (static hosts, IPFS, `pandoras-forum web`).
   base: "./",
   plugins: [react(), buildInfo(buildMode(mode)), ...(mode === "pages" ? [pagesMetaCsp()] : [])],
   worker: { format: "es" },

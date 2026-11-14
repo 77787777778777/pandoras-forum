@@ -9,14 +9,14 @@
 //! not counted yet, a retroactive restriction, an adoption that runs first) are printed with
 //! the outcome.
 
-use lessdugin_atp::syntax::Datetime;
-use lessdugin_core::dto::{
+use pandoras_forum_atp::syntax::Datetime;
+use pandoras_forum_core::dto::{
     ActionTicket, ModActionIntent, ModActionValue, ModScope, ModsChange, NotificationsQuery,
     OpinionIntent, PublicActionKind, WriteState,
 };
-use lessdugin_core::engine::EngineError;
-use lessdugin_core::model::palette;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::EngineError;
+use pandoras_forum_core::model::palette;
+use pandoras_forum_native::host::NativeHost;
 use serde_json::Value;
 
 use crate::args::{
@@ -120,7 +120,7 @@ async fn drive_action(
 // ---------------------------------------------------------------------------------------------
 // vote, agree, react
 
-/// `lessdugin vote <ref> <value> [--tag <slug>]`: karma, or a tag vote on a post.
+/// `pandoras-forum vote <ref> <value> [--tag <slug>]`: karma, or a tag vote on a post.
 pub async fn vote(ctx: &Ctx, args: VoteArgs) -> Result<(), CliError> {
     let done = if args.tag.is_some() {
         "Tag vote recorded"
@@ -130,12 +130,12 @@ pub async fn vote(ctx: &Ctx, args: VoteArgs) -> Result<(), CliError> {
     opinion(ctx, &args.reference, args.intent(), done, args.yes).await
 }
 
-/// `lessdugin agree <ref> <value>`.
+/// `pandoras-forum agree <ref> <value>`.
 pub async fn agree(ctx: &Ctx, args: AgreeArgs) -> Result<(), CliError> {
     opinion(ctx, &args.reference, args.intent(), "Recorded", args.yes).await
 }
 
-/// `lessdugin react <ref> <react> [--quote …] [--against] [--remove]`.
+/// `pandoras-forum react <ref> <react> [--quote …] [--against] [--remove]`.
 pub async fn react(ctx: &Ctx, args: ReactArgs) -> Result<(), CliError> {
     if args.remove && args.against {
         return Err(CliError::usage("--remove and --against conflict"));
@@ -161,7 +161,7 @@ async fn opinion(
     Ok(())
 }
 
-/// `lessdugin reacts`: the `default/1` palette (`social.md` §9.1).
+/// `pandoras-forum reacts`: the `default/1` palette (`social.md` §9.1).
 pub async fn reacts(ctx: &Ctx) -> Result<(), CliError> {
     let reacts = palette::default_1();
     if ctx.out.is_json() {
@@ -193,7 +193,7 @@ pub async fn reacts(ctx: &Ctx) -> Result<(), CliError> {
 // ---------------------------------------------------------------------------------------------
 // notifications, activity
 
-/// `lessdugin notifications [--all] [--mark-read]`.
+/// `pandoras-forum notifications [--all] [--mark-read]`.
 pub async fn notifications(ctx: &Ctx, args: NotificationsArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     if let Some(c) = args.karma_cadence {
@@ -264,7 +264,7 @@ pub async fn notifications(ctx: &Ctx, args: NotificationsArgs) -> Result<(), Cli
         ctx.out.note(&[(
             cat([
                 tt(&list.unread.to_string()),
-                lit(" unread (`lessdugin notifications --mark-read` marks these read)"),
+                lit(" unread (`pandoras-forum notifications --mark-read` marks these read)"),
             ]),
             Style::Dim,
         )]);
@@ -272,7 +272,7 @@ pub async fn notifications(ctx: &Ctx, args: NotificationsArgs) -> Result<(), Cli
     Ok(())
 }
 
-/// `lessdugin mute|unmute <actor>...` (local: the lens shows a muted author's listed items
+/// `pandoras-forum mute|unmute <actor>...` (local: the lens shows a muted author's listed items
 /// collapsed, `social.md` §10.3; nothing is written to any repository).
 pub async fn mute(ctx: &Ctx, args: MuteArgs, on: bool) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
@@ -291,7 +291,7 @@ pub async fn mute(ctx: &Ctx, args: MuteArgs, on: bool) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin mutes`.
+/// `pandoras-forum mutes`.
 pub async fn mutes(ctx: &Ctx) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let list = engine.mutes().await?;
@@ -311,14 +311,14 @@ pub async fn mutes(ctx: &Ctx) -> Result<(), CliError> {
     Ok(())
 }
 
-fn print_mutes(ctx: &Ctx, list: &[lessdugin_core::dto::ActorView]) {
+fn print_mutes(ctx: &Ctx, list: &[pandoras_forum_core::dto::ActorView]) {
     ctx.out.json(&serde_json::json!({
-        "dto": lessdugin_core::dto::DTO_VERSION,
+        "dto": pandoras_forum_core::dto::DTO_VERSION,
         "mutes": list,
     }));
 }
 
-/// `lessdugin activity [forum]`: Recent Discussion (`social.md` §12.4).
+/// `pandoras-forum activity [forum]`: Recent Discussion (`social.md` §12.4).
 pub async fn activity(ctx: &Ctx, args: ActivityArgs) -> Result<(), CliError> {
     let engine = ctx.reader().await?;
     let forum = refs::forum_or_current(ctx, &engine, args.forum.as_deref()).await?;
@@ -358,7 +358,7 @@ pub async fn activity(ctx: &Ctx, args: ActivityArgs) -> Result<(), CliError> {
 // ---------------------------------------------------------------------------------------------
 // mods
 
-/// `lessdugin mods add|rm <actor>`.
+/// `pandoras-forum mods add|rm <actor>`.
 pub async fn mods(ctx: &Ctx, args: ModsArgs) -> Result<(), CliError> {
     let w = ctx.writer().await?;
     let forum = refs::forum_or_current(ctx, &w.engine, None).await?;
@@ -408,7 +408,7 @@ pub async fn mods(ctx: &Ctx, args: ModsArgs) -> Result<(), CliError> {
 /// `mods rm` ran first: the declaration edit `edit_id` is sent only after that write (its
 /// `after`), whose ticket is still in the outbox once the edit is done.
 async fn adoption_report(w: &Writer, edit_id: &str) -> Result<Vec<String>, CliError> {
-    use lessdugin_core::outbox::model::write_id;
+    use pandoras_forum_core::outbox::model::write_id;
     let Some(adopt) = w
         .engine
         .outbox()
@@ -419,7 +419,7 @@ async fn adoption_report(w: &Writer, edit_id: &str) -> Result<Vec<String>, CliEr
         return Ok(Vec::new());
     };
     Ok(match w.engine.write_status(&adopt).await? {
-        Some(lessdugin_core::dto::WriteTicket {
+        Some(pandoras_forum_core::dto::WriteTicket {
             state: WriteState::Done { report, .. },
             ..
         }) => report,
@@ -444,7 +444,7 @@ fn reported_reason(report: &[String], uri: &str) -> Option<String> {
 }
 
 /// The name of a mod-log status, as `dto/1` spells it.
-fn status_name(s: lessdugin_core::dto::ModLogStatus) -> String {
+fn status_name(s: pandoras_forum_core::dto::ModLogStatus) -> String {
     serde_json::to_value(s)
         .ok()
         .and_then(|v| v.as_str().map(str::to_owned))
@@ -460,8 +460,8 @@ async fn originals_of(
     w: &Writer,
     forum: &str,
     did: &str,
-) -> Result<Vec<lessdugin_core::dto::ModLogEntry>, CliError> {
-    use lessdugin_core::dto::ModLogStatus;
+) -> Result<Vec<pandoras_forum_core::dto::ModLogEntry>, CliError> {
+    use pandoras_forum_core::dto::ModLogStatus;
     read::sync_forum_quietly(ctx, &w.engine, forum).await;
     let mut out = Vec::new();
     let mut cursor: Option<String> = None;
@@ -497,11 +497,11 @@ async fn report_adoption(
     ctx: &Ctx,
     w: &Writer,
     forum: &str,
-    who: &lessdugin_core::dto::ActorView,
-    originals: &[lessdugin_core::dto::ModLogEntry],
+    who: &pandoras_forum_core::dto::ActorView,
+    originals: &[pandoras_forum_core::dto::ModLogEntry],
     report: &[String],
 ) -> Result<(), CliError> {
-    use lessdugin_core::dto::ModLogStatus;
+    use pandoras_forum_core::dto::ModLogStatus;
     if originals.is_empty() && report.is_empty() {
         return Ok(());
     }
@@ -571,9 +571,9 @@ async fn report_adoption(
 /// list asks nothing.
 fn confirm_lapse(
     ctx: &Ctx,
-    who: &lessdugin_core::dto::ActorView,
+    who: &pandoras_forum_core::dto::ActorView,
     actor: &str,
-    lapsing: &[lessdugin_core::dto::ModLogEntry],
+    lapsing: &[pandoras_forum_core::dto::ModLogEntry],
     yes: bool,
 ) -> Result<(), CliError> {
     if lapsing.is_empty() {
@@ -617,7 +617,7 @@ fn confirm_lapse(
 /// forum.
 async fn mod_forum(
     ctx: &Ctx,
-    engine: &lessdugin_core::engine::Engine<NativeHost>,
+    engine: &pandoras_forum_core::engine::Engine<NativeHost>,
     explicit: Option<&str>,
     subject: &str,
 ) -> Result<String, CliError> {
@@ -638,7 +638,7 @@ async fn mod_forum(
 /// a DID, a handle or `tag:<slug>` is passed through.
 async fn subject_of(
     ctx: &Ctx,
-    engine: &lessdugin_core::engine::Engine<NativeHost>,
+    engine: &pandoras_forum_core::engine::Engine<NativeHost>,
     subject: &str,
 ) -> Result<String, CliError> {
     match item_uri(ctx, engine, subject).await {
@@ -655,13 +655,12 @@ async fn subject_of(
 /// An item reference as its at-uri, when it is one.
 async fn item_uri(
     ctx: &Ctx,
-    engine: &lessdugin_core::engine::Engine<NativeHost>,
+    engine: &pandoras_forum_core::engine::Engine<NativeHost>,
     subject: &str,
 ) -> Result<String, CliError> {
     match refs::item(ctx, engine, subject).await? {
-        lessdugin_core::dto::Ref::Post { uri } | lessdugin_core::dto::Ref::Comment { uri } => {
-            Ok(uri)
-        }
+        pandoras_forum_core::dto::Ref::Post { uri }
+        | pandoras_forum_core::dto::Ref::Comment { uri } => Ok(uri),
         _ => Err(CliError::Engine(EngineError::invalid_ref(format!(
             "{subject:?} is not a post or a comment"
         )))),
@@ -720,7 +719,7 @@ fn remove(forum: String, scope: ModScope, subject: String, action_key: &str) -> 
     }
 }
 
-/// `lessdugin mod <action> …` (`social.md` §4).
+/// `pandoras-forum mod <action> …` (`social.md` §4).
 pub async fn run(ctx: &Ctx, args: ModArgs) -> Result<(), CliError> {
     match args.action {
         ModAction::Queue { forum } => queue(ctx, forum.as_deref()).await,
@@ -979,7 +978,7 @@ async fn assert_or_remove(ctx: &Ctx, action: ModAction, yes: bool) -> Result<(),
                     _ => None,
                 });
                 ctx.out.json(&serde_json::json!({
-                    "dto": lessdugin_core::dto::DTO_VERSION,
+                    "dto": pandoras_forum_core::dto::DTO_VERSION,
                     "writes": out,
                 }));
                 if let Some(e) = failure {
@@ -1125,7 +1124,7 @@ pub async fn export(ctx: &Ctx, args: ExportArgs) -> Result<(), CliError> {
     if let Some(path) = args.import {
         let text = std::fs::read_to_string(&path)
             .map_err(|e| CliError::usage(format!("could not read {}: {e}", path.display())))?;
-        let parsed: lessdugin_core::engine::LocalExport = serde_json::from_str(&text)
+        let parsed: pandoras_forum_core::engine::LocalExport = serde_json::from_str(&text)
             .map_err(|e| CliError::usage(format!("{} is not an export: {e}", path.display())))?;
         let scope = scope_of_export(args.scope);
         let report = engine.import_local(&parsed, scope).await?;
@@ -1166,9 +1165,9 @@ pub async fn export(ctx: &Ctx, args: ExportArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-fn scope_of_export(a: ExportScopeArg) -> lessdugin_core::engine::ExportScope {
+fn scope_of_export(a: ExportScopeArg) -> pandoras_forum_core::engine::ExportScope {
     match a {
-        ExportScopeArg::Mine => lessdugin_core::engine::ExportScope::Mine,
-        ExportScopeArg::Everything => lessdugin_core::engine::ExportScope::Everything,
+        ExportScopeArg::Mine => pandoras_forum_core::engine::ExportScope::Mine,
+        ExportScopeArg::Everything => pandoras_forum_core::engine::ExportScope::Everything,
     }
 }

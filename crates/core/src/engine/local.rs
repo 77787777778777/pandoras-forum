@@ -701,7 +701,7 @@ fn check_setting_value(key: &str, v: &str) -> Result<(), EngineError> {
         "externalImagesForums" => match serde_json::from_str::<Vec<String>>(v) {
             Ok(l)
                 if l.iter()
-                    .all(|u| lessdugin_atp::syntax::AtUri::parse(u).is_ok()) =>
+                    .all(|u| pandoras_forum_atp::syntax::AtUri::parse(u).is_ok()) =>
             {
                 Ok(())
             }
@@ -862,7 +862,7 @@ impl<H: crate::host::Host> Engine<H> {
             self.host.fill_random(&mut r);
             let micros = u64::from(u16::from_le_bytes([r[0], r[1]]) % 1000);
             let clock = u16::from_le_bytes([r[2], r[3]]) % 1024;
-            lessdugin_atp::tid::Tid::from_parts(
+            pandoras_forum_atp::tid::Tid::from_parts(
                 u64::try_from(now)
                     .unwrap_or(0)
                     .saturating_mul(1000)

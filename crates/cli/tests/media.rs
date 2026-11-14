@@ -11,7 +11,7 @@
 mod fakenet;
 
 use fakenet::{Net, User, s, text};
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_lexicon::collection::nsid;
 use serde_json::Value;
 
 /// A 1x1 PNG (IHDR, IDAT, IEND): the pipeline sniffs and walks it (a file it cannot walk is
@@ -28,7 +28,7 @@ const RED: &[u8] = b"\x89PNG\r\n\x1a\n\
 const PDF: &[u8] = b"%PDF-1.4\n% a report\n%%EOF\n";
 
 fn raw_cid(b: &[u8]) -> String {
-    lessdugin_atp::cid::for_raw(b).to_string()
+    pandoras_forum_atp::cid::for_raw(b).to_string()
 }
 
 /// alice's forum.
@@ -186,7 +186,7 @@ fn media_add_prepares_a_file_that_a_post_names_by_cid() {
         text(&out.stdout)
     );
     assert!(
-        text(&out.stderr).contains(lessdugin_core::media::MISSING_ALT),
+        text(&out.stderr).contains(pandoras_forum_core::media::MISSING_ALT),
         "{}",
         text(&out.stderr)
     );
@@ -306,12 +306,14 @@ fn media_open_hands_the_saved_file_to_the_viewer() {
     let path = v["path"].as_str().unwrap().to_owned();
     assert!(path.ends_with(&format!("{}.png", raw_cid(PNG))), "{v}");
     assert_eq!(std::fs::read(&path).unwrap(), PNG);
-    // the viewer runs in the background
+    // The viewer runs in the background, and its shell creates the file before it writes to it:
+    // wait for what it wrote, not for the file.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while !opened.exists() && std::time::Instant::now() < deadline {
+    let mut arg = String::new();
+    while arg.is_empty() && std::time::Instant::now() < deadline {
         std::thread::sleep(std::time::Duration::from_millis(50));
+        arg = std::fs::read_to_string(&opened).unwrap_or_default();
     }
-    let arg = std::fs::read_to_string(&opened).unwrap_or_default();
     assert!(arg.ends_with(&format!("{}.png", raw_cid(PNG))), "{arg:?}");
 }
 
@@ -503,14 +505,14 @@ fn comment_and_edit_confirm_draft_directory_uploads_with_yes() {
 }
 
 /// `docs/plan.md` M4 acceptance: a blob at the hard limit (300 MiB, `limits.md` §5) that
-/// FakePds generates a chunk at a time is fetched and CID-checked by `lessdugin media get`
+/// FakePds generates a chunk at a time is fetched and CID-checked by `pandoras-forum media get`
 /// without being held in memory (`threat-model.md` INFRA-6): the CLI process's peak resident
 /// set, from `wait4`, stays far below the blob.
 #[cfg(target_os = "linux")]
 #[test]
 fn media_get_streams_a_blob_at_the_hard_limit() {
-    use lessdugin_core::limits::BLOB_HARD_MAX_BYTES;
-    use lessdugin_testkit::fake_pds::Generated;
+    use pandoras_forum_core::limits::BLOB_HARD_MAX_BYTES;
+    use pandoras_forum_testkit::fake_pds::Generated;
     use std::io::{Read, Seek, SeekFrom};
     /// The resident set the whole CLI may reach: its code, the store and a few chunks; a
     /// buffering implementation needs the blob's 300 MiB on top.

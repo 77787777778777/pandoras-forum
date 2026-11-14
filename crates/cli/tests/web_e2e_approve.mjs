@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Completes a `lessdugin web` browser sign-in on the devnet PDS in headless Chromium
+// Completes a `pandoras-forum web` browser sign-in on the devnet PDS in headless Chromium
 // (`web_e2e_devnet.rs`). Usage:
 //
 //   node web_e2e_approve.mjs <authorize-url> <password> <bridge-origin>

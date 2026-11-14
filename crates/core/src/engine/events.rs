@@ -17,8 +17,8 @@ use std::collections::{BTreeSet, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_lexicon::collection::nsid;
 use serde_json::Value;
 
 use crate::dto::{Event, Topic, WriteTicket};

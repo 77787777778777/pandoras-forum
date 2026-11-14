@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! Strict-enough, allocation-bounded-by-the-host Jetstream v1/v2 wire parsing.
 
-use lessdugin_atp::cid;
-use lessdugin_atp::syntax::{Datetime, Did, Nsid, RecordKey};
-use lessdugin_atp::tid::Tid;
+use pandoras_forum_atp::cid;
+use pandoras_forum_atp::syntax::{Datetime, Did, Nsid, RecordKey};
+use pandoras_forum_atp::tid::Tid;
 use serde::Deserialize;
 
 use super::events::Operation;

@@ -20,14 +20,14 @@ use axum::http::{HeaderMap, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{any, get};
 use futures::future::BoxFuture;
-use lessdugin_atp::cid as atp_cid;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{
+use pandoras_forum_atp::cid as atp_cid;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{
     Host, HostError, HttpRequest, HttpResponse, Redirects, Target, WebSocket, WsMessage,
 };
-use lessdugin_core::limits;
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_native::host::{AuthSession, FixedDns, NativeHost, Net, NetPolicy, NetRequest};
+use pandoras_forum_core::limits;
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_native::host::{AuthSession, FixedDns, NativeHost, Net, NetPolicy, NetRequest};
 use url::Url;
 
 #[derive(Clone, Default)]
@@ -234,7 +234,7 @@ async fn anon_get_with_user_agent_and_lowercase_headers() {
     let ua = env.get("/ua").await.unwrap();
     assert_eq!(
         String::from_utf8(ua.body).unwrap(),
-        lessdugin_native::host::USER_AGENT
+        pandoras_forum_native::host::USER_AGENT
     );
     // A name from the DNS table that resolves to an allowed (devnet loopback) address.
     let u = Url::parse(&format!("http://other.test:{}/hello", env.port)).unwrap();
@@ -666,7 +666,10 @@ async fn the_core_reads_stored_blobs_through_the_host_trait() {
     let w = Host::blob_read(&env.host, &cid, 10, u32::MAX)
         .await
         .unwrap();
-    assert_eq!(w.len(), lessdugin_core::host::BLOB_READ_MAX_BYTES as usize);
+    assert_eq!(
+        w.len(),
+        pandoras_forum_core::host::BLOB_READ_MAX_BYTES as usize
+    );
     assert_eq!(w[..], body[10..10 + w.len()]);
     let end = Host::blob_read(&env.host, &cid, body.len() as u64 - 3, 4096)
         .await
@@ -826,10 +829,10 @@ async fn clock_randomness_sleep_and_dns() {
 
 #[tokio::test]
 async fn open_creates_private_stores() {
-    use lessdugin_core::host::{KvOp, KvStore};
+    use pandoras_forum_core::host::{KvOp, KvStore};
     let tmp = tempfile::tempdir().unwrap();
-    let paths = lessdugin_native::config::Paths::under(tmp.path());
-    let cfg = lessdugin_native::config::Config::default();
+    let paths = pandoras_forum_native::config::Paths::under(tmp.path());
+    let cfg = pandoras_forum_native::config::Config::default();
     let host = NativeHost::open(&paths, &cfg).unwrap();
     host.state()
         .write(vec![KvOp::Put(b"k".to_vec(), b"v".to_vec())])
@@ -891,8 +894,8 @@ async fn send_http_adapter_is_guarded() {
 /// host locks in-process, shared by its clones only.
 #[tokio::test]
 async fn host_locks_exclude_across_hosts_on_one_data_dir() {
-    use lessdugin_native::config::{Paths, lock_hash};
-    use lessdugin_native::host::NativeLock;
+    use pandoras_forum_native::config::{Paths, lock_hash};
+    use pandoras_forum_native::host::NativeLock;
 
     let tmp = tempfile::tempdir().unwrap();
     let paths = Paths::under(tmp.path());

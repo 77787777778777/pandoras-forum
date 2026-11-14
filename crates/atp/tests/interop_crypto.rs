@@ -8,7 +8,7 @@ mod common;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
-use lessdugin_atp::crypto::{CryptoError, Curve, PublicKey};
+use pandoras_forum_atp::crypto::{CryptoError, Curve, PublicKey};
 
 #[test]
 fn signature_fixtures() {

@@ -11,14 +11,14 @@
 mod common;
 
 use common::block_on;
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     CommentDraft, DefaultTier, ForumDraft, ListPostsQuery, NotificationList, NotificationsQuery,
     PostDraft, PostFilter, PostList, PostSort, Subscription, SyncOpts, ThreadOpts, ThreadView,
     WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig};
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig};
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 
 const MINUTE: i64 = 60_000;
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-// Starts the devnet (or reuses `LESSDUGIN_DEVNET_JSON`), seeds alice's forum through the PDS
+// Starts the devnet (or reuses `PANDORAS_FORUM_DEVNET_JSON`), seeds alice's forum through the PDS
 // API, and serves the e2e build with the development CSP. The state for the tests goes to a
-// JSON file named by `LESSDUGIN_SPA_E2E_STATE`; the returned function tears everything down.
+// JSON file named by `PANDORAS_FORUM_SPA_E2E_STATE`; the returned function tears everything down.
 
 import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -31,10 +31,10 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   if (!existsSync(join(DIST_E2E, "index.html"))) {
     throw new Error(`${DIST_E2E} is missing: run \`VITE_E2E=1 vite build --outDir dist-e2e\``);
   }
-  const dir = mkdtempSync(join(tmpdir(), "lessdugin-spa-e2e-"));
+  const dir = mkdtempSync(join(tmpdir(), "pandoras-forum-spa-e2e-"));
   let devnet: ChildProcess | null = null;
   let net: DevnetInfo;
-  const reuse = process.env.LESSDUGIN_DEVNET_JSON;
+  const reuse = process.env.PANDORAS_FORUM_DEVNET_JSON;
   if (reuse) {
     net = JSON.parse(readFileSync(reuse, "utf8")) as DevnetInfo;
   } else {
@@ -69,7 +69,7 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   };
   const statePath = join(dir, "state.json");
   writeFileSync(statePath, JSON.stringify(state, null, 2));
-  process.env.LESSDUGIN_SPA_E2E_STATE = statePath;
+  process.env.PANDORAS_FORUM_SPA_E2E_STATE = statePath;
 
   return async () => {
     await server.close();

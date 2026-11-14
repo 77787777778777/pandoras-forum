@@ -9,7 +9,7 @@
 // operation, with the input's media items (`defs#media` values) and the body's `profile`, as a
 // stored record is rendered. Only an input that is an encoding error (not a string) is left to
 // its blessed html. That part is skipped locally without pkg/ and required under CI (or with
-// LESSDUGIN_WASM_TEST=1), as in the engine package's tests.
+// PANDORAS_FORUM_WASM_TEST=1), as in the engine package's tests.
 //
 // jsdom's serialiser differs from the pinned browser's in one respect: it does not escape `<` and
 // `>` inside attribute values. So this runner asserts `sanitizeLfm(html) === html` with that one
@@ -26,9 +26,9 @@ import { MATHML_CLASSES, sanitizeLfm } from "./sanitize.ts";
 const VECTORS = `${resolve(process.cwd(), "../testdata/vectors")}/`;
 const CRATE = `${resolve(process.cwd(), "../crates/markdown")}/`;
 const PKG = `${resolve(process.cwd(), "../packages/engine/pkg")}/`;
-const WASM = `${PKG}lessdugin_engine_bg.wasm`;
+const WASM = `${PKG}pandoras_forum_engine_bg.wasm`;
 const wasmPresent = existsSync(WASM);
-const wasmRequired = process.env.CI !== undefined || process.env.LESSDUGIN_WASM_TEST === "1";
+const wasmRequired = process.env.CI !== undefined || process.env.PANDORAS_FORUM_WASM_TEST === "1";
 
 interface Vector {
   id: string;
@@ -164,7 +164,9 @@ interface RenderEngine {
 /** The release engine. `render` is a pure operation, so the host has only what constructing
  * the engine reads (its random seed). */
 async function engine(): Promise<RenderEngine> {
-  const m = (await import(/* @vite-ignore */ pathToFileURL(`${PKG}lessdugin_engine.js`).href)) as {
+  const m = (await import(
+    /* @vite-ignore */ pathToFileURL(`${PKG}pandoras_forum_engine.js`).href
+  )) as {
     initSync(input: { module: BufferSource }): unknown;
     WasmEngine: new (configJson: string, host: object) => RenderEngine;
   };

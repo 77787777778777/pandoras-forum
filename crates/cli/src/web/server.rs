@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The HTTP server of `lessdugin web` (`threat-model.md` §7).
+//! The HTTP server of `pandoras-forum web` (`threat-model.md` §7).
 //!
 //! There is no routing table: one handler checks every request in a fixed order, so that no
 //! framework answer (a 405 from a method router, a 404) can come before the Host check.
@@ -14,12 +14,12 @@
 //!                 Content-Type ≠ application/json (uploadBlob: a §8.8 type)    → 415 (#5)
 //!                 body over its limit                       → 413              (#6)
 //!                 then the endpoint
-//! anything else:  GET/HEAD of an embedded file, or /lessdugin-config.json; else 404/405
+//! anything else:  GET/HEAD of an embedded file, or /pandoras-forum-config.json; else 404/405
 //! ```
 //!
 //! Every response then gets the CSP and §6.3 headers ([`policy::apply`]); bridge responses get
 //! `Cache-Control: no-store`. Bridge errors are JSON `{"error": <engine error code>,
-//! "message": …}`; answers forwarded from a PDS carry `X-Lessdugin-Upstream: pds`.
+//! "message": …}`; answers forwarded from a PDS carry `X-Pandoras-Forum-Upstream: pds`.
 
 use std::sync::Arc;
 
@@ -27,10 +27,10 @@ use axum::body::{Body, Bytes};
 use axum::extract::{Request, State};
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use lessdugin_core::engine::{Engine, EngineError, ErrorCode};
-use lessdugin_native::auth::SecretStore;
-use lessdugin_native::config::Paths;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineError, ErrorCode};
+use pandoras_forum_native::auth::SecretStore;
+use pandoras_forum_native::config::Paths;
+use pandoras_forum_native::host::NativeHost;
 use serde_json::json;
 
 use super::assets::Assets;
@@ -42,7 +42,7 @@ use super::policy::{
 use super::{kv, lock, login, xrpc};
 use crate::out::{Printer, Style, lit};
 
-/// The body of `/lessdugin-config.json` (WEB-5).
+/// The body of `/pandoras-forum-config.json` (WEB-5).
 pub const CONFIG_JSON: &str = "{\"oauth\":\"bridge\"}";
 
 /// The server's state.
@@ -92,7 +92,7 @@ impl Web {
 
     /// 32 bytes from the OS CSPRNG.
     pub fn random32(&self) -> [u8; 32] {
-        use lessdugin_core::host::Host as _;
+        use pandoras_forum_core::host::Host as _;
         let mut b = [0u8; 32];
         self.engine.host().fill_random(&mut b);
         b
@@ -100,14 +100,14 @@ impl Web {
 
     /// The wall clock (ms).
     pub fn now_ms(&self) -> i64 {
-        use lessdugin_core::host::Host as _;
+        use pandoras_forum_core::host::Host as _;
         self.engine.host().now_ms()
     }
 
     /// Mints a fresh single-use link (§7.2).
     pub fn mint_link(&self) -> String {
         let cap = self.caps.mint(&self.random32(), self.now_ms());
-        format!("{}/#lessdugin-cap={cap}", self.origin())
+        format!("{}/#pandoras-forum-cap={cap}", self.origin())
     }
 }
 
@@ -164,7 +164,7 @@ pub fn status_of(code: ErrorCode) -> StatusCode {
 
 /// An engine error as a bridge error (message redacted, `detail` kept).
 pub fn engine_error(e: &EngineError) -> Response {
-    let message = lessdugin_native::auth::redact::redact_secrets(&e.message);
+    let message = pandoras_forum_native::auth::redact::redact_secrets(&e.message);
     let mut body = json!({"error": e.code.as_str(), "message": message});
     if let Some(d) = &e.detail {
         body["detail"] = d.clone();
@@ -204,7 +204,7 @@ fn static_file(web: &Web, req: &Request) -> Response {
     if req.method() != Method::GET && !head {
         return empty(StatusCode::METHOD_NOT_ALLOWED);
     }
-    let found = if req.uri().path() == "/lessdugin-config.json" {
+    let found = if req.uri().path() == "/pandoras-forum-config.json" {
         Some(("application/json", "no-cache", CONFIG_JSON.as_bytes()))
     } else {
         web.assets
@@ -481,7 +481,7 @@ fn session(web: &Web, body: &[u8]) -> Response {
             web.out.err_line(&[
                 (lit("warning: "), Style::Warn),
                 (
-                    lit("a lessdugin web link was used twice; its session was revoked"),
+                    lit("a pandoras-forum web link was used twice; its session was revoked"),
                     Style::Plain,
                 ),
             ]);

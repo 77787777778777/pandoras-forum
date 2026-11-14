@@ -51,10 +51,10 @@ impl AtIdentifier {
 string_type_impls!(AtIdentifier);
 
 /// A strict, canonical record AT URI (`data-model.md` §2.3): exactly `at://<did>/<nsid>/<rkey>`
-/// where the DID passes [`Did::check_lessdugin_policy`] (`did:plc:[a-z2-7]{24}` or a lowercase
+/// where the DID passes [`Did::check_pandoras_forum_policy`] (`did:plc:[a-z2-7]{24}` or a lowercase
 /// host-only `did:web`).
 ///
-/// This is the only form lessdugin stores, and every constructor ([`AtUri::parse`],
+/// This is the only form Pandora's Forum stores, and every constructor ([`AtUri::parse`],
 /// [`AtUri::new`], `FromStr`, serde, [`LooseAtUri::to_strict`]) enforces it, so holding an `AtUri`
 /// proves the reference is canonical. It rejects handle authorities, other DID methods, queries,
 /// fragments, trailing or doubled slashes, partial paths and NSIDs whose authority is not
@@ -69,7 +69,7 @@ pub struct AtUri {
 }
 
 impl AtUri {
-    /// Parses a canonical record URI (strict syntax and the lessdugin DID policy).
+    /// Parses a canonical record URI (strict syntax and the Pandora's Forum DID policy).
     pub fn parse(s: &str) -> Result<Self, SyntaxError> {
         if s.len() > MAX_AT_URI_LEN {
             return Err(SyntaxError::new(KIND, "too long"));
@@ -93,7 +93,7 @@ impl AtUri {
             return Err(SyntaxError::new(KIND, "authority must be a DID"));
         }
         let did = Did::parse(a)?;
-        did.check_lessdugin_policy()?;
+        did.check_pandoras_forum_policy()?;
         let collection = Nsid::parse(c)?;
         if !collection.is_authority_normalized() {
             return Err(SyntaxError::new(
@@ -111,9 +111,9 @@ impl AtUri {
     }
 
     /// Builds a URI from its parts. Fails if the DID does not pass
-    /// [`Did::check_lessdugin_policy`] or the collection authority is not lowercase.
+    /// [`Did::check_pandoras_forum_policy`] or the collection authority is not lowercase.
     pub fn new(did: Did, collection: Nsid, rkey: RecordKey) -> Result<Self, SyntaxError> {
-        did.check_lessdugin_policy()?;
+        did.check_pandoras_forum_policy()?;
         if !collection.is_authority_normalized() {
             return Err(SyntaxError::new(
                 KIND,
@@ -159,10 +159,10 @@ impl AtUri {
         format!("{}/{}", self.collection.as_str(), self.rkey.as_str())
     }
 
-    /// The lessdugin reference policy: the DID passes [`Did::check_lessdugin_policy`]. Always
+    /// The Pandora's Forum reference policy: the DID passes [`Did::check_pandoras_forum_policy`]. Always
     /// `Ok` for a constructed value (every constructor enforces it); kept for explicitness.
-    pub fn check_lessdugin_canonical(&self) -> Result<(), SyntaxError> {
-        self.did.check_lessdugin_policy()
+    pub fn check_pandoras_forum_canonical(&self) -> Result<(), SyntaxError> {
+        self.did.check_pandoras_forum_policy()
     }
 }
 
@@ -257,7 +257,7 @@ impl LooseAtUri {
         self.rkey.as_ref()
     }
 
-    /// Converts to a canonical [`AtUri`] if the authority is a DID that passes the lessdugin
+    /// Converts to a canonical [`AtUri`] if the authority is a DID that passes the Pandora's Forum
     /// policy and both path parts are present.
     pub fn to_strict(&self) -> Option<AtUri> {
         let did = self.authority.as_did()?.clone();
@@ -301,19 +301,20 @@ string_type_impls!(LooseAtUri);
 mod tests {
     use super::*;
 
-    const U: &str = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c";
+    const U: &str =
+        "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c";
 
     #[test]
     fn strict() {
         let u = AtUri::parse(U).unwrap();
         assert_eq!(u.did().as_str(), "did:plc:ewvi7nxzyoun6zhxrhs64oiz");
-        assert_eq!(u.collection().as_str(), "online.7778777.lessdugin.post");
-        assert_eq!(u.rkey().as_str(), "uetjixxr3a33-3l2s5xxv2ze2c");
+        assert_eq!(u.collection().as_str(), "forum.pandoras.post");
+        assert_eq!(u.rkey().as_str(), "nkglkm5wsp3d-3l2s5xxv2ze2c");
         assert_eq!(
             u.repo_path(),
-            "online.7778777.lessdugin.post/uetjixxr3a33-3l2s5xxv2ze2c"
+            "forum.pandoras.post/nkglkm5wsp3d-3l2s5xxv2ze2c"
         );
-        assert!(u.check_lessdugin_canonical().is_ok());
+        assert!(u.check_pandoras_forum_canonical().is_ok());
         assert_eq!(
             AtUri::new(u.did().clone(), u.collection().clone(), u.rkey().clone()).unwrap(),
             u
@@ -332,7 +333,7 @@ mod tests {
         ] {
             assert!(AtUri::parse(bad).is_err(), "{bad}");
         }
-        // the lessdugin DID policy is part of the canonical form, for every constructor
+        // the Pandora's Forum DID policy is part of the canonical form, for every constructor
         for bad in [
             "at://did:web:example.com:8080/app.bsky.feed.post/x",
             "at://did:web:localhost%3A8080/a.b.c/x",
@@ -352,7 +353,7 @@ mod tests {
         let key = Did::parse("did:key:zQ3shQo6TF2moaqMTrUZEM1jeuYRQXeHEx4evX9751y2qPqRA").unwrap();
         assert!(AtUri::new(key, u.collection().clone(), u.rkey().clone()).is_err());
         let web = AtUri::parse("at://did:web:example.com/a.b.c/x").unwrap();
-        assert!(web.check_lessdugin_canonical().is_ok());
+        assert!(web.check_pandoras_forum_canonical().is_ok());
     }
 
     #[test]

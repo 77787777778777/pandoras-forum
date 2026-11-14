@@ -10,7 +10,7 @@
 // banners, a reply box), so the margin is re-measured on every commit and whenever the document
 // or the list resizes; a stale margin renders the wrong rows, or none.
 
-import type { CommentNode } from "@lessdugin/engine/types";
+import type { CommentNode } from "@pandoras-forum/engine/types";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import {
   type ReactNode,

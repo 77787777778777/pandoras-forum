@@ -21,7 +21,7 @@ describe("SafeLink", () => {
   });
 
   it("routes record and profile links in-app", async () => {
-    const uri = `at://${DID}/online.7778777.lessdugin.temp.post/abc`;
+    const uri = `at://${DID}/forum.pandoras.temp.post/abc`;
     renderWithApp(
       <>
         <SafeLink href={{ kind: "record", uri }}>record</SafeLink>

@@ -4,7 +4,7 @@
 // (data-model.md §5, `#media`, `#textQuote`). Record JSON is untrusted input, so every field is
 // checked before use.
 
-import type { AspectRatio, MediaRef, TextQuote } from "@lessdugin/engine/types";
+import type { AspectRatio, MediaRef, TextQuote } from "@pandoras-forum/engine/types";
 
 type Obj = Record<string, unknown>;
 

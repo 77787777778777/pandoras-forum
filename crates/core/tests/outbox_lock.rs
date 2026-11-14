@@ -11,16 +11,16 @@ use std::sync::{Arc, Mutex};
 use std::task::Poll;
 
 use common::block_on;
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_core::dto::{WriteState, WriteTicket};
-use lessdugin_core::host::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_core::dto::{WriteState, WriteTicket};
+use pandoras_forum_core::host::{
     BlobHandle, Host, HostError, HttpRequest, HttpResponse, ProcessLock, ProcessLocks,
 };
-use lessdugin_core::outbox::{ContentOpts, Outbox, OutboxListener, Session};
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::Post;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::outbox::{ContentOpts, Outbox, OutboxListener, Session};
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::Post;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 
 /// A `MemHost` whose requests yield once, so concurrent pumps interleave at every request.
 /// With `exclusive: false` its lock never excludes (the control).

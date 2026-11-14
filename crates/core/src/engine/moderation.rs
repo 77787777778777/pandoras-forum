@@ -23,15 +23,15 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::records::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::{
     AccessAction, Action, HideAction, LockAction, ModAction, Moderator, PinAction, RestrictAction,
     StrongRef, TagAction, TierAction,
 };
-use lessdugin_lexicon::values::{
+use pandoras_forum_lexicon::values::{
     AccessLevel as LexAccess, Capability as LexCapability, MembershipMode as LexMode,
     PinScope as LexPinScope, Tier as LexTier,
 };
@@ -420,7 +420,7 @@ impl<H: Host> Engine<H> {
         scope: ModScope,
         s: &Subject,
     ) -> Result<Option<OwnRestrict>, EngineError> {
-        use lessdugin_lexicon::validity::entry::restrict_capabilities;
+        use pandoras_forum_lexicon::validity::entry::restrict_capabilities;
         let action = action_of_key("restrict").unwrap_or_default();
         let rkey = keys::mod_action_rkey(
             NS,
@@ -1274,12 +1274,10 @@ mod tests {
 
     #[test]
     fn removal_keys_match_the_asserted_records() {
-        let forum = AtUri::parse(
-            "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.forum/meta",
-        )
-        .unwrap();
+        let forum = AtUri::parse("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.forum/meta")
+            .unwrap();
         let now = records::datetime_ms(0).unwrap();
-        let subject = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.post/x";
+        let subject = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.post/x";
         let cases = [
             ("hide", Action::Hide(HideAction::hide())),
             (

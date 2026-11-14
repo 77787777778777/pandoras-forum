@@ -18,9 +18,9 @@
 //! The output, an [`AdmittedRecord`], becomes a store [`Version`] with its observation context
 //! ([`Observation`]: level, order key, exactness, source, first-seen time).
 
-use lessdugin_atp::datamodel::{self, Limits};
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_atp::{Cid, Ipld};
+use pandoras_forum_atp::datamodel::{self, Limits};
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::{Cid, Ipld};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -96,16 +96,16 @@ impl Validity {
 }
 
 /// Sort key of a rule ID: the known IDs in spec order (`G1`…`G10`, then `FO1`…`PF2`, as
-/// `lessdugin_lexicon::validity::RuleId` orders them), then any other ID by prefix and number.
+/// `pandoras_forum_lexicon::validity::RuleId` orders them), then any other ID by prefix and number.
 type RuleKey = (
     bool,
-    Option<lessdugin_lexicon::validity::RuleId>,
+    Option<pandoras_forum_lexicon::validity::RuleId>,
     String,
     u32,
 );
 
 fn rule_order(rule: &str) -> RuleKey {
-    let known = lessdugin_lexicon::validity::RuleId::parse(rule);
+    let known = pandoras_forum_lexicon::validity::RuleId::parse(rule);
     let split = rule
         .find(|c: char| c.is_ascii_digit())
         .unwrap_or(rule.len());
@@ -131,7 +131,7 @@ pub trait RecordValidator: MaybeSendSync {
     fn violations(&self, uri: &AtUri, value: &Value) -> Vec<RuleViolation>;
 }
 
-/// Record validity through `lessdugin_lexicon::validity` (`data-model.md` §7.2–§7.3): every rule
+/// Record validity through `pandoras_forum_lexicon::validity` (`data-model.md` §7.2–§7.3): every rule
 /// that is a pure function of the uri and the value (G1–G10 and the per-collection rules; the
 /// *(x)* and entry-level rules belong to the fold). Collections outside this build's ten (the
 /// `app.bsky.actor.profile` fallback) are only checked for `$type` (G1): their lexicons are not
@@ -142,13 +142,13 @@ pub struct LexiconValidator;
 impl RecordValidator for LexiconValidator {
     fn violations(&self, uri: &AtUri, value: &Value) -> Vec<RuleViolation> {
         let nsid = uri.collection().as_str();
-        if lessdugin_lexicon::Collection::from_nsid(nsid).is_none() {
+        if pandoras_forum_lexicon::Collection::from_nsid(nsid).is_none() {
             return match value.get("$type") {
                 Some(Value::String(t)) if t == nsid => Vec::new(),
                 _ => vec![RuleViolation::new("G1", format!("$type is not {nsid:?}"))],
             };
         }
-        lessdugin_lexicon::validity::check_uri(uri, value)
+        pandoras_forum_lexicon::validity::check_uri(uri, value)
             .violations
             .into_iter()
             .map(|v| RuleViolation::new(v.rule_id.as_str(), format!("{}: {}", v.path, v.message)))
@@ -364,8 +364,8 @@ impl AdmittedRecord {
 pub fn parse_record_cid(s: &str) -> Result<Cid, AdmitError> {
     let c = Cid::try_from(s).map_err(|e| AdmitError::Cid(format!("{s:?}: {e}")))?;
     let ok = u64::from(c.version()) == 1
-        && c.codec() == lessdugin_atp::cid::DAG_CBOR
-        && c.hash().code() == lessdugin_atp::cid::SHA2_256
+        && c.codec() == pandoras_forum_atp::cid::DAG_CBOR
+        && c.hash().code() == pandoras_forum_atp::cid::SHA2_256
         && c.hash().size() == 32;
     if ok {
         Ok(c)
@@ -454,10 +454,10 @@ pub fn admit_value(
     // 2. JSON → IPLD → DAG-CBOR
     let ipld = datamodel::json_to_ipld_with(value, &RECORD_LIMITS)
         .map_err(|e| AdmitError::DataModel(e.to_string()))?;
-    let cbor = lessdugin_atp::dagcbor::encode_with(&ipld, &RECORD_LIMITS)
+    let cbor = pandoras_forum_atp::dagcbor::encode_with(&ipld, &RECORD_LIMITS)
         .map_err(|e| AdmitError::DataModel(e.to_string()))?;
     // 3b. compare
-    let computed = lessdugin_atp::cid::for_dag_cbor(&cbor);
+    let computed = pandoras_forum_atp::cid::for_dag_cbor(&cbor);
     if computed != claimed {
         return Err(AdmitError::CidMismatch {
             claimed: claimed.to_string(),
@@ -545,10 +545,10 @@ pub fn admit_block(
     block: &[u8],
     validator: &dyn RecordValidator,
 ) -> Result<AdmittedRecord, AdmitError> {
-    if cid.codec() != lessdugin_atp::cid::DAG_CBOR {
+    if cid.codec() != pandoras_forum_atp::cid::DAG_CBOR {
         return Err(AdmitError::Cid(format!("{cid} is not dag-cbor")));
     }
-    lessdugin_atp::cid::verify(cid, block).map_err(|e| AdmitError::CidMismatch {
+    pandoras_forum_atp::cid::verify(cid, block).map_err(|e| AdmitError::CidMismatch {
         claimed: cid.to_string(),
         computed: e.to_string(),
     })?;

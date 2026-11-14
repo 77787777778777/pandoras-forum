@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { CollapseReason, PostKind, PostSummary, Tier } from "@lessdugin/engine/types";
+import type { CollapseReason, PostKind, PostSummary, Tier } from "@pandoras-forum/engine/types";
 import { Link } from "@tanstack/react-router";
 import { cx } from "../lib/cx.ts";
 import { cleanName } from "../lib/text.ts";

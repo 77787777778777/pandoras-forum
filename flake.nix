@@ -1,5 +1,5 @@
 {
-  description = "lessdugin development and CI toolchain";
+  description = "Pandora's Forum development and CI toolchain";
 
   nixConfig = {
     extra-substituters = [ "https://nix-community.cachix.org" ];
@@ -106,7 +106,7 @@
           mkDevShell =
             { full ? false }:
             pkgs.mkShell {
-              name = if full then "lessdugin-ci" else "lessdugin";
+              name = if full then "pandoras-forum-ci" else "pandoras-forum";
               packages = commonPackages ++ pkgs.lib.optionals full [ pkgs.cargo-fuzz ];
               shellHook =
                 shellSetup
@@ -116,7 +116,7 @@
                   # `playwright install` would download). Never substitute the
                   # system browser or a different Playwright driver revision.
                   export PLAYWRIGHT_BROWSERS_PATH=${playwrightBrowsers}
-                  export LESSDUGIN_FUZZ_TOOLCHAIN=nightly-2026-10-22
+                  export PANDORAS_FORUM_FUZZ_TOOLCHAIN=nightly-2026-10-22
                 '';
             };
         in

@@ -34,11 +34,11 @@
 
 use std::path::{Path, PathBuf};
 
-use lessdugin_core::dto::{BodyDraft, ExternalLinkDraft, PostDraft, PostKind};
-use lessdugin_core::engine::EngineError;
-use lessdugin_core::host::Host;
-use lessdugin_native::fsutil::{ensure_private_dir, read_private, write_private_atomic};
-use lessdugin_native::template::{SCISSORS, neutralise_modelines};
+use pandoras_forum_core::dto::{BodyDraft, ExternalLinkDraft, PostDraft, PostKind};
+use pandoras_forum_core::engine::EngineError;
+use pandoras_forum_core::host::Host;
+use pandoras_forum_native::fsutil::{ensure_private_dir, read_private, write_private_atomic};
+use pandoras_forum_native::template::{SCISSORS, neutralise_modelines};
 use serde::Serialize;
 
 use crate::args::{DraftAction, DraftArgs};
@@ -56,7 +56,7 @@ const ERROR_PREFIX: &str = "# error: ";
 /// The fixed lines under the opening `---` (after any `# error:` lines): with them no field is
 /// in the first five lines of the file.
 const HEAD: [&str; 4] = [
-    "# A lessdugin draft: the fields below, then the text after the closing `---`.",
+    "# A Pandora's Forum draft: the fields below, then the text after the closing `---`.",
     "# Lines starting with # are ignored here.",
     "#",
     "#",
@@ -69,7 +69,7 @@ const TAIL: [&str; 5] = [
     "#",
     "#",
     "#",
-    "# lessdugin",
+    "# Pandora's Forum",
 ];
 
 /// What a draft is for.
@@ -486,7 +486,7 @@ impl Drafts {
         let text = read_file(&path)?;
         Doc::parse(&text).map_err(|e| {
             CliError::Engine(EngineError::invalid_input(format!(
-                "draft {id}: {e} (fix it with `lessdugin draft edit {id}`)"
+                "draft {id}: {e} (fix it with `pandoras-forum draft edit {id}`)"
             )))
         })
     }
@@ -559,7 +559,7 @@ fn read_limited(r: impl std::io::Read, path: &Path) -> Result<String, CliError> 
     if bytes.len() as u64 > DRAFT_MAX_BYTES {
         return Err(CliError::Engine(
             EngineError::new(
-                lessdugin_core::engine::ErrorCode::TooLarge,
+                pandoras_forum_core::engine::ErrorCode::TooLarge,
                 format!(
                     "{} is larger than {DRAFT_MAX_BYTES} bytes; nothing was read",
                     path.display()
@@ -627,7 +627,7 @@ pub fn edit_file(path: &Path) -> Result<(), CliError> {
 fn edit_kept(drafts: &Drafts, id: &str) -> Result<(), CliError> {
     edit_file(&drafts.path(id)).map_err(|e| match e {
         CliError::Usage(m) => CliError::Usage(format!(
-            "{m}; the draft is kept (`lessdugin draft edit {id}`)"
+            "{m}; the draft is kept (`pandoras-forum draft edit {id}`)"
         )),
         e => e,
     })
@@ -652,7 +652,7 @@ fn ask_publish() -> Answer {
 }
 
 fn summary(ctx: &Ctx, d: &PostDraft, forum_name: &str, attached: &[media::Attached]) {
-    let words = lessdugin_markdown::derive_metadata(&d.body.markdown, &[]).word_count;
+    let words = pandoras_forum_markdown::derive_metadata(&d.body.markdown, &[]).word_count;
     let out = &ctx.out;
     out.err_line(&[(lit("About to publish:"), Style::Bold)]);
     out.err_line(&[
@@ -806,7 +806,7 @@ pub async fn publish_post(ctx: &Ctx, mut src: PostSource, yes: bool) -> Result<(
                 }
                 return Err(CliError::Engine(
                     EngineError::invalid_input(format!(
-                        "{} (kept as draft {id}; fix it with `lessdugin draft edit {id}`)",
+                        "{} (kept as draft {id}; fix it with `pandoras-forum draft edit {id}`)",
                         errors.join("; ")
                     ))
                     .with_detail("draft", id.as_str()),
@@ -835,7 +835,7 @@ pub async fn publish_post(ctx: &Ctx, mut src: PostSource, yes: bool) -> Result<(
                 return Err(CliError::usage(format!(
                     "this post would upload files of this machine ({}); that is confirmed on a \
                      terminal, even with --yes, for a file outside the drafts directory: publish \
-                     it on a terminal, or prepare the files with `lessdugin media add` and name \
+                     it on a terminal, or prepare the files with `pandoras-forum media add` and name \
                      them by cid:",
                     local.join(", ")
                 )));
@@ -844,7 +844,7 @@ pub async fn publish_post(ctx: &Ctx, mut src: PostSource, yes: bool) -> Result<(
                 let id = keep(ctx, &drafts, &mut src, &[])?;
                 return Err(CliError::usage(format!(
                     "not running interactively, so nothing was published: kept as draft {id}; \
-                     publish it with `lessdugin draft publish {id} --yes`"
+                     publish it with `pandoras-forum draft publish {id} --yes`"
                 )));
             }
             summary(ctx, &draft, forum.as_deref().unwrap_or_default(), &attached);
@@ -862,7 +862,7 @@ pub async fn publish_post(ctx: &Ctx, mut src: PostSource, yes: bool) -> Result<(
                         cat([
                             lit("Not published; kept as draft "),
                             tt(&id),
-                            lit(" (`lessdugin draft publish "),
+                            lit(" (`pandoras-forum draft publish "),
                             tt(&id),
                             lit("`)."),
                         ]),
@@ -885,7 +885,7 @@ pub async fn publish_post(ctx: &Ctx, mut src: PostSource, yes: bool) -> Result<(
                 let t = write::drive(ctx, &w, ticket).await?;
                 return write::report(ctx, &t, "Published");
             }
-            Err(e) if e.code == lessdugin_core::engine::ErrorCode::InvalidInput => {
+            Err(e) if e.code == pandoras_forum_core::engine::ErrorCode::InvalidInput => {
                 let id = keep(ctx, &drafts, &mut src, std::slice::from_ref(&e.message))?;
                 return Err(CliError::Engine(e.with_detail("draft", id.as_str())));
             }
@@ -924,7 +924,7 @@ struct DraftList {
     drafts: Vec<DraftEntry>,
 }
 
-/// `lessdugin draft [ls|edit|rm|publish]`.
+/// `pandoras-forum draft [ls|edit|rm|publish]`.
 pub async fn run(ctx: &Ctx, args: DraftArgs) -> Result<(), CliError> {
     let drafts = Drafts::new(ctx);
     match args.action.unwrap_or(DraftAction::Ls) {
@@ -971,7 +971,7 @@ pub async fn run(ctx: &Ctx, args: DraftArgs) -> Result<(), CliError> {
             }
             if ctx.out.is_json() {
                 ctx.out.json(&DraftList {
-                    dto: lessdugin_core::dto::DTO_VERSION,
+                    dto: pandoras_forum_core::dto::DTO_VERSION,
                     drafts: list,
                 });
                 return Ok(());
@@ -996,7 +996,7 @@ pub async fn run(ctx: &Ctx, args: DraftArgs) -> Result<(), CliError> {
             drafts.load(&id).or_else(|e| match e {
                 // a malformed draft can still be edited
                 CliError::Engine(ref x)
-                    if x.code == lessdugin_core::engine::ErrorCode::InvalidInput =>
+                    if x.code == pandoras_forum_core::engine::ErrorCode::InvalidInput =>
                 {
                     Ok(Doc::default())
                 }
@@ -1078,7 +1078,7 @@ mod tests {
     /// is neutralised, error lines are terminal-safe, and the tail is never part of the body.
     #[test]
     fn rendered_drafts_are_editor_safe() {
-        use lessdugin_native::template::MODELINE_LINES;
+        use pandoras_forum_native::template::MODELINE_LINES;
         let mut doc =
             Doc::parse("---\ntitle: \"vim: set ft=sh:\"\n---\nvim: set shell=evil:\n").unwrap();
         doc.set("forum", Value::Str("ex: x".into()));
@@ -1131,7 +1131,7 @@ mod tests {
         let Err(CliError::Engine(e)) = read_limited(&vec![b'a'; max + 1][..], path) else {
             panic!("a text over the limit must be refused");
         };
-        assert_eq!(e.code, lessdugin_core::engine::ErrorCode::TooLarge);
+        assert_eq!(e.code, pandoras_forum_core::engine::ErrorCode::TooLarge);
         assert!(read_limited(&[0xff, 0xfe][..], path).is_err());
     }
 }

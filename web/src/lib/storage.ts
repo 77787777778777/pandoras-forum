@@ -6,12 +6,12 @@
 // keys the real engine reads (`setStorageNamespace` at startup, before anything is read).
 
 const memory = new Map<string, string>();
-let namespace = "lessdugin.";
+let namespace = "pandoras-forum.";
 
-/** Selects the key namespace: `lessdugin.` for the real engine, `lessdugin.mock.` for the
+/** Selects the key namespace: `pandoras-forum.` for the real engine, `pandoras-forum.mock.` for the
  * demo engine. */
 export function setStorageNamespace(kind: "mock" | "wasm"): void {
-  namespace = kind === "mock" ? "lessdugin.mock." : "lessdugin.";
+  namespace = kind === "mock" ? "pandoras-forum.mock." : "pandoras-forum.";
 }
 
 /** The full storage key for `name` in the current namespace. */

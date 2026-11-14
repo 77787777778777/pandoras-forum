@@ -12,17 +12,17 @@
 //! `--json` prints the `WriteTicket` with `"dto": 1`; a failed write prints its ticket and
 //! exits with the error's code (`conflict` 5, …).
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::dto::{
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::dto::{
     AspectRatio, BodyDraft, CommentDraft, Draft, EditOpts, ExternalLinkDraft, MediaRef, PostDraft,
     TextQuote, WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{Engine, EngineError, ErrorCode};
-use lessdugin_core::host::Host;
-use lessdugin_core::outbox::Step;
-use lessdugin_core::store::records::RecordStore;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineError, ErrorCode};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::outbox::Step;
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_native::host::NativeHost;
 use serde_json::Value;
 
 use crate::args::{CommentArgs, DeleteArgs, EditArgs, PostArgs, RedactArgs, RefArgs};
@@ -125,13 +125,13 @@ pub fn needs_login_error(t: &WriteTicket) -> Option<EngineError> {
     };
     let why = error
         .as_ref()
-        .map(|e| lessdugin_native::auth::redact::redact_secrets(&e.message))
+        .map(|e| pandoras_forum_native::auth::redact::redact_secrets(&e.message))
         .unwrap_or_default();
     let account = t.id.rsplit_once('/').map_or("", |(a, _)| a);
     let mut e = EngineError::new(
         ErrorCode::AuthRequired,
         format!(
-            "the session of {account} was refused{}; run `lessdugin login` again. Write {} \
+            "the session of {account} was refused{}; run `pandoras-forum login` again. Write {} \
              stays queued and is sent after the login",
             if why.is_empty() {
                 String::new()
@@ -166,7 +166,9 @@ pub fn waiting_reason(ctx: &Ctx, state: &WriteState) -> crate::out::TermText {
             lit(": "),
             tt(e.code.as_str()),
             lit(", "),
-            tt(&lessdugin_native::auth::redact::redact_secrets(&e.message)),
+            tt(&pandoras_forum_native::auth::redact::redact_secrets(
+                &e.message,
+            )),
         ])
     });
     match (not_before_ms, cause) {
@@ -212,7 +214,7 @@ pub fn report(ctx: &Ctx, t: &WriteTicket, done: &'static str) -> Result<(), CliE
                 (tt(&t.id), Style::Bold),
             ]);
             ctx.out.note(&[(
-                lit("It is sent by the next command that writes, `lessdugin sync` or `lessdugin outbox flush`."),
+                lit("It is sent by the next command that writes, `pandoras-forum sync` or `pandoras-forum outbox flush`."),
                 Style::Dim,
             )]);
         }
@@ -255,7 +257,7 @@ fn text_arg(
 // ---------------------------------------------------------------------------------------------
 // post
 
-/// `lessdugin post [file.md]`.
+/// `pandoras-forum post [file.md]`.
 pub async fn post(ctx: &Ctx, args: PostArgs) -> Result<(), CliError> {
     let drafts = Drafts::new(ctx);
     let (mut doc, from_editor) = match &args.file {
@@ -451,7 +453,7 @@ fn kept_note(ctx: &Ctx, id: &str) {
         cat([
             lit("The text is kept as draft "),
             tt(id),
-            lit(" (`lessdugin draft edit "),
+            lit(" (`pandoras-forum draft edit "),
             tt(id),
             lit("`)."),
         ]),
@@ -479,7 +481,7 @@ fn edit_draft_file(
     Err(e)
 }
 
-/// `lessdugin comment <ref> [file|-] [-m text] [--yes]` (`--yes` confirms the uploads of a
+/// `pandoras-forum comment <ref> [file|-] [-m text] [--yes]` (`--yes` confirms the uploads of a
 /// file of the drafts directory, as `post --yes` does: FILE-2).
 pub async fn comment(ctx: &Ctx, args: CommentArgs) -> Result<(), CliError> {
     let w = ctx.writer().await?;
@@ -599,14 +601,13 @@ fn media_of(uri: &str, body: Option<&Value>) -> Result<Vec<MediaRef>, CliError> 
     })?;
     let mut out = Vec::with_capacity(items.len());
     for (i, item) in items.iter().enumerate() {
-        let m = serde_json::from_value::<lessdugin_lexicon::records::Media>(item.clone()).map_err(
-            |e| {
+        let m = serde_json::from_value::<pandoras_forum_lexicon::records::Media>(item.clone())
+            .map_err(|e| {
                 EngineError::invalid_input(format!(
                     "{uri}: media item {} cannot be read ({e}); an edit would drop it",
                     i + 1
                 ))
-            },
-        )?;
+            })?;
         let cid = m.blob.r#ref.link.clone();
         out.push(MediaRef {
             id: cid.clone(),
@@ -640,7 +641,7 @@ async fn spilled_markdown(w: &Writer, uri: &str, blob: &Value) -> Result<String,
         .ok_or_else(|| unreadable("blob has no CID".into()))?;
     let pds = url::Url::parse(&w.account.pds)
         .map_err(|e| EngineError::internal(format!("the PDS {}: {e}", w.account.pds)))?;
-    let did = lessdugin_atp::syntax::Did::parse(&w.account.did)
+    let did = pandoras_forum_atp::syntax::Did::parse(&w.account.did)
         .map_err(|e| EngineError::internal(e.to_string()))?;
     let h = w
         .engine
@@ -649,7 +650,7 @@ async fn spilled_markdown(w: &Writer, uri: &str, blob: &Value) -> Result<String,
             pds,
             did,
             cid.to_owned(),
-            lessdugin_core::limits::BLOB_TEXT_MAX_BYTES,
+            pandoras_forum_core::limits::BLOB_TEXT_MAX_BYTES,
         )
         .await
         .map_err(EngineError::from)?;
@@ -781,7 +782,7 @@ fn edit_draft(c: &Current, doc: &Doc, body: Option<String>) -> Result<Draft, Cli
     if c.is_post {
         let kind = match doc.get("kind") {
             Some(k) => parse_kind(k).map_err(EngineError::invalid_input)?,
-            None => parse_kind(&c.kind).unwrap_or(lessdugin_core::dto::PostKind::Article),
+            None => parse_kind(&c.kind).unwrap_or(pandoras_forum_core::dto::PostKind::Article),
         };
         let has = |k: &str| doc.fields.iter().any(|(key, _)| key == k);
         let link = if has("link") {
@@ -929,7 +930,7 @@ async fn send_edit(
     report(ctx, &t, "Edited")
 }
 
-/// `lessdugin edit <ref> [file|-] [-m text] [--title t] [--summary s] [--no-history]
+/// `pandoras-forum edit <ref> [file|-] [-m text] [--title t] [--summary s] [--no-history]
 /// [--drop-link-card] [--yes]` (`--yes` confirms what the edit suspends and the uploads of a
 /// file of the drafts directory).
 pub async fn edit(ctx: &Ctx, args: EditArgs) -> Result<(), CliError> {
@@ -1048,7 +1049,7 @@ pub async fn publish_edit_draft(ctx: &Ctx, id: &str, doc: Doc, yes: bool) -> Res
 // ---------------------------------------------------------------------------------------------
 // delete, retract
 
-/// `lessdugin delete <ref> [--yes]`.
+/// `pandoras-forum delete <ref> [--yes]`.
 pub async fn delete(ctx: &Ctx, args: DeleteArgs) -> Result<(), CliError> {
     let reader = ctx.reader().await?;
     let (uri, _) = refs::post_or_comment(ctx, &reader, &args.reference).await?;
@@ -1071,7 +1072,7 @@ pub async fn delete(ctx: &Ctx, args: DeleteArgs) -> Result<(), CliError> {
     report(ctx, &t, "Deleted")
 }
 
-/// `lessdugin retract <ref>`.
+/// `pandoras-forum retract <ref>`.
 pub async fn retract(ctx: &Ctx, args: RefArgs) -> Result<(), CliError> {
     let reader = ctx.reader().await?;
     let (uri, is_comment) = refs::post_or_comment(ctx, &reader, &args.reference).await?;

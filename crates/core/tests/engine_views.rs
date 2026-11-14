@@ -17,20 +17,20 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use common::block_on;
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     Banner, CommentSort, ForumRole, HiddenReason, ItemState, ListPostsQuery, MembersQuery,
     ModLogStatus, PostFilter, PostSort, PostView, SyncOpts, ThreadOpts, ThreadView,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
-use lessdugin_core::host::{
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
+use pandoras_forum_core::host::{
     BlobHandle, Dir, Host, HostError, HttpRequest, HttpResponse, KeyRange, KvOp, KvStore,
 };
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_testkit::fake_pds::{AccountHandle, Fault};
-use lessdugin_testkit::repo::tid_at_ms;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, Fault};
+use pandoras_forum_testkit::repo::tid_at_ms;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 use serde_json::{Map, Value, json};
 
 const MINUTE: i64 = 60_000;
@@ -83,7 +83,7 @@ impl Net {
 }
 
 fn dt(ms: i64) -> String {
-    lessdugin_atp::syntax::Datetime::from_millis(ms)
+    pandoras_forum_atp::syntax::Datetime::from_millis(ms)
         .unwrap()
         .as_str()
         .to_owned()
@@ -131,8 +131,8 @@ impl<'n> Forum<'n> {
     }
 
     fn put(&self, who: &AccountHandle, coll: &str, rkey: &str, v: &Value) -> Rec {
-        let check = lessdugin_lexicon::validity::check_uri(
-            &lessdugin_atp::syntax::AtUri::parse(&who.uri(coll, rkey)).unwrap(),
+        let check = pandoras_forum_lexicon::validity::check_uri(
+            &pandoras_forum_atp::syntax::AtUri::parse(&who.uri(coll, rkey)).unwrap(),
             v,
         );
         assert!(check.valid, "{coll}/{rkey}: {check:?}");
@@ -582,13 +582,13 @@ fn states_scores_and_badges() {
     assert_eq!(
         state_in(&t, &s.c_nina),
         Some(&ItemState::Collapsed {
-            reason: lessdugin_core::dto::CollapseReason::NewUser
+            reason: pandoras_forum_core::dto::CollapseReason::NewUser
         })
     );
     assert_eq!(
         state_in(&t, &s.c_low),
         Some(&ItemState::Collapsed {
-            reason: lessdugin_core::dto::CollapseReason::LowScore
+            reason: pandoras_forum_core::dto::CollapseReason::LowScore
         })
     );
     assert_eq!(
@@ -658,7 +658,7 @@ fn states_scores_and_badges() {
         "strongUp",
         "{mine:?}"
     );
-    assert_eq!(bp.post.tier, lessdugin_core::dto::Tier::Curated);
+    assert_eq!(bp.post.tier, pandoras_forum_core::dto::Tier::Curated);
 
     // badges: a forum pin and a lock
     let wp = post(&carol, &s.welcome);
@@ -689,7 +689,7 @@ fn states_scores_and_badges() {
     assert_eq!(
         state_in(&t, &s.c_bob),
         Some(&ItemState::Collapsed {
-            reason: lessdugin_core::dto::CollapseReason::Muted
+            reason: pandoras_forum_core::dto::CollapseReason::Muted
         })
     );
     assert_eq!(
@@ -916,7 +916,7 @@ fn sequence_engine_views_keep_unavailable_entries_and_skip_them_in_navigation() 
         keys::post_rkey(&s.f.uri, tid_at_ms(at + MINUTE).as_str()).unwrap()
     );
     let wrong_forum = format!(
-        "at://{}/{}/uetjixxr3a33-{}",
+        "at://{}/{}/nkglkm5wsp3d-{}",
         c.alice.did(),
         nsid::POST,
         tid_at_ms(at + 2 * MINUTE)
@@ -1056,7 +1056,7 @@ fn next_and_previous_follow_the_sequence_the_reader_came_from_and_continue_readi
     assert_eq!(continued(&other).unwrap().post, s.bob_post.uri);
 
     // exported and imported like the other local lists
-    let x = block_on(reader.export_local(lessdugin_core::engine::ExportScope::Mine)).unwrap();
+    let x = block_on(reader.export_local(pandoras_forum_core::engine::ExportScope::Mine)).unwrap();
     assert!(
         x.members
             .iter()
@@ -1065,7 +1065,7 @@ fn next_and_previous_follow_the_sequence_the_reader_came_from_and_continue_readi
         x.members
     );
     let report =
-        block_on(fresh.import_local(&x, lessdugin_core::engine::ExportScope::Mine)).unwrap();
+        block_on(fresh.import_local(&x, pandoras_forum_core::engine::ExportScope::Mine)).unwrap();
     assert!(
         report.kinds.iter().any(|(k, n)| k == "seqpos" && *n == 1),
         "{report:?}"
@@ -1084,7 +1084,7 @@ fn next_and_previous_follow_the_sequence_the_reader_came_from_and_continue_readi
 /// A store whose writes fail while `fail` is set.
 #[derive(Clone)]
 struct FlakyKv {
-    inner: lessdugin_core::store::mem::MemKv,
+    inner: pandoras_forum_core::store::mem::MemKv,
     fail: Arc<AtomicBool>,
 }
 
@@ -1138,7 +1138,7 @@ impl Host for FlakyStateHost {
     async fn fetch_blob(
         &self,
         pds: url::Url,
-        did: lessdugin_atp::syntax::Did,
+        did: pandoras_forum_atp::syntax::Did,
         cid: String,
         max_bytes: u64,
     ) -> Result<BlobHandle, HostError> {

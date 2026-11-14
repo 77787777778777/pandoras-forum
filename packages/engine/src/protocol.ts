@@ -148,7 +148,7 @@ export interface AuthBridgePort {
 export type StateStoreConfig =
   /** IndexedDB on this origin (hosted site). */
   | { kind: "indexeddb" }
-  /** `lessdugin web`: the native `state.sqlite` through `POST /bridge/kv` (threat-model §7.4). */
+  /** `pandoras-forum web`: the native `state.sqlite` through `POST /bridge/kv` (threat-model §7.4). */
   | {
       kind: "bridge";
       endpoint: string;
@@ -165,7 +165,7 @@ export interface WorkerInit {
   /** The NSID prefix the main thread's AuthBridge allows; the worker refuses to start when the
    * wasm build's differs. */
   namespace: string;
-  /** IndexedDB database name prefix (default `lessdugin`); stores are `<prefix>-cache`,
+  /** IndexedDB database name prefix (default `pandoras-forum`); stores are `<prefix>-cache`,
    * `<prefix>-state` and `<prefix>-blobs`. */
   dbPrefix?: string;
   /** Default `{ kind: "indexeddb" }`. */
@@ -191,12 +191,12 @@ export interface WorkerInfo {
 // ---------------------------------------------------------------------------------------------
 
 /** BroadcastChannel name for engine events between tabs. */
-export const CHANGES_CHANNEL = "lessdugin-changes";
+export const CHANGES_CHANNEL = "pandoras-forum-changes";
 /** The Web Lock held by the leader tab for its lifetime. It is also the Web Lock of the host
  * lock name `sync-leader` (`webLockName("sync-leader")`, sync.md §10.6): one leader per
  * origin, whichever asks. The worker answers its own engine's `sync-leader` request at once
  * while it leads (Web Locks are not re-entrant, worker-core.ts). */
-export const LEADER_LOCK = "lessdugin-sync-leader";
+export const LEADER_LOCK = "pandoras-forum-sync-leader";
 
 export type ChannelMessage =
   /** An engine event of another tab (`changed` and `write` events are relayed). */

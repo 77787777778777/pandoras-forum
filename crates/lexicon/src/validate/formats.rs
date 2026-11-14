@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Lexicon string formats (`/specs/lexicon`, "String Formats").
 //!
-//! The identifier formats delegate to `lessdugin-atp`'s syntax types, which pass the atproto
+//! The identifier formats delegate to `pandoras-forum-atp`'s syntax types, which pass the atproto
 //! interop fixtures. `uri` and `language` are implemented here and checked against the same
 //! fixtures (`testdata/interop/syntax/{uri,language}_*.txt`).
 
-use lessdugin_atp::cid::is_valid_cid_syntax;
-use lessdugin_atp::syntax::{
+use pandoras_forum_atp::cid::is_valid_cid_syntax;
+use pandoras_forum_atp::syntax::{
     AtIdentifier, Datetime, Did, Handle, LooseAtUri, Nsid, RecordKey, Tid,
 };
 
@@ -122,7 +122,7 @@ fn private_use(subtags: &[&str]) -> bool {
             .all(|t| (1..=8).contains(&t.len()) && alnum(t))
 }
 
-/// Parses `langtag` (RFC 5646 §2.1) with lessdugin's (and the interop fixtures') restriction
+/// Parses `langtag` (RFC 5646 §2.1) with our (and the interop fixtures') restriction
 /// that the primary language subtag is 2–3 *lowercase* letters. `None` if not well-formed.
 fn parse_langtag(s: &str) -> Option<LangParts<'_>> {
     let tags: Vec<&str> = s.split('-').collect();

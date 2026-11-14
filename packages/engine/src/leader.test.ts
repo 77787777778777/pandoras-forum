@@ -157,15 +157,15 @@ describe("ChangeRelay", () => {
 
 describe("host locks", () => {
   it("names Web Locks after the host lock", () => {
-    expect(webLockName("outbox:did:plc:abc")).toBe("lessdugin-outbox-did:plc:abc");
-    expect(webLockName("sync")).toBe("lessdugin-sync");
+    expect(webLockName("outbox:did:plc:abc")).toBe("pandoras-forum-outbox-did:plc:abc");
+    expect(webLockName("sync")).toBe("pandoras-forum-sync");
   });
 
   it("excludes holders; ifAvailable answers null; waiting resolves on release", async () => {
     const locks = new LocalLocks();
     const a = await acquireLock(locks, "outbox:did:plc:a", true);
     expect(a).not.toBeNull();
-    expect(locks.names).toEqual(["lessdugin-outbox-did:plc:a"]);
+    expect(locks.names).toEqual(["pandoras-forum-outbox-did:plc:a"]);
     expect(await acquireLock(locks, "outbox:did:plc:a", false)).toBeNull();
     // another name is independent
     const other = await acquireLock(locks, "outbox:did:plc:b", false);
@@ -193,7 +193,7 @@ describe("host locks", () => {
     const held = await acquireLock(locks, "x", true);
     const ctl = new AbortController();
     const ran: string[] = [];
-    const p = locks.request("lessdugin-x", { signal: ctl.signal }, () => {
+    const p = locks.request("pandoras-forum-x", { signal: ctl.signal }, () => {
       ran.push("aborted waiter");
     });
     ctl.abort();

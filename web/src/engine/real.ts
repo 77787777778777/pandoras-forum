@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The real engine: the Rust core compiled to wasm, running in a worker
-// (`@lessdugin/engine/client`, engine-api.md §5), with the host glue of the mode this copy of
+// (`@pandoras-forum/engine/client`, engine-api.md §5), with the host glue of the mode this copy of
 // the app is served in (synthesis §6.13):
 //
 // - hosted (the static site): the OAuth session lives on this page (host/hosted.ts, loaded
 //   only when needed); the engine's state is in IndexedDB;
-// - `lessdugin web`: the CLI keeps the session and the `state` store; the tab holds a bridge
+// - `pandoras-forum web`: the CLI keeps the session and the `state` store; the tab holds a bridge
 //   token (host/bridge.ts).
 //
 // Start-up work that must happen before the hash router mounts happens here, because the app
@@ -15,15 +15,15 @@
 // E2E builds (`VITE_E2E=1`) also take the devnet endpoints and the parity time from the test
 // harness and install the debug hook (host/e2e.ts); the module is not part of other builds.
 
-import type { EngineApi } from "@lessdugin/engine/api";
+import type { EngineApi } from "@pandoras-forum/engine/api";
 import {
   type EngineClient,
   type EngineConfigInput,
   type SessionProvider,
   startEngine,
-} from "@lessdugin/engine/client";
-import type { ActorView, EngineError } from "@lessdugin/engine/types";
-import { isEngineError } from "@lessdugin/engine/types";
+} from "@pandoras-forum/engine/client";
+import type { ActorView, EngineError } from "@pandoras-forum/engine/types";
+import { isEngineError } from "@pandoras-forum/engine/types";
 import { toasts } from "../components/Toast.tsx";
 import { bridgeLogin, bridgeSessions, bridgeToken } from "../host/bridge.ts";
 import type { HostedOAuth, HostedOAuthOptions } from "../host/hosted.ts";
@@ -159,7 +159,7 @@ async function hostedEngine(
   if (callback) await finishOAuth(callback as Record<string, string>, api, oauth);
   const login: LoginProvider = {
     description:
-      "Sign in with your atproto account. You approve lessdugin on your own server's page; your password never reaches this app.",
+      "Sign in with your atproto account. You approve Pandora's Forum on your own server's page; your password never reaches this app.",
     async login(actor: ActorView, opts) {
       const url = await (await oauth()).begin(actor.did, opts?.returnTo ?? currentRoute());
       goToSignIn(url);
@@ -178,7 +178,7 @@ async function hostedEngine(
   return { client, handle: { kind: "wasm", api, login, version: () => client.version() } };
 }
 
-// ------------------------------------------------------------------------- lessdugin web
+// ------------------------------------------------------------------------- pandoras-forum web
 
 async function bridgeEngine(config: EngineConfigInput, extra: InitExtra): Promise<Built> {
   const token = await bridgeToken(consumeBridgeCapability());
@@ -199,7 +199,7 @@ async function bridgeEngine(config: EngineConfigInput, extra: InitExtra): Promis
   const api = withFallbacks(client, { drafts: memoryDrafts() });
   const login: LoginProvider = {
     description:
-      "Sign in through the lessdugin command-line client that serves this page: it opens your server's sign-in page and keeps the session. This tab never holds it.",
+      "Sign in through the Pandora's Forum command-line client that serves this page: it opens your server's sign-in page and keeps the session. This tab never holds it.",
     async login(actor: ActorView) {
       const url = await bridgeLogin(token, actor.did);
       goToSignIn(url);
@@ -209,7 +209,7 @@ async function bridgeEngine(config: EngineConfigInput, extra: InitExtra): Promis
       const e: EngineError = {
         code: "unsupported",
         message:
-          "In lessdugin web the session belongs to the command-line client: run `lessdugin logout` in a terminal.",
+          "In pandoras-forum web the session belongs to the command-line client: run `pandoras-forum logout` in a terminal.",
         retryable: false,
       };
       throw e;
@@ -222,7 +222,7 @@ async function bridgeEngine(config: EngineConfigInput, extra: InitExtra): Promis
       api,
       login,
       notice:
-        "Local mode (lessdugin web): your sign-in stays in the lessdugin command-line client.",
+        "Local mode (pandoras-forum web): your sign-in stays in the Pandora's Forum command-line client.",
       version: () => client.version(),
     },
   };
@@ -231,7 +231,7 @@ async function bridgeEngine(config: EngineConfigInput, extra: InitExtra): Promis
 // --------------------------------------------------------------------------------- entry
 
 export interface RealEngineOptions {
-  /** Default: `lessdugin-config.json` (host/mode.ts). */
+  /** Default: `pandoras-forum-config.json` (host/mode.ts). */
   mode?: HostMode;
 }
 

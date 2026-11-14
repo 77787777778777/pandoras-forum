@@ -86,8 +86,8 @@
 
 pub mod entry;
 
-use lessdugin_atp::datamodel::{DataModelError, Limits, json_to_ipld_with, record_cid_with};
-use lessdugin_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::datamodel::{DataModelError, Limits, json_to_ipld_with, record_cid_with};
+use pandoras_forum_atp::syntax::{AtUri, Did};
 use serde_json::{Map, Value};
 
 use crate::collection::{Collection, nsid, type_matches};
@@ -534,7 +534,7 @@ impl<'a> Checker<'a> {
                     "$",
                     format!("not valid atproto data model: {e}"),
                 ),
-                Ok(ipld) => match lessdugin_atp::dagcbor::encode_with(&ipld, &limits) {
+                Ok(ipld) => match pandoras_forum_atp::dagcbor::encode_with(&ipld, &limits) {
                     Ok(bytes) if bytes.len() > RECORD_CBOR_MAX_BYTES => self.v(
                         RuleId::G6,
                         "$",
@@ -1127,7 +1127,7 @@ impl<'a> Checker<'a> {
                 }
             }
         } else if subject.starts_with("did:") {
-            match Did::parse(subject).and_then(|d| d.check_lessdugin_policy().map(|_| d)) {
+            match Did::parse(subject).and_then(|d| d.check_pandoras_forum_policy().map(|_| d)) {
                 Ok(_) => SubjectForm::Did,
                 Err(e) => {
                     self.v(
@@ -1360,8 +1360,8 @@ impl<'a> Checker<'a> {
 }
 
 /// `true` if the CID string `s` (any multibase) denotes `cid`.
-fn cid_equal(cid: &lessdugin_atp::Cid, s: &str) -> bool {
-    cid.to_string() == s || lessdugin_atp::Cid::try_from(s).is_ok_and(|c| &c == cid)
+fn cid_equal(cid: &pandoras_forum_atp::Cid, s: &str) -> bool {
+    cid.to_string() == s || pandoras_forum_atp::Cid::try_from(s).is_ok_and(|c| &c == cid)
 }
 
 /// Validates only the lexicon part (G2/G3/G10-style report) of a snapshot `record` for its

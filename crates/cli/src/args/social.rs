@@ -6,7 +6,7 @@
 //! `<handle>/<rkey>`); actor references are a handle or a DID.
 
 use clap::{Args, Subcommand, ValueEnum};
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     AccessLevel, AgreementValue, Capability, KarmaCadence, KarmaValue, ModActionValue, ModRole,
     ModScope, OpinionIntent, Stance, TextQuote, Tier,
 };
@@ -128,7 +128,7 @@ pub struct ReactArgs {
     /// The post or comment.
     #[arg(value_name = "REF")]
     pub reference: String,
-    /// A react of the forum's palette (`lessdugin reacts` lists the default one).
+    /// A react of the forum's palette (`pandoras-forum reacts` lists the default one).
     #[arg(value_name = "REACT")]
     pub react: String,
     /// Anchor the react to this quoted passage of the item's text.
@@ -560,9 +560,9 @@ pub enum CapabilityArg {
     Sequence,
 }
 
-impl From<CapabilityArg> for lessdugin_core::dto::Capability {
+impl From<CapabilityArg> for pandoras_forum_core::dto::Capability {
     fn from(c: CapabilityArg) -> Self {
-        use lessdugin_core::dto::Capability as C;
+        use pandoras_forum_core::dto::Capability as C;
         match c {
             CapabilityArg::Post => C::Post,
             CapabilityArg::Comment => C::Comment,
@@ -605,11 +605,11 @@ pub enum PinScopeArg {
     Forum,
 }
 
-impl From<PinScopeArg> for lessdugin_core::dto::PinScope {
+impl From<PinScopeArg> for pandoras_forum_core::dto::PinScope {
     fn from(s: PinScopeArg) -> Self {
         match s {
-            PinScopeArg::Thread => lessdugin_core::dto::PinScope::Thread,
-            PinScopeArg::Forum => lessdugin_core::dto::PinScope::Forum,
+            PinScopeArg::Thread => pandoras_forum_core::dto::PinScope::Thread,
+            PinScopeArg::Forum => pandoras_forum_core::dto::PinScope::Forum,
         }
     }
 }

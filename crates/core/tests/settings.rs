@@ -3,12 +3,12 @@
 
 mod common;
 
-use lessdugin_core::engine::{
+use pandoras_forum_core::engine::{
     AccountInfo, Engine, EngineConfig, EngineError, ErrorCode, ExportScope, SETTINGS, Sources,
 };
-use lessdugin_core::host::{Host, KvOp, KvStore};
-use lessdugin_testkit::identity::{DOH, PLC, install_doc, install_nxdomain};
-use lessdugin_testkit::{FakePds, MemHost, resp};
+use pandoras_forum_core::host::{Host, KvOp, KvStore};
+use pandoras_forum_testkit::identity::{DOH, PLC, install_doc, install_nxdomain};
+use pandoras_forum_testkit::{FakePds, MemHost, resp};
 use serde_json::{Value, json};
 
 fn block_on<F: std::future::Future>(f: F) -> F::Output {
@@ -40,19 +40,19 @@ fn a_setting_round_trips_and_clearing_it_returns_to_the_default() {
     let e = engine();
     // the defaults, before anything is chosen
     let d = block_on(e.settings()).unwrap();
-    assert_eq!(d.sources, lessdugin_core::dto::Sources::Assisted);
-    assert_eq!(d.verify, lessdugin_core::dto::VerifyMode::Pds);
+    assert_eq!(d.sources, pandoras_forum_core::dto::Sources::Assisted);
+    assert_eq!(d.verify, pandoras_forum_core::dto::VerifyMode::Pds);
     assert!(d.media_autoload_hosts.is_empty());
     set(&e, "sources", Some("direct")).unwrap();
     assert_eq!(
         block_on(e.settings()).unwrap().sources,
-        lessdugin_core::dto::Sources::Direct
+        pandoras_forum_core::dto::Sources::Direct
     );
     // clearing it returns to the default
     set(&e, "sources", None).unwrap();
     assert_eq!(
         block_on(e.settings()).unwrap().sources,
-        lessdugin_core::dto::Sources::Assisted
+        pandoras_forum_core::dto::Sources::Assisted
     );
 }
 
@@ -67,7 +67,7 @@ fn an_unknown_setting_is_refused_rather_than_stored() {
     );
     assert_eq!(
         block_on(e.settings()).unwrap().sources,
-        lessdugin_core::dto::Sources::Assisted,
+        pandoras_forum_core::dto::Sources::Assisted,
         "a typo stores nothing"
     );
 }
@@ -99,8 +99,8 @@ fn a_value_the_setting_cannot_mean_is_refused() {
         set(&e, key, Some(good)).unwrap();
     }
     let s = block_on(e.settings()).unwrap();
-    assert_eq!(s.sources, lessdugin_core::dto::Sources::Assisted);
-    assert_eq!(s.verify, lessdugin_core::dto::VerifyMode::Pds);
+    assert_eq!(s.sources, pandoras_forum_core::dto::Sources::Assisted);
+    assert_eq!(s.verify, pandoras_forum_core::dto::VerifyMode::Pds);
 }
 
 /// `verify = proof` (background verification) is Reserved (sync.md 2.3): nothing implements
@@ -116,7 +116,7 @@ fn verify_proof_is_refused_rather_than_stored() {
     );
     assert_eq!(
         block_on(e.settings()).unwrap().verify,
-        lessdugin_core::dto::VerifyMode::Pds
+        pandoras_forum_core::dto::VerifyMode::Pds
     );
     let x = block_on(e.export_local(ExportScope::Everything)).unwrap();
     assert!(x.members.is_empty(), "nothing was stored: {:?}", x.members);
@@ -153,7 +153,7 @@ fn the_sources_setting_applies_at_once_and_after_a_restart() {
     set(&e, "sources", Some("direct")).unwrap();
     assert_eq!(
         block_on(e.settings()).unwrap().sources,
-        lessdugin_core::dto::Sources::Direct
+        pandoras_forum_core::dto::Sources::Direct
     );
     assert!(block_on(e.resolve_actor("alice.example.com")).is_err());
     assert!(
@@ -184,7 +184,7 @@ fn the_sources_setting_applies_at_once_and_after_a_restart() {
     );
     assert_eq!(
         block_on(flagged.settings()).unwrap().sources,
-        lessdugin_core::dto::Sources::Assisted
+        pandoras_forum_core::dto::Sources::Assisted
     );
     let a = block_on(flagged.resolve_actor("alice.example.com")).unwrap();
     assert_eq!(a.did, common::alice().did.as_str());
@@ -238,8 +238,8 @@ fn every_documented_setting_is_known() {
     }
     // every documented setting is accepted and visible through the object
     let s = block_on(e.settings()).unwrap();
-    assert_eq!(s.sources, lessdugin_core::dto::Sources::Assisted);
-    assert_eq!(s.verify, lessdugin_core::dto::VerifyMode::Pds);
+    assert_eq!(s.sources, pandoras_forum_core::dto::Sources::Assisted);
+    assert_eq!(s.verify, pandoras_forum_core::dto::VerifyMode::Pds);
     assert_eq!(s.media_autoload_hosts, vec!["a.example".to_owned()]);
 }
 
@@ -247,7 +247,7 @@ fn every_documented_setting_is_known() {
 fn drafts_round_trip_overwrite_and_delete() {
     // engine-api.md §3.6 (M4). The SPA's composer autosaves through these, so a no-op here would
     // silently lose every draft; there was no store at all before M4.
-    use lessdugin_core::dto::{BodyDraft, Draft, PostDraft};
+    use pandoras_forum_core::dto::{BodyDraft, Draft, PostDraft};
     let (_host, _pds, e) = with_account();
     assert!(
         block_on(e.drafts()).unwrap().is_empty(),
@@ -257,8 +257,8 @@ fn drafts_round_trip_overwrite_and_delete() {
     let draft = Draft::Post {
         id: None,
         post: PostDraft {
-            forum: "at://did:plc:alice/online.7778777.lessdugin.temp.forum/meta".into(),
-            kind: lessdugin_core::dto::PostKind::Article,
+            forum: "at://did:plc:alice/forum.pandoras.temp.forum/meta".into(),
+            kind: pandoras_forum_core::dto::PostKind::Article,
             title: Some("A question".into()),
             body: BodyDraft::text("half-written"),
             tags: Vec::new(),
@@ -276,8 +276,8 @@ fn drafts_round_trip_overwrite_and_delete() {
     let updated = Draft::Post {
         id: Some(id.clone()),
         post: PostDraft {
-            forum: "at://did:plc:alice/online.7778777.lessdugin.temp.forum/meta".into(),
-            kind: lessdugin_core::dto::PostKind::Article,
+            forum: "at://did:plc:alice/forum.pandoras.temp.forum/meta".into(),
+            kind: pandoras_forum_core::dto::PostKind::Article,
             title: Some("A question".into()),
             body: BodyDraft::text("finished"),
             tags: Vec::new(),
@@ -309,18 +309,18 @@ fn settings_is_an_object_with_the_clients_list_fields() {
     assert!(s.media_autoload_hosts.is_empty());
     assert!(s.acknowledged_public_actions.is_empty());
     // and the scalar fields report their documented defaults
-    assert_eq!(s.sources, lessdugin_core::dto::Sources::Assisted);
-    assert_eq!(s.verify, lessdugin_core::dto::VerifyMode::Pds);
+    assert_eq!(s.sources, pandoras_forum_core::dto::Sources::Assisted);
+    assert_eq!(s.verify, pandoras_forum_core::dto::VerifyMode::Pds);
     assert_eq!(
         s.karma_notifications,
-        lessdugin_core::dto::KarmaCadence::Daily
+        pandoras_forum_core::dto::KarmaCadence::Daily
     );
 
     // a chosen value shows through the same object
     set(&e, "sources", Some("direct")).unwrap();
     set(&e, "mediaHosts", Some("a.example,b.example")).unwrap();
     let s = block_on(e.settings()).unwrap();
-    assert_eq!(s.sources, lessdugin_core::dto::Sources::Direct);
+    assert_eq!(s.sources, pandoras_forum_core::dto::Sources::Direct);
     assert_eq!(
         s.media_autoload_hosts,
         vec!["a.example".to_owned(), "b.example".to_owned()]
@@ -332,9 +332,9 @@ fn settings_is_an_object_with_the_clients_list_fields() {
 /// it to its default.
 #[test]
 fn every_settings_field_persists_through_set_setting() {
-    use lessdugin_core::dto::{KarmaCadence, PublicActionKind, Sources, VerifyMode};
+    use pandoras_forum_core::dto::{KarmaCadence, PublicActionKind, Sources, VerifyMode};
     let (_host, _pds, e) = with_account();
-    let forum = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.temp.forum/meta";
+    let forum = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.temp.forum/meta";
     for (k, v) in [
         ("sources", json!("direct")),
         ("verify", json!("pds")),
@@ -397,14 +397,14 @@ fn every_settings_field_persists_through_set_setting() {
     }
 }
 
-fn post_draft(text: &str) -> lessdugin_core::dto::Draft {
-    lessdugin_core::dto::Draft::Post {
+fn post_draft(text: &str) -> pandoras_forum_core::dto::Draft {
+    pandoras_forum_core::dto::Draft::Post {
         id: None,
-        post: lessdugin_core::dto::PostDraft {
-            forum: "at://did:plc:alice/online.7778777.lessdugin.temp.forum/meta".into(),
-            kind: lessdugin_core::dto::PostKind::Article,
+        post: pandoras_forum_core::dto::PostDraft {
+            forum: "at://did:plc:alice/forum.pandoras.temp.forum/meta".into(),
+            kind: pandoras_forum_core::dto::PostKind::Article,
             title: Some("A question".into()),
-            body: lessdugin_core::dto::BodyDraft::text(text),
+            body: pandoras_forum_core::dto::BodyDraft::text(text),
             tags: Vec::new(),
             labels: Vec::new(),
             link: None,
@@ -451,7 +451,7 @@ fn drafts_belong_to_the_account_that_saved_them() {
 /// the cap on the number of drafts counts the rows that do not decode too.
 #[test]
 fn drafts_are_capped_in_size_and_number_and_never_share_an_id() {
-    use lessdugin_core::engine::{DRAFT_MAX_BYTES, MAX_DRAFTS};
+    use pandoras_forum_core::engine::{DRAFT_MAX_BYTES, MAX_DRAFTS};
     let (host, _pds, e) = with_account();
     let err = block_on(e.save_draft(&post_draft(&"x".repeat(DRAFT_MAX_BYTES)))).unwrap_err();
     assert_eq!(err.code, ErrorCode::TooLarge, "{err:?}");
@@ -468,7 +468,7 @@ fn drafts_are_capped_in_size_and_number_and_never_share_an_id() {
         .map(|i| {
             let id = format!("junk{i}");
             KvOp::Put(
-                lessdugin_core::store::key::encode(&[
+                pandoras_forum_core::store::key::encode(&[
                     "loc".into(),
                     "draft".into(),
                     alice.as_str().into(),
@@ -483,16 +483,15 @@ fn drafts_are_capped_in_size_and_number_and_never_share_an_id() {
         host.advance_ms(1);
         block_on(e.save_draft(&post_draft(&format!("draft {i}")))).unwrap();
     }
-    let rows = block_on(host.state().scan(
-        lessdugin_core::host::KeyRange::prefix(&lessdugin_core::store::key::encode(&[
-            "loc".into(),
-            "draft".into(),
-            alice.as_str().into(),
-        ])),
-        lessdugin_core::host::Dir::Forward,
-        1000,
-    ))
-    .unwrap();
+    let rows =
+        block_on(host.state().scan(
+            pandoras_forum_core::host::KeyRange::prefix(&pandoras_forum_core::store::key::encode(
+                &["loc".into(), "draft".into(), alice.as_str().into()],
+            )),
+            pandoras_forum_core::host::Dir::Forward,
+            1000,
+        ))
+        .unwrap();
     assert_eq!(rows.len(), MAX_DRAFTS, "every row counts toward the cap");
     assert!(
         rows.iter().all(|(_, v)| v.as_slice() != b"not json"),

@@ -3,7 +3,7 @@
 // durable, sent one at a time per account, and survive a reload; this page shows why each one
 // waits, retries a failed one and undoes one still in its undo window.
 
-import type { WriteState } from "@lessdugin/engine/types";
+import type { WriteState } from "@pandoras-forum/engine/types";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { errorMessage } from "../components/Status.tsx";

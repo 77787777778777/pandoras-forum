@@ -3,7 +3,7 @@
 // The viewer's own newcomer post (social.md §10.3): listed like any other post, with the
 // "collapsed for other readers" label; everyone else sees it collapsed.
 
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderWithApp } from "../test/render.tsx";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Response headers and limits of `lessdugin web` (`threat-model.md` §6, §7; `limits.md` §18).
+//! Response headers and limits of `pandoras-forum web` (`threat-model.md` §6, §7; `limits.md` §18).
 //!
 //! Every response — static file, bridge answer, error, the OAuth callback — carries the §6.1
 //! Content Security Policy (§6.2 under `--dev`) and the §6.3 headers ([`apply`]), and none
@@ -19,7 +19,8 @@ pub const BRIDGE_JSON_MAX_BODY_BYTES: usize = 1_048_576;
 /// `BRIDGE_KV_MAX_BODY_BYTES`: one `/bridge/kv` request.
 pub const BRIDGE_KV_MAX_BODY_BYTES: usize = 67_108_864;
 /// `uploadBlob` bodies (`BLOB_HARD_MAX_BYTES`).
-pub const BRIDGE_BLOB_MAX_BODY_BYTES: usize = lessdugin_core::limits::BLOB_HARD_MAX_BYTES as usize;
+pub const BRIDGE_BLOB_MAX_BODY_BYTES: usize =
+    pandoras_forum_core::limits::BLOB_HARD_MAX_BYTES as usize;
 /// `OAUTH_LOGIN_TTL_MS`: a pending bridge login expires after this (`limits.md` §16).
 pub const OAUTH_LOGIN_TTL_MS: u64 = 600_000;
 /// Unused capabilities kept at most (older ones are dropped when more links are minted).
@@ -45,7 +46,7 @@ pub const PRODUCTION_CSP: &str = "default-src 'none'; script-src 'self' 'wasm-un
     worker-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob:; media-src blob:; \
     connect-src 'self' https: wss:; object-src 'none'; base-uri 'none'; form-action 'none'; \
     frame-ancestors 'none'; require-trusted-types-for 'script'; \
-    trusted-types lessdugin-md lessdugin-worker dompurify";
+    trusted-types pandoras-forum-md pandoras-forum-worker dompurify";
 
 /// The §6.2 development policy (`--dev` only): the production policy with
 /// `connect-src 'self' https: wss: http: ws:`.
@@ -53,7 +54,7 @@ pub const DEV_CSP: &str = "default-src 'none'; script-src 'self' 'wasm-unsafe-ev
     worker-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' blob:; media-src blob:; \
     connect-src 'self' https: wss: http: ws:; object-src 'none'; base-uri 'none'; \
     form-action 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'; \
-    trusted-types lessdugin-md lessdugin-worker dompurify";
+    trusted-types pandoras-forum-md pandoras-forum-worker dompurify";
 
 /// The §6.3 headers sent on every response.
 pub const COMMON_HEADERS: [(&str, &str); 4] = [

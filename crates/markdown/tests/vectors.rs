@@ -6,7 +6,7 @@
 //! against the invariants of §13: the allowlist checker, idempotence, the Temml-mode output,
 //! the terminal escape invariant, and (feature `ammonia`) `ammonia(html) == html`.
 //!
-//! `LESSDUGIN_BLESS=1 cargo test -p lessdugin-markdown --test vectors` rewrites the expected
+//! `PANDORAS_FORUM_BLESS=1 cargo test -p pandoras-forum-markdown --test vectors` rewrites the expected
 //! values in place (review the diff before committing).
 //!
 //! The expected `html` values are the math-core output, so this runner needs the default
@@ -23,10 +23,10 @@ use std::path::{Path, PathBuf};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
-use lessdugin_markdown::allowlist::check_html;
-use lessdugin_markdown::printer::{PrintOpts, check_printer_output, print_doc};
-use lessdugin_markdown::quote::find_first;
-use lessdugin_markdown::{
+use pandoras_forum_markdown::allowlist::check_html;
+use pandoras_forum_markdown::printer::{PrintOpts, check_printer_output, print_doc};
+use pandoras_forum_markdown::quote::find_first;
+use pandoras_forum_markdown::{
     HrefCtx, MathMode, MediaItem, QuoteTarget, RenderOpts, Rendered, TermCtx, TextQuote,
     derive_metadata, plain_projection, qkey, render_with_math_mode, resolve_quote, safe_href,
     short_did, term_sanitize,
@@ -155,7 +155,10 @@ fn render_input(input: &Value, mode: MathMode) -> Rendered {
     let media = input_media(input);
     let profile = input.get("profile").and_then(Value::as_str);
     if input.get("encoding_error").and_then(Value::as_bool) == Some(true) {
-        return lessdugin_markdown::render_error(lessdugin_markdown::BodyError::Encoding, profile);
+        return pandoras_forum_markdown::render_error(
+            pandoras_forum_markdown::BodyError::Encoding,
+            profile,
+        );
     }
     render_with_math_mode(&text, &media, profile, &RenderOpts::ALL, mode)
 }
@@ -375,7 +378,7 @@ fn mathml_invariants(name: &str, input: &Value, html: &str) -> Vec<String> {
         .get("display")
         .and_then(Value::as_bool)
         .unwrap_or(false);
-    let unknown = lessdugin_markdown::math::unknown_engine_styles(tex, display);
+    let unknown = pandoras_forum_markdown::math::unknown_engine_styles(tex, display);
     if !unknown.is_empty() {
         errs.push(format!(
             "{name}: unknown math-core styles dropped: {unknown:?}"
@@ -383,7 +386,7 @@ fn mathml_invariants(name: &str, input: &Value, html: &str) -> Vec<String> {
     }
     #[cfg(feature = "ammonia")]
     {
-        let a = lessdugin_markdown::allowlist::ammonia_clean(html);
+        let a = pandoras_forum_markdown::allowlist::ammonia_clean(html);
         if a != html {
             errs.push(format!(
                 "{name}: ammonia changed the output:\n  ours:    {html:?}\n  ammonia: {a:?}"
@@ -464,14 +467,14 @@ fn invariants(name: &str, input: &Value, r: &Rendered, t: &Rendered) -> Vec<Stri
     }
     #[cfg(feature = "ammonia")]
     {
-        let a = lessdugin_markdown::allowlist::ammonia_clean(&r.html);
+        let a = pandoras_forum_markdown::allowlist::ammonia_clean(&r.html);
         if a != r.html {
             errs.push(format!(
                 "{name}: ammonia changed the output:\n  ours:    {:?}\n  ammonia: {a:?}",
                 r.html
             ));
         }
-        let a = lessdugin_markdown::allowlist::ammonia_clean(&t.html);
+        let a = pandoras_forum_markdown::allowlist::ammonia_clean(&t.html);
         if a != t.html {
             errs.push(format!(
                 "{name}: ammonia changed the temml output:\n  ours:    {:?}\n  ammonia: {a:?}",
@@ -516,10 +519,10 @@ fn escape_invisibles(json: &str) -> String {
 
 #[test]
 fn vectors() {
-    let bless_all = std::env::var("LESSDUGIN_BLESS").is_ok_and(|v| v == "1");
-    // `LESSDUGIN_BLESS_ONLY=lfm1/a.json,xss/b.json` limits blessing to those files; the
+    let bless_all = std::env::var("PANDORAS_FORUM_BLESS").is_ok_and(|v| v == "1");
+    // `PANDORAS_FORUM_BLESS_ONLY=lfm1/a.json,xss/b.json` limits blessing to those files; the
     // others are checked as usual.
-    let bless_only: Option<Vec<String>> = std::env::var("LESSDUGIN_BLESS_ONLY")
+    let bless_only: Option<Vec<String>> = std::env::var("PANDORAS_FORUM_BLESS_ONLY")
         .ok()
         .map(|v| v.split(',').map(|f| f.trim().to_owned()).collect());
     let mut failures: Vec<String> = Vec::new();

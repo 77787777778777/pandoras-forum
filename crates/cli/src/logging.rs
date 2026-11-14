@@ -6,7 +6,7 @@
 
 use std::io::Write;
 
-use lessdugin_native::auth::redact::redact_secrets;
+use pandoras_forum_native::auth::redact::redact_secrets;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::fmt::MakeWriter;
 
@@ -71,8 +71,12 @@ fn default_filter(verbose: u8, quiet: bool) -> &'static str {
     }
     match verbose {
         0 => "warn",
-        1 => "warn,lessdugin=debug,lessdugin_core=debug,lessdugin_native=debug,lessdugin_atp=debug",
-        2 => "info,lessdugin=trace,lessdugin_core=trace,lessdugin_native=trace,lessdugin_atp=trace",
+        1 => {
+            "warn,pandoras_forum=debug,pandoras_forum_core=debug,pandoras_forum_native=debug,pandoras_forum_atp=debug"
+        }
+        2 => {
+            "info,pandoras_forum=trace,pandoras_forum_core=trace,pandoras_forum_native=trace,pandoras_forum_atp=trace"
+        }
         _ => "trace",
     }
 }

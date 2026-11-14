@@ -16,8 +16,8 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::values::Voting;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::values::Voting;
 
 use crate::social::full::cids;
 use crate::social::full::cx::Cx;

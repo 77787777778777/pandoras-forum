@@ -10,8 +10,8 @@ use wasm_bindgen_test::wasm_bindgen_test as test;
 
 use std::collections::BTreeMap;
 
-use lessdugin_atp::Cid;
-use lessdugin_atp::mst::{self, Proof};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::mst::{self, Proof};
 
 #[test]
 fn key_heights() {
@@ -49,7 +49,7 @@ fn example_keys_have_their_heights() {
 }
 
 fn cid(s: &serde_json::Value) -> Cid {
-    lessdugin_atp::cid::parse(s.as_str().unwrap()).unwrap()
+    pandoras_forum_atp::cid::parse(s.as_str().unwrap()).unwrap()
 }
 
 fn strs(v: &serde_json::Value) -> Vec<String> {

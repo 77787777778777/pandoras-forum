@@ -12,16 +12,16 @@ mod common;
 use std::sync::{Arc, Mutex};
 
 use common::{assert_send, block_on};
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     BodyDraft, CommentDraft, CommentSort, DefaultTier, Draft, EditOpts, Event, ForumDraft,
     ForumRole, ItemState, ListPostsQuery, MembersQuery, MembershipMode, PostDraft, PostFilter,
     PostKind, PostSort, SyncOpts, ThreadOpts, ThreadRoot, Topic, VersionRef, WriteState,
     WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::AccountHandle;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::AccountHandle;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 
 const MINUTE: i64 = 60_000;
 
@@ -456,7 +456,7 @@ fn events_report_writes_syncs_and_changes() {
         if let Event::Changed { .. } = ev {
             *n.lock().unwrap() += 1;
             // re-entrant use of the engine is fine: nothing is delivered until this returns
-            e2.unsubscribe(lessdugin_core::engine::SubscriptionId(u64::MAX));
+            e2.unsubscribe(pandoras_forum_core::engine::SubscriptionId(u64::MAX));
         }
     });
     block_on(bob.engine.forum_follow(&s.forum, None)).unwrap();
@@ -505,7 +505,7 @@ fn writes_need_an_account_and_publish_media() {
     let host = MemHost::new();
     let _net = FakeNet::on(&host);
     let e = Engine::new(host.clone(), EngineConfig::default());
-    let f = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/online.7778777.lessdugin.forum/meta";
+    let f = "at://did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/forum.pandoras.forum/meta";
     let err = block_on(e.publish(&PostDraft::article(f, "t", "b"))).unwrap_err();
     assert_eq!(err.code, ErrorCode::AuthRequired);
     let err = block_on(e.list_posts(&ListPostsQuery::new("not a forum"))).unwrap_err();
@@ -521,10 +521,10 @@ fn writes_need_an_account_and_publish_media() {
     // store and would make publish refuse - which is the guard that exists because the devnet
     // answered such a publish with `BlobNotFound (HTTP 400)`.
     // a whole PNG: one the media pipeline cannot parse to its end is refused (fail closed)
-    let png = lessdugin_testkit::fake_pds::tiny_png(1);
+    let png = pandoras_forum_testkit::fake_pds::tiny_png(1);
     let prepared = block_on(bob.engine.prepare_media(
         png,
-        &lessdugin_core::dto::MediaInput {
+        &pandoras_forum_core::dto::MediaInput {
             declared_mime: Some("image/png".into()),
             alt: Some("an image".into()),
             name: None,
@@ -738,7 +738,7 @@ fn the_mod_log_is_never_redacted() {
         err.detail.as_ref().and_then(|d| d.get("kind")),
         Some(&serde_json::json!("modLog"))
     );
-    let fk = lessdugin_lexicon::keys::fk(&s.forum).unwrap();
+    let fk = pandoras_forum_lexicon::keys::fk(&s.forum).unwrap();
     let h16 = "a".repeat(16);
     for p in [fk.clone(), format!("{fk}-{h16}")] {
         let uri = format!("at://{did}/{}/{p}-3l2s5xxv2zab2", nsid::REVISION);

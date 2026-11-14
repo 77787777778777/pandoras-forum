@@ -31,14 +31,14 @@ wait_for_fixture() {
 
 cd "$(dirname "$0")/.."
 export LD_LIBRARY_PATH="$(dirname "$(gcc -print-file-name=libstdc++.so.6)")${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-state="${LESSDUGIN_COLD_START_STATE:-${TMPDIR:-/tmp}/lessdugin-m6-cold-start}"
+state="${PANDORAS_FORUM_COLD_START_STATE:-${TMPDIR:-/tmp}/pandoras-forum-m6-cold-start}"
 mkdir -p "$state"
 fixture="$state/fixture.json"
-results="${LESSDUGIN_COLD_START_RESULTS:-$state/results.json}"
-export LESSDUGIN_COLD_START_JSON="$fixture"
-export LESSDUGIN_COLD_START_RESULTS="$results"
-export LESSDUGIN_COLD_START_COMMAND="scripts/m6-cold-start.sh"
-cargo build --release -p lessdugin-indexer --features devnet --example cold_start_devnet
+results="${PANDORAS_FORUM_COLD_START_RESULTS:-$state/results.json}"
+export PANDORAS_FORUM_COLD_START_JSON="$fixture"
+export PANDORAS_FORUM_COLD_START_RESULTS="$results"
+export PANDORAS_FORUM_COLD_START_COMMAND="scripts/m6-cold-start.sh"
+cargo build --release -p pandoras-forum-indexer --features devnet --example cold_start_devnet
 # The state directory persists between local runs: an earlier run's fixture names endpoints
 # that are gone.
 rm -f "$fixture"
@@ -51,6 +51,6 @@ cleanup() {
 trap cleanup EXIT
 wait_for_fixture "$pid" "$fixture" "$state/fixture.log"
 cargo xtask wasm
-pnpm --filter @lessdugin/web run build:e2e
-pnpm --filter @lessdugin/web exec playwright test -c e2e/cold-start/cold-start.config.ts
+pnpm --filter @pandoras-forum/web run build:e2e
+pnpm --filter @pandoras-forum/web exec playwright test -c e2e/cold-start/cold-start.config.ts
 printf 'M6 cold-start evidence: %s\n' "$results"

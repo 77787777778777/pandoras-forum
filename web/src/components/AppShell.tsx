@@ -3,7 +3,7 @@
 // account menu; the main landmark (focused on every route change); a bottom navigation bar on
 // small screens; and the toast region.
 
-import type { Href } from "@lessdugin/engine/types";
+import type { Href } from "@pandoras-forum/engine/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -233,7 +233,7 @@ function EngineBanner() {
 
 /** Where the Corresponding Source of this build is offered (AGPL-3.0 §13; threat-model SITE-2). */
 const SOURCE_URL: string =
-  import.meta.env.VITE_SOURCE_URL || "https://github.com/77787777778777/lessdugin";
+  import.meta.env.VITE_SOURCE_URL || "https://github.com/77787777778777/pandoras-forum";
 
 function sourceHref(url: string): Href | null {
   try {
@@ -321,7 +321,7 @@ export function AppShell() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link to="/" className={styles.brand}>
-            LessDugin
+            Pandora's Forum
           </Link>
           <ForumSwitcher />
           <SearchBox />
@@ -373,8 +373,8 @@ export function AppShell() {
       </nav>
       <footer className={styles.footer}>
         <p>
-          LessDugin: a forum whose database is your own PDS. Free software under the GNU AGPL v3 or
-          later
+          Pandora's Forum: a forum whose database is your own PDS. Free software under the GNU AGPL
+          v3 or later
           {source && (
             <>
               {": "}

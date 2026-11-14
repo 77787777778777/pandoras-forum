@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { EngineApi } from "@lessdugin/engine/api";
+import type { EngineApi } from "@pandoras-forum/engine/api";
 import { describe, expect, it, vi } from "vitest";
 import { startEngineTasks, syncProgress } from "./sync.ts";
 

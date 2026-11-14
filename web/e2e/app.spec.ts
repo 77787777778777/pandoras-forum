@@ -230,7 +230,7 @@ test.describe("production headers", () => {
     // Nothing may leave the machine; the settings page needs no network.
     await page.route(/^(?!http:\/\/127\.0\.0\.1[:/])/, (r) => r.abort());
     await page.goto(`${server.url}/#/settings`);
-    // The version comes from the wasm, through the worker created via the `lessdugin-worker`
+    // The version comes from the wasm, through the worker created via the `pandoras-forum-worker`
     // Trusted Types policy.
     // If the worker never comes up, the REASON is what matters: a page error, a console error or
     // a CSP violation says why. Asserting only on the text turns every cause into one 30 s

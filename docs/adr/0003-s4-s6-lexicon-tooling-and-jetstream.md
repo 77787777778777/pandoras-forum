@@ -1,15 +1,20 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 # ADR 0003 — S4/S6: digit NSID tooling, Jetstream wildcard, relay and Constellation discovery
 
-- Status: Accepted
+- Status: Accepted; decision 1 is superseded by ADR 0011
 - Date: 2026-10-16
+- Amended: 2026-11-14. The spike ran with the namespace of the time, `online.7778777.…`, under
+  the owner's personal domain: its second segment is all digits, which is what S4 tested. ADR 0011
+  moved the namespace to `forum.pandoras`, and this record now writes the project's NSIDs in that
+  form. The tools were not run again: an authority of letters only raises none of the questions
+  below. The `7778777.online.post` control rows are as they were run.
 - Spikes: S4 (NSID through tooling; Jetstream wildcard; relay `listReposByCollection`;
   Constellation `source=`) and S6 (Jetstream wildcard plus rkey-prefix filtering). The S4 items about
   `validate`-unset writes, nested blob refs and blob GC are in ADR 0005.
 
 ## Context
 
-- The namespace is `online.7778777.lessdugin` (synthesis §2.1). Its second segment is all digits.
+- The namespace was `online.7778777.…` (synthesis §2.1). Its second segment is all digits.
   NSID syntax forbids a leading digit only in the first segment, but every tool on our path has to
   agree, including `goat lex lint`/`check-dns` in CI and the TypeScript and Go validators.
 - Assisted mode (§3.4) subscribes to Jetstream with `wantedCollections=NS.*` and filters by the fk
@@ -23,7 +28,7 @@
 ## Method
 
 All network requests were read-only and sent with
-`User-Agent: lessdugin-spike/0.0 (+https://lessdugin.7778777.online)`. Totals: 10 Jetstream
+`User-Agent: pandoras-forum-spike/0.0 (+https://pandoras.forum)`. Totals: 10 Jetstream
 connections (each ≤ 8 s), 7 relay requests, 10 Constellation requests. Throwaway scripts lived in the
 session scratch directory. Tool versions: `@atproto/syntax` 0.7.7, `@atproto/lexicon` 0.7.16,
 `goat` v0.2.6, Node 22.22.0, `ws` 8.22.0 (through the sandbox's HTTPS proxy).
@@ -34,34 +39,34 @@ session scratch directory. Tool versions: `@atproto/syntax` 0.7.7, `@atproto/lex
 import { isValidNsid, ensureValidNsid, NSID, isValidRecordKey } from '@atproto/syntax'
 import { Lexicons } from '@atproto/lexicon'
 // for each id: isValidNsid(id), ensureValidNsid(id), NSID.parse(id).authority
-// new Lexicons().add({ lexicon:1, id:'online.7778777.lessdugin.temp.post', defs:{ main:{ type:'record', key:'any', … } } })
+// new Lexicons().add({ lexicon:1, id:'forum.pandoras.temp.post', defs:{ main:{ type:'record', key:'any', … } } })
 // then lex.validate(...) and lex.assertValidRecord(...)
 ```
 
 ```sh
-goat syntax nsid check online.7778777.lessdugin.post            # and the ids in the table below
+goat syntax nsid check forum.pandoras.post            # and the ids in the table below
 goat syntax rkey check 'aaaaaaaaaaaa.'                          # range cursor string (ADR 0004)
-goat syntax at-uri check at://did:plc:abc/online.7778777.lessdugin.post/aaaaaaaaaaaa-3lzz
-# lexicons/online/7778777/lessdugin/temp/{post,defs}.json: a record with a ref to defs#media{blob}
-goat lex parse lexicons/online/7778777/lessdugin/temp/*.json
+goat syntax at-uri check at://did:plc:abc/forum.pandoras.post/aaaaaaaaaaaa-3lzz
+# lexicons/forum/pandoras/temp/{post,defs}.json: a record with a ref to defs#media{blob}
+goat lex parse lexicons/forum/pandoras/temp/*.json
 goat lex lint                       # and: goat lex lint --json --lint-level info
 goat lex validate -c lexicons rec.json
 goat lex check-dns
-goat lex resolve online.7778777.lessdugin.temp.post
+goat lex resolve forum.pandoras.temp.post
 ```
 
 **(b) Jetstream.** A Node `ws` client recorded the upgrade response, counted events by kind and
 collection, and kept the first event of each kind:
 
 ```
-wss://jetstream.us-east.bsky.network/subscribe?wantedCollections=online.7778777.lessdugin.*         8 s
+wss://jetstream.us-east.bsky.network/subscribe?wantedCollections=forum.pandoras.*         8 s
 wss://jetstream.us-east.bsky.network/subscribe?wantedCollections=app.bsky.feed.*                    5 s
-wss://jetstream.us-east.bsky.network/subscribe?wantedCollections=online.7778777.lessdugin.*&requireHello=true&cursor=<now−5 s µs>
+wss://jetstream.us-east.bsky.network/subscribe?wantedCollections=forum.pandoras.*&requireHello=true&cursor=<now−5 s µs>
     then after 2.5 s: {"type":"options_update","payload":{"wantedCollections":["app.bsky.feed.post"],"wantedDids":[],"maxMessageSizeBytes":0}}
 wss://jetstream.us-east.bsky.network/xrpc/network.bsky.jetstream.subscribeEvents?collections=app.bsky.feed.*                 5 s
-wss://jetstream.us-east.bsky.network/xrpc/network.bsky.jetstream.subscribeEvents?collections=online.7778777.lessdugin.*      8 s ×3 (with and without subprotocol xrpc.v1.json)
-…/subscribeEvents?collections=online.7778777.lessdugin.*&cursor=<now−30 s, µs>   (subprotocol xrpc.v1.json)     6 s
-…/subscribeEvents?collections=online.7778777.lessdugin.*&kinds=commit&dids=…×150 | ×400                          3 s
+wss://jetstream.us-east.bsky.network/xrpc/network.bsky.jetstream.subscribeEvents?collections=forum.pandoras.*      8 s ×3 (with and without subprotocol xrpc.v1.json)
+…/subscribeEvents?collections=forum.pandoras.*&cursor=<now−30 s, µs>   (subprotocol xrpc.v1.json)     6 s
+…/subscribeEvents?collections=forum.pandoras.*&kinds=commit&dids=…×150 | ×400                          3 s
 ```
 
 The v2 lexicon (`lexicons/network/bsky/jetstream/subscribeEvents.json` in
@@ -71,9 +76,9 @@ results.
 **(c) Relay**
 
 ```sh
-curl -sS -A "$UA" -H 'Origin: https://lessdugin.7778777.online' -D - \
+curl -sS -A "$UA" -H 'Origin: https://pandoras.forum' -D - \
   'https://relay1.us-east.bsky.network/xrpc/com.atproto.sync.listReposByCollection?collection=site.standard.document&limit=5'
-# same against https://bsky.network; also collection=online.7778777.lessdugin.temp.post,
+# same against https://bsky.network; also collection=forum.pandoras.temp.post,
 # page 2 via cursor=, collection=site.standard.* and limit=2001
 ```
 
@@ -82,12 +87,12 @@ curl -sS -A "$UA" -H 'Origin: https://lessdugin.7778777.online' -D - \
 
 ```sh
 C=https://constellation.microcosm.blue
-curl -sS -A "$UA" -H 'Origin: https://lessdugin.7778777.online' -D - \
+curl -sS -A "$UA" -H 'Origin: https://pandoras.forum' -D - \
   "$C/xrpc/blue.microcosm.links.getBacklinks?subject=$U&source=app.bsky.feed.like:subject.uri&limit=3"
 curl … "$C/xrpc/blue.microcosm.links.getBacklinksCount?subject=$U&source=app.bsky.feed.like:subject.uri"
 # variants: percent-encoded subject and source; cursor=<page 1 cursor>; did=<one liker>; reverse=true;
 # source=app.bsky.feed.like:.subject.uri (leading dot); limit=101;
-# subject=at://…/online.7778777.lessdugin.temp.forum/test&source=online.7778777.lessdugin.temp.membership:forum
+# subject=at://…/forum.pandoras.temp.forum/test&source=forum.pandoras.temp.membership:forum
 # legacy REST: /links/count?target=$U&collection=app.bsky.feed.like&path=.subject.uri
 ```
 
@@ -97,18 +102,18 @@ curl … "$C/xrpc/blue.microcosm.links.getBacklinksCount?subject=$U&source=app.b
 
 | Input | `@atproto/syntax` `isValidNsid` / `ensureValidNsid` | `goat syntax nsid check` |
 |---|---|---|
-| `online.7778777.lessdugin.post` | `true` / ok; authority `lessdugin.7778777.online` | `valid` |
-| `online.7778777.lessdugin.temp.post` | `true` / ok; authority `temp.lessdugin.7778777.online` | `valid` |
-| `online.7778777.lessdugin.index.listPosts` | `true` / ok | `valid` |
+| `forum.pandoras.post` | `true` / ok; authority `pandoras.forum` | `valid` |
+| `forum.pandoras.temp.post` | `true` / ok; authority `temp.pandoras.forum` | `valid` |
+| `forum.pandoras.index.listPosts` | `true` / ok | `valid` |
 | `7778777.online.post` (control) | `false` / `InvalidNsidError: NSID first part may not start with a digit` | `error: NSID syntax didn't validate via regex` (exit 255) |
-| `online.7778777.lessdugin.*` (Jetstream pattern) | `false` / `Disallowed characters in NSID (ASCII letters, digits, dashes, periods only)` | `error: … didn't validate via regex` |
+| `forum.pandoras.*` (Jetstream pattern) | `false` / `Disallowed characters in NSID (ASCII letters, digits, dashes, periods only)` | `error: … didn't validate via regex` |
 
-- `@atproto/lexicon`: `Lexicons.add` of `online.7778777.lessdugin.temp.post` and `…temp.defs`
+- `@atproto/lexicon`: `Lexicons.add` of `forum.pandoras.temp.post` and `…temp.defs`
   succeeded. `validate()` returned `{"success":true,…}` and `assertValidRecord()` passed.
 - goat: `lex parse` → `success` for both files. `lex lint` → 🟢 for both, exit 0, and no findings
-  even at `--lint-level info`. `lex validate` → `valid online.7778777.lessdugin.temp.post record`.
+  even at `--lint-level info`. `lex validate` → `valid forum.pandoras.temp.post record`.
 - `goat lex check-dns` derived the right TXT name:
-  `_lexicon.temp.lessdugin.7778777.online TXT "did=did:web:lex.example.com"`. `lex resolve` →
+  `_lexicon.temp.pandoras.forum TXT "did=did:web:lex.example.com"`. `lex resolve` →
   `error: NSID not associated with a DID`, as expected because nothing is published.
 - Rkeys and range cursors: `aaaaaaaaaaaa-3lzzzzzzzzz2a`, `aaaaaaaaaaaa.`, `aaaaaaaaaaaa-~-x`,
   `~` and `3l.` are all valid record keys in both `@atproto/syntax` and `goat syntax rkey check`.
@@ -121,12 +126,12 @@ Upgrades: every connection got `101`. The `/subscribe` (v1 wire) path negotiated
 
 | Connection | Duration | Events | Breakdown |
 |---|---|---|---|
-| v1 `wantedCollections=online.7778777.lessdugin.*` | 8.1 s | 5 (1,094 B) | identity 3, account 2, commits 0 |
+| v1 `wantedCollections=forum.pandoras.*` | 8.1 s | 5 (1,094 B) | identity 3, account 2, commits 0 |
 | v1 `wantedCollections=app.bsky.feed.*` | 5.1 s | 1,278 (751,696 B) | create 1,256, delete 22; like 914, post 192, repost 152, threadgate 13, postgate 7 |
-| v1 `…lessdugin.*&requireHello=true&cursor=now−5 s`, then `options_update` → `app.bsky.feed.post` | 5 s | 0 before the hello (2.5 s); 239 after | post 236, identity 1, account 2. The first event's `time_us` was 36 ms after the cursor |
+| v1 `…pandoras-forum.*&requireHello=true&cursor=now−5 s`, then `options_update` → `app.bsky.feed.post` | 5 s | 0 before the hello (2.5 s); 239 after | post 236, identity 1, account 2. The first event's `time_us` was 36 ms after the cursor |
 | v2 `collections=app.bsky.feed.*` | 5.1 s | 1,219 (841,870 B) | all `{"$type":"message",…}` |
-| v2 `collections=online.7778777.lessdugin.*` (×3, 8 s each) | 8 s | 0, 5, 7 | identity and account only |
-| v2 `…lessdugin.*&cursor=<now−30 s µs>` | 6.3 s | 26 | identity 10, account 16 (replayed from the cursor) |
+| v2 `collections=forum.pandoras.*` (×3, 8 s each) | 8 s | 0, 5, 7 | identity and account only |
+| v2 `…pandoras-forum.*&cursor=<now−30 s µs>` | 6.3 s | 26 | identity 10, account 16 (replayed from the cursor) |
 | v2 `…&kinds=commit` plus 150 `dids=` (URL 5,832 B) | 3 s | 0 | upgrade 101 |
 | v2 `…&kinds=commit` plus 400 `dids=` (URL 15,332 B) | – | – | **`414 Request-URI Too Large`** (openresty), before the upgrade |
 
@@ -186,9 +191,9 @@ From the v2 lexicon:
 | Host | Collection | Status, time | Body |
 |---|---|---|---|
 | relay1.us-east.bsky.network | `site.standard.document`, limit 5 | 200, 0.31 s | `{"cursor":"QQAADocAAAGbfNeg32RpZDpw…","repos":[{"did":"did:plc:5i57akaxijt2xu7d3nmfbr5w"},…5]}` |
-| relay1.us-east.bsky.network | `online.7778777.lessdugin.temp.post` | 200, 0.57 s | `{"repos":[]}` (no cursor) |
+| relay1.us-east.bsky.network | `forum.pandoras.temp.post` | 200, 0.57 s | `{"repos":[]}` (no cursor) |
 | bsky.network | `site.standard.document`, limit 5 | 200, 0.33 s | the same 5 DIDs; cursor `QQAADtcAAAGbfNeg5WRpZDpw…` |
-| bsky.network | `online.7778777.lessdugin.temp.post` | 200, 0.30 s | `{"repos":[]}` |
+| bsky.network | `forum.pandoras.temp.post` | 200, 0.30 s | `{"repos":[]}` |
 | bsky.network | page 2 (`cursor=`) | 200 | 5 new DIDs and a new cursor |
 | bsky.network | `site.standard.*` | **400** | `{"error":"BadRequest","message":"bad collection nsid, NSID syntax didn't validate via regex"}` |
 | bsky.network | `limit=2001` | 200 | **2,001** repos (7 of them did:web). The lexicon maximum is not enforced |
@@ -212,7 +217,7 @@ From the v2 lexicon:
 - `reverse=true` → oldest first (`3mxuhb527gl26`, `3mxuhbb5hbp2n`).
 - `source=app.bsky.feed.like:.subject.uri` (leading dot) → **400 with an empty body**. In the XRPC
   API the path has no leading dot; the legacy API uses one.
-- `source=online.7778777.lessdugin.temp.membership:forum` with a forum at-uri subject →
+- `source=forum.pandoras.temp.membership:forum` with a forum at-uri subject →
   `{"total":0,"records":[],"cursor":null}`. The digit NSID is accepted.
 - CORS: `access-control-allow-origin: *`, `-methods: *`, `-headers: *`, `-expose-headers: *`,
   `-max-age: 86400`. The headers are present on 400 responses too. Server: nginx.
@@ -220,13 +225,14 @@ From the v2 lexicon:
 
 ## Decision
 
-1. **Keep `online.7778777.lessdugin`.** Every tool on our path accepts the digit segment: the
+1. **Keep the namespace** (superseded by ADR 0011, which chose `forum.pandoras`). Every tool on
+   our path accepts the digit segment: the
    TypeScript syntax and lexicon packages; goat syntax, parse, lint, validate and check-dns; the
    relay's NSID regex; Jetstream; and Constellation. Our Rust NSID validator (crates/atp) gets
    these vectors:
-   - `online.7778777.lessdugin.post` → valid;
+   - `forum.pandoras.post` → valid;
    - `7778777.online.post` → invalid;
-   - `online.7778777.lessdugin.*` → invalid as an NSID.
+   - `forum.pandoras.*` → invalid as an NSID.
 
    Jetstream patterns get their own type (`NsidPattern = Nsid | "<nsid-prefix>.*"`). They never pass
    through the NSID parser.

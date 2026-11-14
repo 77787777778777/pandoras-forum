@@ -4,7 +4,7 @@
 
 use std::collections::BTreeSet;
 
-use lessdugin_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::syntax::{AtUri, Did};
 
 use crate::discovery::forum_ref::ForumKey;
 use crate::discovery::state::{self, DiscState, ForumState};
@@ -74,10 +74,11 @@ impl<H: Host> Engine<H> {
             && out.iter().any(|c| c.forum.is_some())
         {
             let loaded = self.loaded(key).await?;
-            let declared = lessdugin_lexicon::validity::entry::usable_indexers(&loaded.model.decl)
-                .into_iter()
-                .map(|e| (e.url.clone(), e.did.clone()))
-                .collect::<Vec<_>>();
+            let declared =
+                pandoras_forum_lexicon::validity::entry::usable_indexers(&loaded.model.decl)
+                    .into_iter()
+                    .map(|e| (e.url.clone(), e.did.clone()))
+                    .collect::<Vec<_>>();
             out.retain(|c| {
                 c.forum.is_none()
                     || declared.iter().any(|(url, _)| {
@@ -148,7 +149,7 @@ impl<H: Host> Engine<H> {
             }
         }
         Ok(
-            lessdugin_lexicon::validity::entry::usable_indexers(&loaded.model.decl)
+            pandoras_forum_lexicon::validity::entry::usable_indexers(&loaded.model.decl)
                 .into_iter()
                 .map(|e| crate::dto::ForumIndexer {
                     consented: url::Url::parse(&e.url)
@@ -334,7 +335,7 @@ impl<H: Host> Engine<H> {
             .uris
             .into_iter()
             .filter(|u| {
-                u.collection().as_str() == lessdugin_lexicon::collection::nsid::POST
+                u.collection().as_str() == pandoras_forum_lexicon::collection::nsid::POST
                     && crate::store::schema::in_range(&key.fk, u.rkey().as_str())
                     && scope
                         .as_ref()
@@ -365,7 +366,7 @@ impl<H: Host> Engine<H> {
         key: &ForumKey,
         posts: &[AtUri],
     ) -> Result<Vec<AtUri>, EngineError> {
-        use lessdugin_lexicon::collection::nsid;
+        use pandoras_forum_lexicon::collection::nsid;
         // A forum that cannot be opened lists nothing: only its owner is known to need none.
         let authorities: BTreeSet<String> = match self.open_key(key, false).await {
             Ok(opened) => opened.authorities.into_keys().collect(),

@@ -8,8 +8,8 @@ mod common;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
-use lessdugin_atp::cid::is_valid_cid_syntax;
-use lessdugin_atp::syntax::{
+use pandoras_forum_atp::cid::is_valid_cid_syntax;
+use pandoras_forum_atp::syntax::{
     AtIdentifier, AtUri, Datetime, Did, Handle, LooseAtUri, Nsid, RecordKey, Tid,
 };
 
@@ -60,7 +60,7 @@ fn aturi_lexicon_syntax() {
 #[test]
 fn aturi_strict_subset() {
     // The canonical form accepts exactly the valid URIs with a DID authority that passes the
-    // lessdugin DID policy (did:plc / host-only did:web) and a full record path (and a lowercase
+    // Pandora's Forum DID policy (did:plc / host-only did:web) and a full record path (and a lowercase
     // collection authority). The fixtures' DIDs are generic (`did:plc:asdf123`, `did:abc:123`),
     // so each is also checked with its DID replaced by a canonical one.
     const CANONICAL: &str = "did:plc:ewvi7nxzyoun6zhxrhs64oiz";
@@ -74,7 +74,7 @@ fn aturi_strict_subset() {
         let full = did.is_some() && loose.rkey().is_some();
         let policy = did
             .as_ref()
-            .is_some_and(|d| d.check_lessdugin_policy().is_ok());
+            .is_some_and(|d| d.check_pandoras_forum_policy().is_ok());
         assert_eq!(AtUri::parse(&v).is_ok(), full && policy, "{v}");
         if let Some(d) = did {
             let swapped = v.replacen(d.as_str(), CANONICAL, 1);

@@ -4,18 +4,18 @@
 mod common;
 
 use common::*;
-use lessdugin_core::dto::AuthKind;
-use lessdugin_core::engine::{AccountInfo, ErrorCode, PinStatus};
-use lessdugin_core::host::{Dir, KeyRange, KvOp, KvStore};
-use lessdugin_core::key;
-use lessdugin_testkit::identity::{DOH, PLC, did_doc, install_doc};
-use lessdugin_testkit::{FakePds, MemHost};
+use pandoras_forum_core::dto::AuthKind;
+use pandoras_forum_core::engine::{AccountInfo, ErrorCode, PinStatus};
+use pandoras_forum_core::host::{Dir, KeyRange, KvOp, KvStore};
+use pandoras_forum_core::key;
+use pandoras_forum_testkit::identity::{DOH, PLC, did_doc, install_doc};
+use pandoras_forum_testkit::{FakePds, MemHost};
 
 fn setup() -> (
     MemHost,
     FakePds,
-    lessdugin_testkit::FakeIdentity,
-    lessdugin_testkit::FakeIdentity,
+    pandoras_forum_testkit::FakeIdentity,
+    pandoras_forum_testkit::FakeIdentity,
 ) {
     let host = MemHost::new();
     let pds = FakePds::install(&host, PDS);
@@ -163,7 +163,7 @@ fn oauth_binding_pins_the_issuer() {
     assert_eq!(b.issuer.as_deref(), Some(entryway));
     let prm = host.requests_to(&format!("{PDS}/.well-known/oauth-protected-resource"));
     assert_eq!(prm.len(), 1);
-    assert_eq!(prm[0].redirects, lessdugin_core::host::Redirects::None);
+    assert_eq!(prm[0].redirects, pandoras_forum_core::host::Redirects::None);
     assert_eq!(prm[0].max_bytes, 65_536);
 
     let v = block_on(e.add_account(AccountInfo::oauth(alice.did.as_str(), PDS, entryway))).unwrap();
@@ -250,7 +250,7 @@ fn the_session_must_match_the_identity() {
     assert_eq!(err.code, ErrorCode::Conflict);
     assert_eq!(err.detail.unwrap()["kind"], "accountMismatch");
     // A DID whose document has no PDS cannot log in.
-    let carol = lessdugin_testkit::FakeIdentity::plc("carol", "carol.example.com", PDS);
+    let carol = pandoras_forum_testkit::FakeIdentity::plc("carol", "carol.example.com", PDS);
     let mut doc = did_doc(carol.did.as_str(), None, &carol.multikey(), PDS);
     doc["service"] = serde_json::json!([]);
     install_doc(&host, PLC, &carol.did, &doc);
@@ -332,18 +332,18 @@ fn refresh_account_follows_the_identity() {
     block_on(e.add_account(AccountInfo::app_password(alice.did.as_str(), PDS))).unwrap();
 
     // The handle moves to another domain: the recorded handle follows (after the cache TTL).
-    let moved = lessdugin_testkit::FakeIdentity {
+    let moved = pandoras_forum_testkit::FakeIdentity {
         handle: Some("alice.example.org".into()),
         ..alice.clone()
     };
     install_doc(&host, PLC, &alice.did, &moved.doc());
-    lessdugin_testkit::identity::install_txt(
+    pandoras_forum_testkit::identity::install_txt(
         &host,
         DOH,
         "alice.example.org",
         &[&format!("did={}", alice.did)],
     );
-    host.advance_ms(lessdugin_core::identity::DID_DOC_TTL_MS);
+    host.advance_ms(pandoras_forum_core::identity::DID_DOC_TTL_MS);
     let v = block_on(e.refresh_account(alice.did.as_str())).unwrap();
     assert_eq!(v.handle.as_deref(), Some("alice.example.org"));
     assert!(v.active);
@@ -359,28 +359,28 @@ fn refresh_account_follows_the_identity() {
 
     // The old handle now belongs to someone else: alice's document no longer claims a handle
     // that resolves back, so no handle is recorded.
-    let unclaimed = lessdugin_testkit::FakeIdentity {
+    let unclaimed = pandoras_forum_testkit::FakeIdentity {
         handle: Some("alice.example.com".into()),
         ..alice.clone()
     };
     install_doc(&host, PLC, &alice.did, &unclaimed.doc());
-    lessdugin_testkit::identity::install_txt(
+    pandoras_forum_testkit::identity::install_txt(
         &host,
         DOH,
         "alice.example.com",
         &["did=did:plc:aaaaaaaaaaaaaaaaaaaaaaaa"],
     );
-    host.advance_ms(lessdugin_core::identity::DID_DOC_TTL_MS);
+    host.advance_ms(pandoras_forum_core::identity::DID_DOC_TTL_MS);
     let v = block_on(e.refresh_account(alice.did.as_str())).unwrap();
     assert_eq!(v.handle, None);
 
     // The PDS changed (migration): needs-relogin, never silent re-targeting (AUTH-8).
-    let migrated = lessdugin_testkit::FakeIdentity {
+    let migrated = pandoras_forum_testkit::FakeIdentity {
         pds: "https://new-pds.example.com".into(),
         ..alice.clone()
     };
     install_doc(&host, PLC, &alice.did, &migrated.doc());
-    host.advance_ms(lessdugin_core::identity::DID_DOC_TTL_MS);
+    host.advance_ms(pandoras_forum_core::identity::DID_DOC_TTL_MS);
     let err = block_on(e.refresh_account(alice.did.as_str())).unwrap_err();
     assert_eq!(err.code, ErrorCode::AuthRequired);
     let d = err.detail.unwrap();
@@ -399,9 +399,9 @@ fn refresh_account_follows_the_identity() {
     // An unreachable PLC directory is an error, and changes nothing.
     host.fail(
         &format!("{PLC}/{}", alice.did),
-        lessdugin_core::host::HostError::Network("down".into()),
+        pandoras_forum_core::host::HostError::Network("down".into()),
     );
-    host.advance_ms(lessdugin_core::identity::DID_DOC_TTL_MS);
+    host.advance_ms(pandoras_forum_core::identity::DID_DOC_TTL_MS);
     assert_eq!(
         block_on(e.refresh_account(alice.did.as_str()))
             .unwrap_err()

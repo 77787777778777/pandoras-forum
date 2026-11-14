@@ -11,7 +11,7 @@
 mod fakenet;
 
 use fakenet::{Net, s, text};
-use lessdugin_core::dto::{NotificationList, PostList, ThreadView};
+use pandoras_forum_core::dto::{NotificationList, PostList, ThreadView};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
@@ -49,7 +49,7 @@ fn local_state_commands_round_trip() {
     let forum = format!(
         "at://{}/{}/meta",
         alice.did(),
-        lessdugin_lexicon::collection::nsid::FORUM
+        pandoras_forum_lexicon::collection::nsid::FORUM
     );
 
     let added = alice.json(&["bookmark", "add", &post]);
@@ -206,7 +206,7 @@ fn votes_agreement_and_reacts_move_the_score_and_notify() {
     assert!(
         w.bob
             .account
-            .list(lessdugin_lexicon::collection::nsid::OPINION)
+            .list(pandoras_forum_lexicon::collection::nsid::OPINION)
             .is_empty()
     );
     // with --yes the notice is shown and acknowledged, then the vote records
@@ -224,12 +224,15 @@ fn votes_agreement_and_reacts_move_the_score_and_notify() {
     let opinions = w
         .bob
         .account
-        .list(lessdugin_lexicon::collection::nsid::OPINION);
+        .list(pandoras_forum_lexicon::collection::nsid::OPINION);
     assert_eq!(opinions.len(), 1, "{opinions:?}");
     let rec = w
         .bob
         .account
-        .get(lessdugin_lexicon::collection::nsid::OPINION, &opinions[0].0)
+        .get(
+            pandoras_forum_lexicon::collection::nsid::OPINION,
+            &opinions[0].0,
+        )
         .unwrap();
     assert_eq!(rec["karma"], "up", "{rec}");
 
@@ -245,7 +248,7 @@ fn votes_agreement_and_reacts_move_the_score_and_notify() {
     w.alice.ok(&["sync", &w.forum]);
     let tv: ThreadView = exact(&w.alice.ok(&["--json", "read", &w.post]));
     let root = match &tv.post {
-        lessdugin_core::dto::ThreadRoot::Post(p) => &p.post,
+        pandoras_forum_core::dto::ThreadRoot::Post(p) => &p.post,
         _ => panic!("a post thread"),
     };
     assert!(
@@ -266,7 +269,7 @@ fn votes_agreement_and_reacts_move_the_score_and_notify() {
     w.alice.ok(&["sync", &w.forum]);
     let tv: ThreadView = exact(&w.alice.ok(&["--json", "read", &w.post]));
     let root = match &tv.post {
-        lessdugin_core::dto::ThreadRoot::Post(p) => p,
+        pandoras_forum_core::dto::ThreadRoot::Post(p) => p,
         _ => panic!("a post thread"),
     };
     assert!(
@@ -283,13 +286,16 @@ fn votes_agreement_and_reacts_move_the_score_and_notify() {
     let opinions = w
         .bob
         .account
-        .list(lessdugin_lexicon::collection::nsid::OPINION);
+        .list(pandoras_forum_lexicon::collection::nsid::OPINION);
     // the agreement axis keeps the record alive
     assert_eq!(opinions.len(), 1, "{opinions:?}");
     let rec = w
         .bob
         .account
-        .get(lessdugin_lexicon::collection::nsid::OPINION, &opinions[0].0)
+        .get(
+            pandoras_forum_lexicon::collection::nsid::OPINION,
+            &opinions[0].0,
+        )
         .unwrap();
     assert!(
         rec.get("karma").is_none() || rec["karma"].is_null(),
@@ -302,7 +308,7 @@ fn votes_agreement_and_reacts_move_the_score_and_notify() {
     assert!(
         n.items
             .iter()
-            .any(|x| x.reason == lessdugin_core::dto::NotificationReason::Reacted),
+            .any(|x| x.reason == pandoras_forum_core::dto::NotificationReason::Reacted),
         "{n:?}"
     );
     // marking them read clears the badge
@@ -440,7 +446,7 @@ fn the_mod_queue_says_where_its_applicants_come_from() {
 /// acknowledged, the kind asks nothing again.
 #[test]
 fn join_and_approve_ask_for_the_public_interstitial_once() {
-    use lessdugin_lexicon::collection::nsid;
+    use pandoras_forum_lexicon::collection::nsid;
     let net = Net::new();
     let alice = net.user("alice.test", true);
     let bob = net.user("bob.test", true);
@@ -499,7 +505,7 @@ fn join_and_approve_ask_for_the_public_interstitial_once() {
 /// its page to a revision and removes her assertion again.
 #[test]
 fn tag_votes_and_tag_moderation() {
-    use lessdugin_lexicon::collection::nsid;
+    use pandoras_forum_lexicon::collection::nsid;
     let w = World::new();
     let page = w.alice.file("rust.md", "About Rust.\n");
     let t = w
@@ -591,7 +597,7 @@ fn tag_votes_and_tag_moderation() {
 /// each with `--author-scope`.
 #[test]
 fn author_scope_lock_pin_and_removal() {
-    use lessdugin_lexicon::collection::nsid;
+    use pandoras_forum_lexicon::collection::nsid;
     let w = World::new();
     let c = w.bob.json(&["comment", &w.post, "-m", "A reply."]);
     assert_eq!(c["state"]["kind"], "done", "{c}");
@@ -689,7 +695,7 @@ fn reading_a_thread_marks_it_read() {
 /// record written from another device is the one it merges with (m3r-2).
 #[test]
 fn restrict_and_nullify_keep_each_other() {
-    use lessdugin_lexicon::collection::nsid;
+    use pandoras_forum_lexicon::collection::nsid;
     let w = World::new();
     let restrict_of = |did: &str| -> Value {
         let mut recs: Vec<Value> = w
@@ -756,7 +762,7 @@ fn restrict_and_nullify_keep_each_other() {
 /// lens collapses the author's items, locally) and the karma-notification cadence.
 #[test]
 fn forum_edit_reject_mute_and_the_karma_cadence() {
-    use lessdugin_lexicon::collection::nsid;
+    use pandoras_forum_lexicon::collection::nsid;
     let w = World::new();
 
     // forum edit: open mode (with the L7 label), a description; the name stays
@@ -832,8 +838,8 @@ fn forum_edit_reject_mute_and_the_karma_cadence() {
     assert!(
         matches!(
             tv.comments[0].state,
-            lessdugin_core::dto::ItemState::Collapsed {
-                reason: lessdugin_core::dto::CollapseReason::Muted
+            pandoras_forum_core::dto::ItemState::Collapsed {
+                reason: pandoras_forum_core::dto::CollapseReason::Muted
             }
         ),
         "{:?}",
@@ -846,7 +852,7 @@ fn forum_edit_reject_mute_and_the_karma_cadence() {
     let tv: ThreadView = exact(&w.alice.ok(&["--json", "read", &w.post]));
     assert_eq!(
         tv.comments[0].state,
-        lessdugin_core::dto::ItemState::Visible
+        pandoras_forum_core::dto::ItemState::Visible
     );
 
     // the karma cadence is saved on this device
@@ -889,8 +895,8 @@ fn the_human_thread_shows_agreement_reacts_and_banners() {
     let out = w.alice.ok(&["read", &w.post, "--no-pager"]);
     assert!(out.contains("agreement +"), "{out}");
     // the creators are named by handle when the thread knows it, else by short DID
-    let carol_short = lessdugin_core::identity::short_did(&w.carol.did());
-    let bob_short = lessdugin_core::identity::short_did(&w.bob.did());
+    let carol_short = pandoras_forum_core::identity::short_did(&w.carol.did());
+    let bob_short = pandoras_forum_core::identity::short_did(&w.bob.did());
     assert!(
         out.contains(&format!(
             "Crux by {carol_short} on \u{201c}First post\u{201d}"
@@ -931,7 +937,7 @@ fn the_human_thread_shows_agreement_reacts_and_banners() {
 /// account that does not own the forum is refused before any fetch.
 #[test]
 fn forum_edit_keeps_a_spilled_about_and_its_media() {
-    use lessdugin_lexicon::collection::nsid;
+    use pandoras_forum_lexicon::collection::nsid;
     const PNG: &[u8] = b"\x89PNG\r\n\x1a\n\
         \x00\x00\x00\x0dIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\
         \x00\x00\x00\x0bIDAT\x78\xda\x63\x60\x00\x02\x00\x00\x05\x00\x01\xe9\xfa\xdc\xd8\

@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin glossary
+# Pandora's Forum glossary
 
 **Status:** normative for terms; draft for the `.temp` namespace (M0).
 **Sources:** the glossary of `docs/design/synthesis-v1.md`, extended with every term the spec documents use (`docs/spec/README.md` §1.1).
@@ -99,7 +99,7 @@ Several short names mean different things in different documents. The context al
 | A | The set of **authorities**: the owner plus every admin and moderator in the current declaration. | `social` §4.1 |
 | `absent` | Fold input: the uris of opinion subjects whose absence the sync layer confirmed (tombstone, or a complete listing without them). Used by the deleted-subject rule. | `social` §1.1; `sync` §5.6 |
 | access (`#access`) | Moderation action on a DID with `level` `banned` or `member`. `member` is a **grant**. | `data-model` §6.7; `social` §4 |
-| adopt, `adopts` | `lessdugin mod adopt <did>` re-issues a former moderator's forum-scope assertions under the adopting authority; each copy's `adopts` points at the original and is informational only. | `social` §4.10; `data-model` §8.6 |
+| adopt, `adopts` | `pandoras-forum mod adopt <did>` re-issues a former moderator's forum-scope assertions under the adopting authority; each copy's `adopts` points at the original and is informational only. | `social` §4.10; `data-model` §8.6 |
 | admission | Accepting a record version into the record store at level `pds` or `proven`, after the CID check and validity-independent checks. | `sync` §5.5 |
 | agreement | The second voting axis (`agree`, `disagree`, `strongAgree`, `strongDisagree`), summed with KP-based power over E. It never feeds karma. | `social` §7 |
 | `algorithmIds` | The effective behaviour IDs (moderation, karma, ranking, react palette) in the fold input. | `social` §1.1, §1.6 |
@@ -129,7 +129,7 @@ Several short names mean different things in different documents. The context al
 | behaviour ID | A `name/N` identifier of a frozen deterministic behaviour: `fk/1`, `sk/1`, `lfm/1`, `mod/1`, `karma/1`, `magic/1`, `default/1`, `proofs/1`. Never changes meaning once released. | README §3 |
 | blob | An atproto blob. Uploaded only with the write that references it; the returned blob object is embedded verbatim; fetched with `getBlob` and checked against its CID while streaming. | `data-model` §8.8; `sync` §11 |
 | blob functions (`fetch_blob`) | The `Host` functions that stream a blob to storage while hashing it, so blob bytes never enter wasm memory. Called `BlobHandle` in the completeness review. | `sync` §12.2 |
-| bridge | The `lessdugin web` endpoints `/bridge/session`, `/bridge/xrpc`, `/bridge/login`, `/bridge/kv` through which the SPA uses the CLI's session. `/bridge/fetch` is Reserved (P2). | `threat-model` §7 |
+| bridge | The `pandoras-forum web` endpoints `/bridge/session`, `/bridge/xrpc`, `/bridge/login`, `/bridge/kv` through which the SPA uses the CLI's session. `/bridge/fetch` is Reserved (P2). | `threat-model` §7 |
 
 ### C
 
@@ -148,7 +148,7 @@ Several short names mean different things in different documents. The context al
 | completeness | A view is complete when every repo in C(F) is `Fresh`; otherwise it shows `[partial k/n]`. | `sync` §4.5, I6 |
 | conformance level | Level 0 (reader: posts, comments, moderator hides) or Level 1 (full fold). | README §4 |
 | Constellation | A public backlink index (CORE+). A hint source for newcomers and counts. | `sync` §4.4 |
-| CORE, CORE+, EXT | Dependency tiers: PDS, PLC/did:web and DoH; relay, Jetstream, Constellation, Slingshot; lessdugin indexers. | `sync` §2.1 |
+| CORE, CORE+, EXT | Dependency tiers: PDS, PLC/did:web and DoH; relay, Jetstream, Constellation, Slingshot; Pandora's Forum indexers. | `sync` §2.1 |
 | creator (react) | The supporter with the highest K (ties by DID) who is credited with a react; the others "seconded". | `social` §9.2 |
 | curated | The highest post tier. Only the owner and admins may curate. Adds `curatedBonus` in magic. | `social` §4.3, §12 |
 | currency rule | A third-party proof is current only if its rev ≥ a recently observed PDS head; otherwise it is `[stale]` and not a fold input. Proofs from the author's own PDS are always current. | `sync` §1.2 |
@@ -192,14 +192,14 @@ Several short names mean different things in different documents. The context al
 | fail closed | Unknown is not absent: missing moderation data degrades the view instead of resurrecting hidden content. | `social` §1.5, §4.11 |
 | FakePds | The testkit's fake PDS with fault injection, cursor modes and proofs. | `docs/plan.md` §4 |
 | fetch caps (normative) | Per (repo, collection, fk): only the first N keys of the `{fk}-` range in descending rkey order are fold input; N = 100,000 for `opinion`, 20,000 otherwise. Excess makes the repo `[partial]`. | `data-model` §7.4; `sync` §5.4 |
-| `fk`, `fk/1` | The forum key: `b32s(H("lessdugin-fk/1", forumUri))[0..12]`, 60 bits. Prefixes every forum-scoped rkey. | `data-model` §3.1 |
+| `fk`, `fk/1` | The forum key: `b32s(H("pandoras-forum-fk/1", forumUri))[0..12]`, 60 bits. Prefixes every forum-scoped rkey. | `data-model` §3.1 |
 | `fkOf(rkey)` | The fk segment of a forum-scoped rkey. | `data-model` §3.1 |
 | fold | `ForumView = fold(FoldInput, Query)`: the pure, deterministic derivation of a forum view. | `social` §1 |
 | FoldInput | `{decl, records, absent, obs, repoStatus, now, algorithmIds}`. | `social` §1.1 |
 | followed forum | A forum the user follows locally; on a new device the list is seeded from the user's own membership records. | `sync` §4.8 |
 | forum directory | The list of known forums from relays, owners' listings and indexers, grouped by owner. | `sync` §4.7 |
 | forum tier, forum scope | modActions with `scope = forum`, written by authorities. | `social` §4 |
-| ForumMagnum (FM) | The LessWrong / EA Forum codebase that lessdugin's features and vote power are modelled on. | ADR 0001 |
+| ForumMagnum (FM) | The LessWrong / EA Forum codebase that the features and vote power of Pandora's Forum are modelled on. | ADR 0001 |
 | ForumModel | The in-memory per-forum model of skeletons (references, opinion values, titles, times), rebuilt or updated from the store. | `sync` §13 |
 | ForumView | The output of the fold. | `social` §1.1 |
 | Fresh, Stale, Unavailable | `repoStatus`: listed completely at the latest known head; at an earlier rev; never completely. | `social` §1.1; `sync` §5.9 |
@@ -220,7 +220,7 @@ Several short names mean different things in different documents. The context al
 | Term | Meaning | Defined in |
 |---|---|---|
 | `H(tag, p…)` | `sha256(UTF8(tag) ‖ (0x1F ‖ UTF8(NFC(p)))*)`; a part containing U+001F is rejected. | `data-model` §3.1 |
-| `h16` | `b32s(H("lessdugin-sk/1", name, parts…))[0..16]`, an 80-bit subject hash; `name` is the short collection name. | `data-model` §3.1 |
+| `h16` | `b32s(H("pandoras-forum-sk/1", name, parts…))[0..16]`, an 80-bit subject hash; `name` is the short collection name. | `data-model` §3.1 |
 | head observation | A `getLatestCommit` response from a repo's own PDS, recorded with its send time. Only these advance repo state. | `sync` §1.2, §5.9 |
 | Hidden(reason) | A state that is not listed: `NotParticipant`, `ModerationUnavailable`, `Removed`, `Banned`, `Restricted`, `AuthorModerated`, `Locked`, `NewUser`. | `social` §10.1 |
 | hint | Any non-authoritative source (relay, Jetstream, Constellation, Slingshot, indexer JSON). Hints may discover, schedule and show placeholders; they never supply displayed text and never feed the fold. | `sync` §1.4 |
@@ -235,7 +235,7 @@ Several short names mean different things in different documents. The context al
 | identity level | `hint` (Slingshot, AppView, indexer), `doc` (PLC or did:web over TLS), `audited` (Reserved P7). | `sync` §1.3 |
 | `[identity unverified]` | Badge for content whose author's identity is only a hint. | `sync` §1.6 |
 | `include:` scope | An OAuth scope naming a published permission set (`include:NS.authFull`). Falls back at PAR time to enumerated `repo?collection=…` scopes. | `data-model` §10.3 |
-| indexer | The optional `lessdugin-indexer` (EXT): the same engine plus `NS.index.*` XRPC, serving hints and proof CARs. | `sync` §15; `data-model` §11 |
+| indexer | The optional `pandoras-forum-indexer` (EXT): the same engine plus `NS.index.*` XRPC, serving hints and proof CARs. | `sync` §15; `data-model` §11 |
 | `inputDigest` | sha256 over the sorted fold-input lines, the declaration CID, the algorithm IDs and the policy parameters. Lets clients compare an indexer's input with their own. | `social` §1.2 |
 | interstitial | The first-use notice that votes, reacts, memberships and mod actions are public. | `social` §17 |
 | `InvalidSwap` | The PDS error for a failed `swapCommit` or `swapRecord`; the only conflict signal. | ADR 0005; `sync` §7.2 |
@@ -265,8 +265,8 @@ Several short names mean different things in different documents. The context al
 | lapse | An assertion whose actor is no longer an authority has no forum-tier effect, at once. | `social` §4.10 |
 | leader | The one background-sync process or tab per cache (`fd-lock` natively, a Web Lock in the browser). | `sync` §10.6 |
 | lens (L7) | Viewer-local adjustments after the fold: mutes, optional Bluesky blocks, the raw view, "my view". It never changes fold outputs. | `social` §10.3 |
-| `lessdugin web` | The CLI serving the SPA on `127.0.0.1` with the bridge: the zero-trust way to use the web UI. | `threat-model` §7 |
-| LFM/1, `lfm/1` | lessdugin flavoured markdown, and its behaviour ID. | `lfm-1` |
+| `pandoras-forum web` | The CLI serving the SPA on `127.0.0.1` with the bridge: the zero-trust way to use the web UI. | `threat-model` §7 |
+| LFM/1, `lfm/1` | Pandora's Forum flavoured markdown, and its behaviour ID. | `lfm-1` |
 | `libm` | The pure-Rust maths crate used for `hot()`, bit-identical on native and wasm. | `social` §1.3 |
 | listed | State `Visible` or `Collapsed(*)`. Lists, feeds, search and notifications contain only listed items. | `social` §10.1 |
 | `list_range`, cursor-range probe | Listing a `{fk}-` range with `listRecords(cursor = "{fk}.")` descending; a per-host probe decides whether the host honours it, else the full collection is listed. | `sync` §5.3; ADR 0004 |
@@ -297,7 +297,7 @@ Several short names mean different things in different documents. The context al
 | N | Nullified DIDs: resolved `#restrict.nullifyVotes = true`. Their votes are void and they leave S and E. | `social` §3.1, §4.7 |
 | newcomer | In open mode, a participant outside S ∪ E; shown per `display.newUsers` (default collapsed, "new user"). | `social` §3.1, V8 |
 | NativeHost | The native implementation of `Host` (reqwest, SQLite, keyring, WebSocket). | `sync` §12 |
-| `NS`, `NS.temp`, `NS.index` | `online.7778777.lessdugin`; the unpublished development prefix `online.7778777.lessdugin.temp`; the indexer query group. | `data-model` §1 |
+| `NS`, `NS.temp`, `NS.index` | `forum.pandoras`; the unpublished development prefix `forum.pandoras.temp`; the indexer query group. | `data-model` §1 |
 | `NsidPattern` | An NSID or `<nsid-prefix>.*`; used only for Jetstream filters. | ADR 0003 |
 
 ### O
@@ -337,7 +337,7 @@ Several short names mean different things in different documents. The context al
 | `proofs/1` | Behaviour ID for CAR parsing, commit verification (version 3, DID match, low-S k256/p256), the MST walk and the indexer proof-bundle manifest. | `sync` §8 |
 | `proven@rev` | Content verified by a signed commit proof at a given rev. | `sync` §1.1 |
 | provisional item | A `[stale]`-proof or identity-hint item shown without entering the fold. | `sync` §1.5 |
-| publisher account | The did:plc account `lessdugin.7778777.online` that publishes the lexicons (M7). | `data-model` §1.4 |
+| publisher account | The did:plc account `pandoras.forum` that publishes the lexicons (M7). | `data-model` §1.4 |
 
 ### Q
 
@@ -401,7 +401,7 @@ Several short names mean different things in different documents. The context al
 | TID | A timestamp identifier (13 base32-sortable characters). | atproto |
 | tier (post) | `personal < frontpage < curated`; default `decl.defaultTier`. | `social` §4.2 |
 | tombstone | See §2. | `sync` §5.6; `social` §10.2 |
-| Trusted Types | The browser mechanism that forces every HTML sink through named policies (`lessdugin-md`, `dompurify`, `lessdugin-worker`). | `threat-model` §6 |
+| Trusted Types | The browser mechanism that forces every HTML sink through named policies (`pandoras-forum-md`, `dompurify`, `pandoras-forum-worker`). | `threat-model` §6 |
 | trust level | `hint`, `pds`, `proven`. | `sync` §1.1 |
 
 ### U–Z
@@ -414,7 +414,7 @@ Several short names mean different things in different documents. The context al
 | V1–V10 | The visibility rules, first match wins: Excluded, NotParticipant (and ModerationUnavailable), Removed, Banned, Restricted, AuthorModerated, Locked, NewUser, LowScore, Visible. | `social` §10.1 |
 | vector | A test case `{name, input, expected}` under `testdata/vectors/<kind>/`. | README §5 |
 | `[verified]` | Badge for `proven` content with a `doc`-level identity. | `sync` §1.6 |
-| `verify` | The setting `pds` (default) or `proof` (Reserved P2), and the command `lessdugin verify <ref> [--deep]`. | `sync` §2.3, §8.8 |
+| `verify` | The setting `pds` (default) or `proof` (Reserved P2), and the command `pandoras-forum verify <ref> [--deep]`. | `sync` §2.3, §8.8 |
 | Visible | The default state when no other visibility rule matches. | `social` §10.1 |
 | voting system | `policy.voting`: `karmaOnly`, `twoAxis` or `reacts` (default); disabled axes are stored but ignored. | `social` §7 |
 | `wantedDids`, `dids=` | Jetstream DID filters (v1 `options_update`, v2 query parameter). | `sync` §6.2 |

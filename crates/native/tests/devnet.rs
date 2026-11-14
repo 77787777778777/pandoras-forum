@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! End-to-end checks of NativeHost against the local devnet (PLC + PDS, ADR 0006).
-//! Runs only with `LESSDUGIN_E2E=1` (it starts `node packages/e2e/devnet.mjs`), so a plain
+//! Runs only with `PANDORAS_FORUM_E2E=1` (it starts `node packages/e2e/devnet.mjs`), so a plain
 //! `cargo test` stays offline.
 
 // Waiting for an external process needs the real clock (the ban targets the wasm-safe crates).
@@ -10,20 +10,20 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{Host, HostError, HttpRequest, HttpResponse, Target};
-use lessdugin_native::config::{Config, Paths};
-use lessdugin_native::host::{AuthSession, NativeHost, Net, NetPolicy, NetRequest};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{Host, HostError, HttpRequest, HttpResponse, Target};
+use pandoras_forum_native::config::{Config, Paths};
+use pandoras_forum_native::host::{AuthSession, NativeHost, Net, NetPolicy, NetRequest};
 use serde_json::{Value, json};
 use url::Url;
 
 fn e2e_enabled() -> bool {
-    std::env::var("LESSDUGIN_E2E").as_deref() == Ok("1")
+    std::env::var("PANDORAS_FORUM_E2E").as_deref() == Ok("1")
 }
 
 /// The devnet process, killed on drop.
 struct Devnet {
-    _child: lessdugin_testkit::node_devnet::NodeDevnet,
+    _child: pandoras_forum_testkit::node_devnet::NodeDevnet,
     state: Value,
 }
 
@@ -31,7 +31,8 @@ impl Devnet {
     fn start(_dir: &Path) -> Self {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
         // fails at once, with the devnet's output, when node exits or it does not come up
-        let (child, state) = lessdugin_testkit::node_devnet::NodeDevnet::start(&root, "native");
+        let (child, state) =
+            pandoras_forum_testkit::node_devnet::NodeDevnet::start(&root, "native");
         Devnet {
             _child: child,
             state,
@@ -85,7 +86,7 @@ fn png() -> Vec<u8> {
 #[tokio::test(flavor = "multi_thread")]
 async fn devnet_end_to_end() {
     if !e2e_enabled() {
-        eprintln!("skipped: set LESSDUGIN_E2E=1 to run against the devnet");
+        eprintln!("skipped: set PANDORAS_FORUM_E2E=1 to run against the devnet");
         return;
     }
     let tmp = tempfile::tempdir().unwrap();
@@ -152,7 +153,7 @@ async fn devnet_end_to_end() {
     upload.headers = vec![("content-type".into(), "image/png".into())];
     let blob = json_of(&host.http(upload).await.unwrap())["blob"].clone();
     let cid = blob["ref"]["$link"].as_str().unwrap().to_owned();
-    assert_eq!(cid, lessdugin_atp::cid::for_raw(&bytes).to_string());
+    assert_eq!(cid, pandoras_forum_atp::cid::for_raw(&bytes).to_string());
 
     let record = json!({
         "repo": did.as_str(),
@@ -184,7 +185,7 @@ async fn devnet_end_to_end() {
         h,
         "a stored blob needs no request"
     );
-    let missing = lessdugin_atp::cid::for_raw(b"never uploaded").to_string();
+    let missing = pandoras_forum_atp::cid::for_raw(b"never uploaded").to_string();
     assert!(matches!(
         host.fetch_blob(pds.clone(), did.clone(), missing, 1 << 20)
             .await,

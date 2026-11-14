@@ -24,7 +24,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_lexicon::values::{AccessLevel, Capability, MembershipMode, Tier};
+use pandoras_forum_lexicon::values::{AccessLevel, Capability, MembershipMode, Tier};
 
 use crate::social::full::author::AuthorTier;
 use crate::social::full::gates::Gates;

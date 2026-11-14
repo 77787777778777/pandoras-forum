@@ -5,8 +5,8 @@
 // with `getPost(uri, sequence)`, so the navigation follows that sequence and the engine records
 // it as the sequence's "continue reading" position (engine-api.md §3.4 `get_post`).
 
-import type { CommentNode, CommentSort, PostView, SequenceNav } from "@lessdugin/engine/types";
-import { COMMENT_SORTS, isMissingRoot } from "@lessdugin/engine/types";
+import type { CommentNode, CommentSort, PostView, SequenceNav } from "@pandoras-forum/engine/types";
+import { COMMENT_SORTS, isMissingRoot } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from "react";

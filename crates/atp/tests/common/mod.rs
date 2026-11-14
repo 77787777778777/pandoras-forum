@@ -96,5 +96,5 @@ pub fn lines(rel: &str) -> Vec<String> {
 
 /// Decodes standard base64 with or without padding.
 pub fn b64(s: &str) -> Vec<u8> {
-    lessdugin_atp::datamodel::decode_base64(s).unwrap()
+    pandoras_forum_atp::datamodel::decode_base64(s).unwrap()
 }

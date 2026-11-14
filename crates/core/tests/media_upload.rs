@@ -6,15 +6,15 @@
 mod common;
 
 use common::block_on;
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     BodyDraft, CommentDraft, Draft, EditOpts, ExternalLinkDraft, ForumDraft, MediaInput, MediaRef,
     PostDraft, PostKind, SyncOpts, WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
-use lessdugin_core::media::{Format, sniff};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::{AccountHandle, PdsConfig};
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
+use pandoras_forum_core::media::{Format, sniff};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, PdsConfig};
+use pandoras_forum_testkit::{FakeNet, MemHost};
 use serde_json::Value;
 
 /// A PNG of `w`×`h` pixels of noise: it does not compress, so its size is about `3·w·h` bytes.
@@ -129,7 +129,10 @@ fn an_image_over_5_mib_is_downscaled_when_it_is_prepared() {
     assert!(m.size_bytes <= 5 * 1024 * 1024, "{} bytes", m.size_bytes);
     let blob = block_on(e.prepared_media(&m.cid)).unwrap().unwrap();
     assert_eq!(blob.bytes.len() as u64, m.size_bytes);
-    assert_eq!(lessdugin_atp::cid::for_raw(&blob.bytes).to_string(), m.cid);
+    assert_eq!(
+        pandoras_forum_atp::cid::for_raw(&blob.bytes).to_string(),
+        m.cid
+    );
     assert_eq!(sniff(&blob.bytes), Some(Format::Png));
     assert_eq!(dimensions(&blob.bytes), (700, 700));
     // an image within the target keeps its pixels
@@ -244,7 +247,7 @@ fn a_comment_uploads_its_media() {
     );
     assert!(
         a.acct
-            .serves_blob(&lessdugin_atp::cid::parse(&m.cid).unwrap())
+            .serves_blob(&pandoras_forum_atp::cid::parse(&m.cid).unwrap())
     );
 }
 
@@ -280,7 +283,7 @@ fn an_edit_uploads_the_media_it_adds_and_keeps_the_blob_objects_it_had() {
     );
     assert!(
         a.acct
-            .serves_blob(&lessdugin_atp::cid::parse(&second.cid).unwrap())
+            .serves_blob(&pandoras_forum_atp::cid::parse(&second.cid).unwrap())
     );
 }
 
@@ -411,7 +414,7 @@ fn an_edit_can_drop_a_link_card_and_keep_the_link() {
 
 /// Every `state` row under `prefix`, with its value.
 fn rows(host: &MemHost, prefix: Vec<u8>) -> Vec<(Vec<u8>, Vec<u8>)> {
-    use lessdugin_core::host::{Dir, Host, KeyRange, KvStore};
+    use pandoras_forum_core::host::{Dir, Host, KeyRange, KvStore};
     block_on(KvStore::scan(
         host.state(),
         KeyRange::prefix(&prefix),
@@ -429,7 +432,10 @@ fn prepared_bytes_are_raw_chunks_and_go_once_the_write_is_enqueued() {
     let png = noise_png(920, 920, 9);
     assert!(png.len() > 2 << 20 && png.len() < 3 << 20);
     let m = block_on(a.engine.prepare_media(png, &input("noise"))).unwrap();
-    let chunks = rows(&host, lessdugin_core::key!("prep.blob", m.cid.as_str()));
+    let chunks = rows(
+        &host,
+        pandoras_forum_core::key!("prep.blob", m.cid.as_str()),
+    );
     assert_eq!(chunks.len(), 3, "1 MiB chunks");
     let stored: usize = chunks.iter().map(|(_, v)| v.len()).sum();
     assert!(
@@ -437,13 +443,13 @@ fn prepared_bytes_are_raw_chunks_and_go_once_the_write_is_enqueued() {
         "{stored} bytes for {}",
         m.size_bytes
     );
-    assert!(rows(&host, lessdugin_core::key!("loc", "media")).is_empty());
+    assert!(rows(&host, pandoras_forum_core::key!("loc", "media")).is_empty());
 
     let t = a.post_with(&m);
     // the outbox holds its own copy now
     assert!(block_on(a.engine.prepared_media(&m.cid)).unwrap().is_none());
-    assert!(rows(&host, lessdugin_core::key!("prep")).is_empty());
-    assert!(rows(&host, lessdugin_core::key!("prep.blob")).is_empty());
+    assert!(rows(&host, pandoras_forum_core::key!("prep")).is_empty());
+    assert!(rows(&host, pandoras_forum_core::key!("prep.blob")).is_empty());
     let uri = a.done(&t);
     assert_eq!(
         a.record(&uri)["body"]["media"][0]["blob"]["ref"]["$link"],
@@ -456,24 +462,30 @@ fn prepared_bytes_of_a_draft_never_sent_expire() {
     let host = MemHost::new();
     let e = Engine::new(host.clone(), EngineConfig::default());
     // a row of the first M4 builds' layout is swept too
-    block_on(lessdugin_core::host::KvStore::write(
-        lessdugin_core::host::Host::state(&host),
-        vec![lessdugin_core::host::KvOp::Put(
-            lessdugin_core::key!("loc", "media", "bafkreiold"),
+    block_on(pandoras_forum_core::host::KvStore::write(
+        pandoras_forum_core::host::Host::state(&host),
+        vec![pandoras_forum_core::host::KvOp::Put(
+            pandoras_forum_core::key!("loc", "media", "bafkreiold"),
             br#"{"mime":"image/png","bytes":[1,2,3]}"#.to_vec(),
         )],
     ))
     .unwrap();
     let old = block_on(e.prepare_media(noise_png(8, 8, 10), &input("old"))).unwrap();
-    assert!(rows(&host, lessdugin_core::key!("loc", "media")).is_empty());
-    host.advance_ms(lessdugin_core::limits::PREPARED_MEDIA_TTL_MS);
+    assert!(rows(&host, pandoras_forum_core::key!("loc", "media")).is_empty());
+    host.advance_ms(pandoras_forum_core::limits::PREPARED_MEDIA_TTL_MS);
     let new = block_on(e.prepare_media(noise_png(8, 8, 11), &input("new"))).unwrap();
     // exactly the TTL: still kept
     assert!(block_on(e.prepared_media(&old.cid)).unwrap().is_some());
     host.advance_ms(1);
     let newer = block_on(e.prepare_media(noise_png(8, 8, 12), &input("newer"))).unwrap();
     assert!(block_on(e.prepared_media(&old.cid)).unwrap().is_none());
-    assert!(rows(&host, lessdugin_core::key!("prep.blob", old.cid.as_str())).is_empty());
+    assert!(
+        rows(
+            &host,
+            pandoras_forum_core::key!("prep.blob", old.cid.as_str())
+        )
+        .is_empty()
+    );
     assert!(block_on(e.prepared_media(&new.cid)).unwrap().is_some());
     assert!(block_on(e.prepared_media(&newer.cid)).unwrap().is_some());
 }
@@ -483,13 +495,13 @@ fn legacy_prepared_rows_are_neither_exported_nor_imported() {
     // they were swept only when the next file was prepared, so until then export_local carried
     // the bytes of every file prepared by the first M4 builds, and import_local brought them back
     use base64::Engine as _;
-    use lessdugin_core::engine::ExportScope;
-    use lessdugin_core::host::{Host as _, KvOp, KvStore as _};
+    use pandoras_forum_core::engine::ExportScope;
+    use pandoras_forum_core::host::{Host as _, KvOp, KvStore as _};
     let b64 = |b: &[u8]| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(b);
     let host = MemHost::new();
     let e = Engine::new(host.clone(), EngineConfig::default());
-    let legacy = lessdugin_core::key!("loc", "media", "bafkreiold");
-    let bookmark = lessdugin_core::key!("loc", "bookmark", "at://did:plc:x/p/1");
+    let legacy = pandoras_forum_core::key!("loc", "media", "bafkreiold");
+    let bookmark = pandoras_forum_core::key!("loc", "bookmark", "at://did:plc:x/p/1");
     block_on(host.state().write(vec![
         KvOp::Put(
             legacy.clone(),
@@ -515,14 +527,14 @@ fn legacy_prepared_rows_are_neither_exported_nor_imported() {
     let fresh = MemHost::new();
     let f = Engine::new(fresh.clone(), EngineConfig::default());
     let mut old = export.clone();
-    old.members.push(lessdugin_core::engine::ExportMember {
+    old.members.push(pandoras_forum_core::engine::ExportMember {
         key: b64(&legacy),
         parts: Vec::new(),
         value: b64(b"[1,2,3]"),
     });
     let report = block_on(f.import_local(&old, ExportScope::Everything)).unwrap();
     assert_eq!(report.out_of_scope, 1);
-    assert!(rows(&fresh, lessdugin_core::key!("loc", "media")).is_empty());
+    assert!(rows(&fresh, pandoras_forum_core::key!("loc", "media")).is_empty());
     assert_eq!(rows(&fresh, bookmark).len(), 1);
 }
 
@@ -535,7 +547,7 @@ fn a_file_without_alt_text_is_reported_and_its_alt_is_absent_not_blank() {
     assert_eq!(bare.alt, None);
     assert_eq!(
         bare.notices.iter().map(|n| n.code).collect::<Vec<_>>(),
-        [lessdugin_core::dto::NoticeCode::MissingAlt]
+        [pandoras_forum_core::dto::NoticeCode::MissingAlt]
     );
     let described = block_on(a.engine.prepare_media(noise_png(8, 8, 21), &input("a dot"))).unwrap();
     assert!(described.notices.is_empty());

@@ -6,7 +6,7 @@
 mod fakenet;
 
 use fakenet::{Net, s, text};
-use lessdugin_lexicon::collection::nsid;
+use pandoras_forum_lexicon::collection::nsid;
 use serde_json::Value;
 
 /// The `parents` of a wiki revision as the PDS holds it.
@@ -94,7 +94,7 @@ fn a_wiki_edit_against_a_moved_head_is_refused_and_the_text_kept() {
     let message = e["message"].as_str().unwrap();
     assert!(message.contains("changed since it was loaded"), "{message}");
     assert!(message.contains(s(&mine)), "{message}");
-    assert!(message.contains("lessdugin tag rust"), "{message}");
+    assert!(message.contains("pandoras-forum tag rust"), "{message}");
     assert!(message.contains(&format!("--base {r2}")), "{message}");
     assert_eq!(alice.account.list(nsid::WIKI_REVISION).len(), 2);
     assert_eq!(
@@ -262,7 +262,7 @@ fn a_wiki_edit_of_a_page_this_terminal_never_showed_is_refused() {
         "{message}"
     );
     assert!(message.contains(s(&mine)), "{message}");
-    assert!(message.contains("lessdugin tag rust"), "{message}");
+    assert!(message.contains("pandoras-forum tag rust"), "{message}");
     assert!(message.contains(&format!("--base {r1}")), "{message}");
     assert_eq!(alice.account.list(nsid::WIKI_REVISION).len(), 1);
     assert_eq!(

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `lessdugin` — command line entry point (`docs/design/synthesis-v1.md` §6.10).
+//! `pandoras-forum` — command line entry point (`docs/design/synthesis-v1.md` §6.10).
 //!
 //! Exit codes (`engine-api.md` §1): 0 ok, 1 error, 2 usage, 3 `auth_required`, 4 `not_found`,
 //! 5 `conflict`, 6 `partial`.
@@ -86,7 +86,12 @@ async fn run(ctx: &Ctx, command: Command) -> Result<(), CliError> {
         Command::Tui(a) => tui(ctx, a).await,
         Command::Completions(a) => {
             let mut command = Cli::command();
-            clap_complete::generate(a.shell, &mut command, "lessdugin", &mut std::io::stdout());
+            clap_complete::generate(
+                a.shell,
+                &mut command,
+                "pandoras-forum",
+                &mut std::io::stdout(),
+            );
             Ok(())
         }
     }
@@ -98,7 +103,7 @@ fn on_terminal() -> bool {
     std::io::stdin().is_terminal() && std::io::stdout().is_terminal()
 }
 
-/// Bare `lessdugin` on a terminal: the TUI when an account is logged in, else help.
+/// Bare `pandoras-forum` on a terminal: the TUI when an account is logged in, else help.
 async fn bare(ctx: &Ctx) -> Result<(), CliError> {
     #[cfg(feature = "tui")]
     if !ctx.engine()?.accounts().await?.is_empty() {
@@ -109,12 +114,12 @@ async fn bare(ctx: &Ctx) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin tui [forum]` (`crates/tui`): the engine this command opened, acting as the
+/// `pandoras-forum tui [forum]` (`crates/tui`): the engine this command opened, acting as the
 /// account (`--account` or the active one) with its session restored, or read-only when no
 /// account is logged in.
 #[cfg(feature = "tui")]
 async fn tui(ctx: &Ctx, a: args::TuiArgs) -> Result<(), CliError> {
-    use lessdugin_core::engine::{EngineError, ErrorCode};
+    use pandoras_forum_core::engine::{EngineError, ErrorCode};
     let (engine, account) = match ctx.writer().await {
         Ok(w) => (w.engine, Some(w.account)),
         Err(CliError::Engine(e))
@@ -132,21 +137,21 @@ async fn tui(ctx: &Ctx, a: args::TuiArgs) -> Result<(), CliError> {
         Some(f) => Some(cmd::refs::forum(ctx, &engine, f).await?),
         None => None,
     };
-    let opts = lessdugin_tui::Options {
+    let opts = pandoras_forum_tui::Options {
         forum,
         account,
         offline: ctx.offline(),
         // template files for $EDITOR: private, under the data directory (TERM-9, FILE-6)
-        editor: lessdugin_tui::EditorConfig::from_env(ctx.paths.data_dir.join("tmp")),
+        editor: pandoras_forum_tui::EditorConfig::from_env(ctx.paths.data_dir.join("tmp")),
     };
-    let report = lessdugin_tui::run(engine, opts)
+    let report = pandoras_forum_tui::run(engine, opts)
         .await
         .map_err(|e| CliError::Engine(EngineError::internal(e.to_string())))?;
     if report.queued_writes > 0 {
         ctx.out.note(&[(
             out::lit(
-                "Some writes are still queued; the next command that writes, `lessdugin sync` \
-                 or `lessdugin outbox flush` sends them.",
+                "Some writes are still queued; the next command that writes, `pandoras-forum sync` \
+                 or `pandoras-forum outbox flush` sends them.",
             ),
             out::Style::Dim,
         )]);
@@ -154,7 +159,7 @@ async fn tui(ctx: &Ctx, a: args::TuiArgs) -> Result<(), CliError> {
     if report.failed_writes > 0 {
         ctx.out.note(&[(
             out::lit(
-                "Some writes failed: `lessdugin outbox` lists them, and `lessdugin outbox retry \
+                "Some writes failed: `pandoras-forum outbox` lists them, and `pandoras-forum outbox retry \
                  <id>` sends one again.",
             ),
             out::Style::Dim,

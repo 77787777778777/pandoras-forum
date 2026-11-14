@@ -2,8 +2,8 @@
 // Tag votes show the viewer's recorded vote from the view (`PostView.tagRelevance[].mine`,
 // engine-api.md §4.2, review finding m5-acceptance-12), not one kept in client memory, with each
 // tag's relevance and whether it applies (social.md §13.3).
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { WriteTicket } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { WriteTicket } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -12,7 +12,7 @@ import { qk } from "../engine/queries.ts";
 import { renderWithApp } from "../test/render.tsx";
 import { TagVotes } from "./TagVotes.tsx";
 
-const WELCOME = "Welcome to LessDugin: a tour of the forum";
+const WELCOME = "Welcome to Pandora's Forum: a tour of the forum";
 
 /** The post page's wiring: the view read with `getPost`, refreshed by its topics. */
 function Post({ uri }: { uri: string }) {

@@ -7,11 +7,11 @@
 //! let host = MemHost::new();
 //! let net  = FakeNet::on(&host);                      // clock = host's fake clock; routes installed
 //! let alice = net.add_account("alice.example.com");   // did:plc + k256 key + DID doc + empty repo
-//! alice.put("online.7778777.lessdugin.post", "aaaa-3l2s5xxv2zaa2", &json!({...}));
+//! alice.put("forum.pandoras.post", "aaaa-3l2s5xxv2zaa2", &json!({...}));
 //! // the engine on `host` now resolves alice (PLC + DoH) and reads/writes her repo
 //! ```
 //!
-//! **Repositories** are real: records are DAG-CBOR blocks, the MST is `lessdugin_atp::mst::build`,
+//! **Repositories** are real: records are DAG-CBOR blocks, the MST is `pandoras_forum_atp::mst::build`,
 //! commits are signed v3 commits (per-account k256 key, whose Multikey is in the DID document),
 //! and revs are TIDs from the clock (strictly increasing per account). Helper writes
 //! ([`AccountHandle::put`], [`AccountHandle::batch`]) are committed lazily: the next request
@@ -82,8 +82,8 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, Weak};
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{HostError, HttpRequest, HttpResponse};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{HostError, HttpRequest, HttpResponse};
 use serde_json::Value;
 
 pub use blob::{Generated, sniff_mime, tiny_png};

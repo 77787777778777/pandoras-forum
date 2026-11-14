@@ -8,7 +8,7 @@
 
 ## Context
 
-- **Range listing.** Every lessdugin record key in a forum starts with `{fk}-` (synthesis §2.3).
+- **Range listing.** Every Pandora's Forum record key in a forum starts with `{fk}-` (synthesis §2.3).
   `list_range` (§3.3) wants to list one forum's key range per collection without paging the whole
   collection. It relies on a "range cursor trick": the reference PDS treats `cursor` as an
   exclusive rkey bound, so listing descending from cursor `{fk}.` returns keys `< "{fk}."` and
@@ -21,7 +21,7 @@
 ## Method
 
 All public requests were read-only and sent with
-`User-Agent: lessdugin-spike/0.0 (+https://lessdugin.7778777.online)`.
+`User-Agent: pandoras-forum-spike/0.0 (+https://pandoras.forum)`.
 
 | Service | Requests |
 |---|---|
@@ -65,7 +65,7 @@ TypeScript reference. The account was taken from `com.atproto.sync.listRepos?lim
 (`@atproto/pds` 0.5.39). Then:
 
 1. `com.atproto.server.createSession` as alice with her app password.
-2. `com.atproto.repo.putRecord` into `online.7778777.lessdugin.temp.post` with these rkeys:
+2. `com.atproto.repo.putRecord` into `forum.pandoras.temp.post` with these rkeys:
 
    ```
    aaaaaaaaaaa7-3mxygf7onkc2b                 (lower neighbouring fk)
@@ -241,7 +241,7 @@ eligible cross-host hits is about 0.2–1%.
 - `crates/sync`: `list_range` implements the stop and short-page rules and the two-part probe. A
   per-host `RangeCursor{Yes,No,Unknown}` is stored with `checkedAt`. FakePds gets an
   "opaque cursor" mode and a "cursor ignores bound" mode so the fallback is tested.
-- Completeness (I6) depends on the short-page rule. `lessdugin doctor` reports hosts whose short
+- Completeness (I6) depends on the short-page rule. `pandoras-forum doctor` reports hosts whose short
   pages were later contradicted (a non-empty page after a short one) and turns the rule off for
   them.
 - **Remaining work for S9:**

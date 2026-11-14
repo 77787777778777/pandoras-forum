@@ -3,8 +3,8 @@
 //! `PARAMS` value with its lexicon default (absent) or fallback (unknown known value), the
 //! effective behaviour IDs, and whether the "rules newer than your client" banner is due.
 
-use lessdugin_lexicon::records::{Forum, Policy};
-use lessdugin_lexicon::values::{
+use pandoras_forum_lexicon::records::{Forum, Policy};
+use pandoras_forum_lexicon::values::{
     DefaultTier, KarmaAlgorithm, MembershipMode, ModerationPolicy, NewUsers, RankingAlgorithm,
     ReactPalette, TagCreation, Voting,
 };
@@ -229,7 +229,7 @@ impl EffectivePolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use lessdugin_atp::syntax::Datetime;
+    use pandoras_forum_atp::syntax::Datetime;
 
     #[test]
     fn defaults_and_presets() {

@@ -3,8 +3,8 @@
 // engine's cursor, a `blocked` queue answer is recognised by its code, queue items take an
 // action, the viewer's own assertions can be removed from the log, and a former moderator's
 // assertions can be adopted.
-import { MockEngine } from "@lessdugin/engine/mock";
-import { DTO_VERSION, type ForumView, type ModLogEntry } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import { DTO_VERSION, type ForumView, type ModLogEntry } from "@pandoras-forum/engine/types";
 import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { AdoptionReport } from "../../components/AdoptionReport.tsx";
@@ -17,10 +17,10 @@ const OTHER = "did:plc:othermodothermodothermod";
 
 function entry(over: Partial<ModLogEntry>): ModLogEntry {
   return {
-    uri: "at://did:plc:othermodothermodothermod/online.7778777.lessdugin.temp.modAction/x-1",
+    uri: "at://did:plc:othermodothermodothermod/forum.pandoras.temp.modAction/x-1",
     actor: { did: OTHER, shortDid: "did:plc:othe…", handleState: "unverified" },
     action: "hide",
-    subject: "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.comment/3kabc",
+    subject: "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.comment/3kabc",
     value: "hidden",
     atMs: 1_700_000_000_000,
     status: "effective",
@@ -58,12 +58,12 @@ describe("ForumModPage", () => {
             entries: [
               entry({
                 ...twin,
-                uri: "at://did:plc:m/online.7778777.lessdugin.temp.modAction/a",
+                uri: "at://did:plc:m/forum.pandoras.temp.modAction/a",
                 value: "first",
               }),
               entry({
                 ...twin,
-                uri: "at://did:plc:m/online.7778777.lessdugin.temp.modAction/b",
+                uri: "at://did:plc:m/forum.pandoras.temp.modAction/b",
                 value: "second",
               }),
             ],
@@ -91,8 +91,7 @@ describe("ForumModPage", () => {
 
   it("acts on queue items: rejects an applicant, keeps a newcomer's item with the reason", async () => {
     const engine = new MockEngine({ holdMs: 0, sendMs: 0 });
-    const newcomerItem =
-      "at://did:plc:newnewnewnewnewnewnewnewn/online.7778777.lessdugin.temp.post/3k";
+    const newcomerItem = "at://did:plc:newnewnewnewnewnewnewnewn/forum.pandoras.temp.post/3k";
     vi.spyOn(engine, "modQueue").mockResolvedValue({
       dto: DTO_VERSION,
       items: [
@@ -132,7 +131,7 @@ describe("ForumModPage", () => {
 
   it("asserts a stale #tag.head again, and opens the tag of a head conflict (m3-11)", async () => {
     const engine = new MockEngine({ holdMs: 0, sendMs: 0 });
-    const ns = "online.7778777.lessdugin.temp";
+    const ns = "forum.pandoras.temp";
     const stale = `at://${OTHER}/${ns}.modAction/tag-1`;
     const head = `at://did:plc:abcdefghijklmnopqrstuvwx/${ns}.wikiRevision/3kabc`;
     vi.spyOn(engine, "modQueue").mockResolvedValue({
@@ -180,13 +179,12 @@ describe("ForumModPage", () => {
   it("removes the viewer's own assertion from the log", async () => {
     const engine = new MockEngine({ holdMs: 0, sendMs: 0 });
     const me = (await engine.activeAccount())?.did ?? "";
-    const comment =
-      "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.comment/3kabc";
+    const comment = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.comment/3kabc";
     vi.spyOn(engine, "modLog").mockResolvedValue({
       dto: DTO_VERSION,
       entries: [
         entry({
-          uri: `at://${me}/online.7778777.lessdugin.temp.modAction/k-1`,
+          uri: `at://${me}/forum.pandoras.temp.modAction/k-1`,
           actor: { did: me, shortDid: "me", handleState: "unverified" },
           action: "pin",
           subject: comment,

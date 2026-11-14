@@ -9,7 +9,7 @@ mod common;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
-use lessdugin_atp::{Ipld, dagcbor, datamodel};
+use pandoras_forum_atp::{Ipld, dagcbor, datamodel};
 
 #[test]
 fn fixtures_json_cbor_cid() {
@@ -30,7 +30,7 @@ fn fixtures_json_cbor_cid() {
             expected_cid
         );
         assert_eq!(
-            lessdugin_atp::cid::for_dag_cbor(&cbor).to_string(),
+            pandoras_forum_atp::cid::for_dag_cbor(&cbor).to_string(),
             expected_cid
         );
 
@@ -83,6 +83,6 @@ fn live_record_cid() {
     assert!(
         blobs
             .iter()
-            .all(|b| b.mime_type == "image/jpeg" && b.cid.codec() == lessdugin_atp::cid::RAW)
+            .all(|b| b.mime_type == "image/jpeg" && b.cid.codec() == pandoras_forum_atp::cid::RAW)
     );
 }

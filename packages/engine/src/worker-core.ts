@@ -34,7 +34,7 @@ import {
 } from "./protocol.ts";
 import type { EngineError, EngineErrorCode, EngineEvent } from "./types.ts";
 
-/** The wasm-bindgen exports the worker uses (`pkg/lessdugin_engine.js`). */
+/** The wasm-bindgen exports the worker uses (`pkg/pandoras_forum_engine.js`). */
 export interface WasmModule {
   WasmEngine: new (configJson: string, host: JsHostImports) => WasmEngineLike;
   engineVersion(): string;
@@ -122,13 +122,13 @@ export class WorkerEngine {
   }
 
   private warn(message: string, e: unknown): void {
-    (this.env.warn ?? ((m, err) => console.warn(`lessdugin engine: ${m}`, err)))(message, e);
+    (this.env.warn ?? ((m, err) => console.warn(`pandoras-forum engine: ${m}`, err)))(message, e);
   }
 
   private async openStores(
     init: WorkerInit,
   ): Promise<{ cache: KvBackend; state: KvBackend; blobs: BlobStore }> {
-    const prefix = init.dbPrefix ?? "lessdugin";
+    const prefix = init.dbPrefix ?? "pandoras-forum";
     const idb = this.env.idb;
     const stateCfg = init.state ?? { kind: "indexeddb" };
     let cache: KvBackend;

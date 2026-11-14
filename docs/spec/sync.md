@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin sync, discovery, verification and storage (normative)
+# Pandora's Forum sync, discovery, verification and storage (normative)
 
 **Status:** draft for the `.temp` namespace (M0). It is frozen with the lexicons at M7, except for the operational numbers marked *tunable* (timeouts, intervals, concurrency), which may change in any release without a new behaviour ID.
 **Sources:** `docs/design/synthesis-v1.md` §1.2–§1.4, §3, §6.3, §6.4 and §6.14, with every fix from `docs/design/completeness-review.md` and the approved plan applied, plus the accepted spike ADRs 0003 (Jetstream, relay, Constellation), 0004 (`listRecords` cursors, read budgets), 0005 (write semantics, blobs) and 0006 (devnet).
@@ -188,7 +188,7 @@ The `records` input of the fold (`social.md` §1.1) is built from eligible store
 |---|---|
 | **CORE** | author PDSes; the PLC directory and did:web hosts; DNS over HTTPS (DoH; the provider is configurable) |
 | **CORE+** | relay `listReposByCollection`; Jetstream; Constellation; Slingshot |
-| **EXT** | lessdugin indexers |
+| **EXT** | Pandora's Forum indexers |
 
 ### 2.2 Features by tier
 
@@ -213,7 +213,7 @@ The `records` input of the fold (`social.md` §1.1) is built from eligible store
 | Setting | Values | Default | Meaning |
 |---|---|---|---|
 | `sources` | `direct`, `assisted` | `assisted` | `direct` uses CORE only. `assisted` adds CORE+ and every enabled indexer (§2.4). |
-| `verify` | `pds`, `proof` | `pds` | `pds`: content is admitted at level `pds`. `proof` (verify every displayed item in the background): **Reserved (P2)**. On-demand `lessdugin verify` (§8.8) is always available. |
+| `verify` | `pds`, `proof` | `pds` | `pds`: content is admitted at level `pds`. `proof` (verify every displayed item in the background): **Reserved (P2)**. On-demand `pandoras-forum verify` (§8.8) is always available. |
 | `network.dns` | `doh`, `system` | `doh` | native only; `system` answers are flagged `dns-unauthenticated` (§3.1) |
 | `network.doh` | list of DoH JSON endpoints | `cloudflare-dns.com`, then `dns.google` | |
 | `network.plc` | URL | `https://plc.directory` | |
@@ -230,7 +230,7 @@ Settings live in the `state` store (`loc`, §10.4). CLI flags override them per 
 
 - An indexer comes from the user's configuration or from the forum's `discovery.indexers` (`data-model.md` FO3).
 - A forum-declared endpoint is used only after **one-time user consent** for that exact URL, stored in `state`. Only `https:` URLs with a hostname (not an IP literal) and the default port are eligible.
-- An indexer is reached at its URL, or at the `serviceEndpoint` of service `#lessdugin_index` (type `LessduginIndex`) in its `did:web` document.
+- An indexer is reached at its URL, or at the `serviceEndpoint` of service `#pandoras_forum_index` (type `PandorasForumIndex`) in its `did:web` document.
 - In `direct` mode no CORE+ or EXT endpoint is contacted, including Slingshot.
 
 ---
@@ -631,7 +631,7 @@ set No:  h.rangeCursor = No, h.rcAt = now
 - A host that ignores the cursor but whose collection holds only keys below `B` returns exactly the range listing, so the result is still correct.
 - `No` is re-probed after 7 days (*tunable*). `Yes` stays until a violation.
 - **Page size.** `limit` is the `limit` sent with that request: 100 (`LIST_RECORDS_LIMIT`), or, after a page over `LIST_PAGE_MAX_BYTES` (4 MiB), 10 and then 1 when the same cursor is retried (`limits.md` §5, §10.1). A one-record page that is still too large leaves the range incomplete (`[partial]`).
-- **Short pages.** A page with fewer than `limit` records ends a `RANGE` listing (both known implementations return SQL-limited pages). `h.shortPageEnds` is `true` by default; `lessdugin doctor` sets it to `false` for a host on which it observes a non-empty page after a short one, and listing then continues until an empty page or a missing cursor. `FULL` mode never uses the short-page rule.
+- **Short pages.** A page with fewer than `limit` records ends a `RANGE` listing (both known implementations return SQL-limited pages). `h.shortPageEnds` is `true` by default; `pandoras-forum doctor` sets it to `false` for a host on which it observes a non-empty page after a short one, and listing then continues until an empty page or a missing cursor. `FULL` mode never uses the short-page rule.
 - The membership key `{fk}` (no dash) is outside the range and is fetched with `getRecord` (§5.2). Neighbouring fks and `{fk}.…` keys fall outside it too.
 - Ascending listing (`reverse=true&cursor={fk}`) behaves identically and MAY be used for oldest-first replays; it is never used for the normative fetch cap.
 
@@ -778,7 +778,7 @@ It is defined for every DID that owns a record in `records` and for every author
 | `warm` | ≤ 30 days ago |
 | `cold` | otherwise |
 
-**Rollback.** If `h1.rev < repo.rev`, nothing is applied and the cache is kept. The repo follows the repo backoff (§9.4) and `repo.rollbackSince` is set. After 24 h of continuous rollback, the author's items carry a warning "repository rolled back". `lessdugin sync --full <forum>` discards that repo's cached state and lists it again, which accepts the PDS state: the PDS is the database.
+**Rollback.** If `h1.rev < repo.rev`, nothing is applied and the cache is kept. The repo follows the repo backoff (§9.4) and `repo.rollbackSince` is set. After 24 h of continuous rollback, the author's items carry a warning "repository rolled back". `pandoras-forum sync --full <forum>` discards that repo's cached state and lists it again, which accepts the PDS state: the PDS is the database.
 
 **Failures.** A failed sync sets `repo.fails += 1` and schedules the next attempt by the repo backoff (§9.4). Cached rows stay (unknown is not absent); items from a repo whose last attempt failed show `[stale]`.
 
@@ -848,7 +848,7 @@ Jetstream is used only in `assisted` mode. It is a **"this repo changed" signal*
 - "Participants are known" means every followed or open forum has finished one discovery pass (§4.2). The browser then switches to `filtered` at once, and so does a `wildcard` connection made while they were not known (a forum followed meanwhile), however recent the last `filtered` connection. When D changes later, it reconnects with the new set at most once per 10 minutes (*tunable*, counted from the last `filtered` connection), and DIDs newly added to D get a P2 `sync_repo` to cover the events they missed (none after a `wildcard` connection, which missed nothing). If `|D| > 10,000`, the browser stays in `wildcard`.
 - The side connection exists while the main one is `filtered` and `F_new ≠ ∅`, and is closed otherwise. It shares the deduplication LRU (§6.3) with the main connection. Its cursor is kept in memory and is never persisted: it resumes from its own cursor, else from the main cursor (`timeUs − 5 s` across a restart); a gap (`#info`) on it restarts its cursor at `now − 5 s` and schedules no reconcile. Its frames do not count as a healthy live source. Its reconnect delay follows the main connection's rule with its own failure count.
 - The DID filter discloses D to the Jetstream operator (decision U-D1, ADR 0009, `threat-model.md` PRIV-11).
-- **Reserved (P2):** switching the native client to `filtered` automatically when lessdugin-wide traffic exceeds about 50 events/s.
+- **Reserved (P2):** switching the native client to `filtered` automatically when pandoras-forum-wide traffic exceeds about 50 events/s.
 - `<NS>.*` also matches `<NS>.temp.*` and `<NS>.index.*` collections; events are filtered by exact collection (§6.4).
 - Compression: v1 MAY negotiate `permessage-deflate`. Byte caps apply after decompression.
 
@@ -961,9 +961,9 @@ The record-level protocols are `data-model.md` §8 (edit, delete, opinion, moder
 ### 7.1 Serialisation
 
 - Each `PendingWrite` (`data-model.md` §8.2) is persisted in the `state` store before any network call.
-- **One write in flight per account.** The pump for account `a` runs only while holding the lock `outbox:<a>` (§10.6): native `fd-lock` on `<data dir>/locks/outbox-<h>.lock`, browser Web Lock `lessdugin-outbox-<a>` (with `h` = the first 16 characters of `b32s(sha256(a))`). It processes the account's writes in `seq` order (FIFO). Different accounts run independently.
+- **One write in flight per account.** The pump for account `a` runs only while holding the lock `outbox:<a>` (§10.6): native `fd-lock` on `<data dir>/locks/outbox-<h>.lock`, browser Web Lock `pandoras-forum-outbox-<a>` (with `h` = the first 16 characters of `b32s(sha256(a))`). It processes the account's writes in `seq` order (FIFO). Different accounts run independently.
 - The lock is taken through `Host::lock` (§12.3) and held from picking a write until its outcome is persisted, one write at a time; the in-process pump lock and the outbox rows lock are taken inside it (lock order: pump, host lock, rows). `undo` takes the same lock, so it waits for a send of the same account that is in flight in another engine or process. Two engines on one host or data directory therefore never have two writes of one account in flight.
-- In `lessdugin web`, the bridge takes the same native lock for each `/bridge/xrpc` write, so the CLI, the TUI and the bridged SPA share one serialisation.
+- In `pandoras-forum web`, the bridge takes the same native lock for each `/bridge/xrpc` write, so the CLI, the TUI and the bridged SPA share one serialisation.
 - A browser tab that is not the sync leader persists its `PendingWrite` and notifies the leader over the BroadcastChannel (§10.6); whichever tab holds `outbox:<a>` pumps it.
 
 ### 7.2 The pump
@@ -1030,7 +1030,7 @@ verify_proof(car: bytes, did, collection, rkey, key: PublicKey, now) ->
 
 ### 8.2 CAR parsing
 
-lessdugin uses its own CARv1 reader:
+Pandora's Forum uses its own CARv1 reader:
 
 1. **Caps** (checked before allocation; nothing is preallocated from a declared length): total size ≤ 1,000,000 bytes for a `sync.getRecord` CAR (≤ 8,388,608 for an indexer bundle, §8.6); ≤ 2,000 blocks (≤ 50,000 for a bundle). Exceeding a cap → `CarTooLarge` or `TooManyBlocks`. Within a bundle, the blocks that one item's verification reads are also limited to 1,000,000 bytes and 2,000 blocks (`limits.md` §5).
 2. **Header.** An unsigned LEB128 varint length (at most 9 bytes, minimal encoding, not exceeding the remaining bytes), then a DAG-CBOR map `{version: 1, roots: [CID]}` with exactly one root.
@@ -1131,7 +1131,7 @@ If a proof fails `BadSignature` against the current key, and its rev is lower th
 
 A `BadSignature` at a rev ≥ the PDS head is a real failure and counts against the source. Verification against historical keys from the PLC audit log is **Reserved (P7)**.
 
-### 8.8 `lessdugin verify <ref> [--deep]`
+### 8.8 `pandoras-forum verify <ref> [--deep]`
 
 ```
 verify(uri, deep) -> VerifyReport
@@ -1203,7 +1203,7 @@ Background work may thus use at most 50% of a host's window, and P0 work up to 8
 ### 9.5 Request headers
 
 - Cross-origin GETs from the browser carry no custom headers, so there are no CORS preflights. (`accept: application/dns-json` is CORS-safelisted.)
-- Native requests send `User-Agent: lessdugin/<version> (+https://lessdugin.7778777.online)`.
+- Native requests send `User-Agent: pandoras-forum/<version> (+https://pandoras.forum)`.
 
 ### 9.6 User-visible budgets
 
@@ -1222,7 +1222,7 @@ Background work may thus use at most 50% of a host's window, and P0 work up to 8
 | `state` | durable | outbox, write budget, drafts, read marks, subscriptions, follows and unfollows, bookmarks, mutes, settings, consents, auth-server pins, notification watermarks and snapshots, quarantine list, schema version |
 | sessions | secret | native: the OS keyring; browser: IndexedDB with non-extractable keys |
 
-Native paths: `~/.cache/lessdugin/{cache.sqlite, blobs/}`, `~/.local/share/lessdugin/{state.sqlite, drafts/, locks/}`. Browser: IndexedDB databases `lessdugin-cache-v<N>` and `lessdugin-state`.
+Native paths: `~/.cache/pandoras-forum/{cache.sqlite, blobs/}`, `~/.local/share/pandoras-forum/{state.sqlite, drafts/, locks/}`. Browser: IndexedDB databases `pandoras-forum-cache-v<N>` and `pandoras-forum-state`.
 
 ### 10.2 Invariants
 
@@ -1314,16 +1314,16 @@ HostRow    { rangeCursor: "unknown" | "yes" | "no", rcAt: ms, shortPageEnds: boo
 
 | Lock | Native | Browser | Holder does |
 |---|---|---|---|
-| sync leader | exclusive `fd-lock` on `<cache dir>/cache.lock`, tried without waiting | Web Lock `lessdugin-sync-leader`, requested once and held for the tab's lifetime | live sources, polling, reconcile, discovery, P1–P3 sync, eviction |
-| repo `d` | `fd-lock` on `<cache dir>/locks/repo-<h(d)>.lock` | Web Lock `lessdugin-repo-<d>` | a whole pass of `sync_repo` (its identity is resolved before, so a pass waiting for PLC pacing does not hold it), point fetches and admissions for d, except the cold page's (below) |
-| outbox `a` | `fd-lock` on `<data dir>/locks/outbox-<h(a)>.lock` | Web Lock `lessdugin-outbox-<a>`; in `lessdugin web`, whose `state` is the native one, then also the native lock through `POST /bridge/lock` (`threat-model.md` §7.4) | the pump for account a (§7.1) |
+| sync leader | exclusive `fd-lock` on `<cache dir>/cache.lock`, tried without waiting | Web Lock `pandoras-forum-sync-leader`, requested once and held for the tab's lifetime | live sources, polling, reconcile, discovery, P1–P3 sync, eviction |
+| repo `d` | `fd-lock` on `<cache dir>/locks/repo-<h(d)>.lock` | Web Lock `pandoras-forum-repo-<d>` | a whole pass of `sync_repo` (its identity is resolved before, so a pass waiting for PLC pacing does not hold it), point fetches and admissions for d, except the cold page's (below) |
+| outbox `a` | `fd-lock` on `<data dir>/locks/outbox-<h(a)>.lock` | Web Lock `pandoras-forum-outbox-<a>`; in `pandoras-forum web`, whose `state` is the native one, then also the native lock through `POST /bridge/lock` (`threat-model.md` §7.4) | the pump for account a (§7.1) |
 
 `h(x)` = the first 16 characters of `b32s(sha256(UTF8(x)))` (`data-model.md` §3.1).
 
 - Processes and tabs that are not the leader read the cache and do only P0 fetches, each under the repo lock.
 - **Head checks.** A head check (§6.7, §14.3 step 4) sends its `getLatestCommit` without the repo lock and takes the lock only to record `headSeen`, and only if it is free: while another job holds the repo (a sync in flight), it hands its observation to that job, which records it with its own write (the latest by send time wins, §5.9), and a currency check (§1.2) uses it meanwhile. A head check of an author on screen therefore never waits for a sync of that author's repo, and neither write loses the other's state. The cold page's membership reads and proof admissions (§14.3 steps 3 and 4) do not take the lock either: they change no repo state, and their record writes are ordered with the sync's by the write lock.
 - **Write lock.** The store has no interactive transactions (§12.4), so every write of a record or tombstone is a read-diff-write: a batch reads the uri's slot, decides (§5.6.2, §5.6.3) and commits. Every writer of `d`'s record slots, with the repo lock or without it, holds the in-process write lock of `d` for exactly that local phase, from its batch's first slot read to its commit, with no request in between; the repo lock still serializes whole passes. Lock order: the write lock is taken last, after the repo lock if any, and is never held while taking the repo lock or awaiting the network, so it is held only for local work and no two jobs deadlock. A lockless admission therefore waits at most for another writer's local phase, never for a sync held at its listings, and is still safe: two writers never decide from the same stale slot, so neither commit overwrites the other's (which could move a first-seen time later, §5.6.5, or put a record back beside the newer tombstone that removed it).
-- **Change notification.** Browser: every committed batch's `Changed{topics}` is posted on BroadcastChannel `lessdugin-changes`. Native: followers (for example a TUI next to a CLI) poll SQLite `PRAGMA data_version` every 2 s and rescan. This is a host concern and not part of the trait.
+- **Change notification.** Browser: every committed batch's `Changed{topics}` is posted on BroadcastChannel `pandoras-forum-changes`. Native: followers (for example a TUI next to a CLI) poll SQLite `PRAGMA data_version` every 2 s and rescan. This is a host concern and not part of the trait.
 - When the leader exits, another process or tab takes the lock and resumes from the persisted cursors and queue state.
 
 ### 10.7 Eviction
@@ -1510,7 +1510,7 @@ pub trait KvStore: MaybeSendSync {                                      // Index
 - `write` is atomic (all or nothing) and applies its ops in order. After it resolves, reads in the same process observe it.
 - Durability: `state` writes are durable when `write` resolves (SQLite `synchronous=FULL`; IndexedDB durability `strict`). `cache` writes MAY be relaxed (`synchronous=NORMAL`; `relaxed`).
 - Native: one table `kv(k BLOB PRIMARY KEY, v BLOB) WITHOUT ROWID` per store, WAL mode, `busy_timeout`; each batch is one transaction. Browser: one object store with `ArrayBuffer` keys per database; each batch is one `readwrite` transaction; `Rev` scans use a `prev` cursor.
-- Every implementation passes the shared store-invariant tests in `lessdugin-testkit`.
+- Every implementation passes the shared store-invariant tests in `pandoras-forum-testkit`.
 
 ---
 
@@ -1580,7 +1580,7 @@ Read budgets are per host (ADR 0004), so a cold sync spread over many Bluesky PD
 
 ---
 
-## 15. Optional indexer (`lessdugin-indexer`)
+## 15. Optional indexer (`pandoras-forum-indexer`)
 
 The indexer is the same core engine (native host, `SqliteKv`) running continuously for every forum it serves, plus the `NS.index.*` XRPC methods (`data-model.md` §11). It returns uri + cid with hint values, and verifiable proof CARs.
 
@@ -1640,7 +1640,7 @@ Displayed values are always recomputed locally from admitted records. Indexer ag
 
 **Change cursor.** The operator blocklist is applied after paging (§15.3), so a `getChanges` cursor may be above the last returned seq (and above `since` on an empty page). The client follows it. A cursor below the last returned seq, or above both that seq and the response's `asOf.seq`, is refused and does not advance the stored cursor.
 
-**Audit.** `lessdugin sync <forum> --audit` (and an SPA settings action) cross-checks one indexer for one forum:
+**Audit.** `pandoras-forum sync <forum> --audit` (and an SPA settings action) cross-checks one indexer for one forum:
 
 | Check | Procedure | Finding |
 |---|---|---|
@@ -1666,7 +1666,7 @@ The report lists findings with counts, and the command exits with code 6 if any 
 | Automatic native switch of the Jetstream DID filter above ~50 events/s | P2 |
 | Equivocation recording and fork evidence (F15) | P2 |
 | UTS #39 checks beyond the owner and moderators | P2 |
-| `/bridge/fetch` (anonymous read proxy in `lessdugin web`) | P2 |
+| `/bridge/fetch` (anonymous read proxy in `pandoras-forum web`) | P2 |
 | Indexer `searchPosts`/fts5, `listBacklinks`, `getActivity`, `getKarma`, `getTallies`, `getRecords`; automatic audit and demotion | P2 |
 | Thumbnails | P2 |
 | Identity level `audited` (PLC audit log); proofs against historical keys | P7 |
@@ -1705,7 +1705,7 @@ These choices fill gaps or resolve ambiguities in the sources. Each takes the si
 23. **Blob directory sharding (§11.2)** uses the last two characters of the CID. The first two are always `ba` for base32 CIDv1, which the synthesis's `cid[0..2]` would have used.
 24. **Concrete constants** not given by the sources (*tunable* unless stated): PLC adaptive pacing; DID-document and protected-resource caps of 64 KiB; proof-bundle block caps (2,000 per proof CAR, 20,000 per bundle); blob timeouts (20 s without progress, 300 s total); LRU size 10,000; newcomer ordering; relay defaults; indexer `getChanges` polling every 10 s or 60 s.
 25. **Autoload (§11.3).** Comments inherit their root post's self-labels. Only `Visible` items autoload, as `threat-model.md` PRIV-1 requires (an earlier draft also autoloaded expanded `Collapsed` items; changed in the consistency review, because the threat model wins on security measures).
-26. **Audit (§15.4).** The flag is `lessdugin sync <forum> --audit`, and checks A1–A5 make the M6 acceptance criteria ("catches an injected omission and a forged proof") concrete. Automatic sampling and demotion are deferred, per the cut list.
+26. **Audit (§15.4).** The flag is `pandoras-forum sync <forum> --audit`, and checks A1–A5 make the M6 acceptance criteria ("catches an injected omission and a forged proof") concrete. Automatic sampling and demotion are deferred, per the cut list.
 27. **Closure (§4.3)** follows opinion subjects and comment roots and parents of seed records, one level deep and unbounded. Each DID is confirmed by its membership record before it is synced (F16).
 28. **Badges (§1.6).** `[stale]` also marks items served from cache after a failed sync. `[pending]` (outbox) is added, from the SPA's "pending-write badges". `[edited]` uses `social.md` §11's rule (a valid `op: update` revision, or `updatedAt` later than `createdAt`).
 29. **Consistency review.** Numbers now follow `limits.md`, which wins on values: 100 MiB per `opinion` range (50 MiB otherwise); `FULL` caps stated in MiB; bundle caps of 8 MiB and 50,000 blocks, with the per-item proof limits and the halving retry; the GET retry formula with `2^(k−1)`; no total timeout for blob downloads; MiB for blob caps; the `fetch_blob` byte limit includes the declared size and the field's `maxSize`. The short-page rule compares with the `limit` actually sent, because an oversized page is retried with smaller limits. A record deeper than 32 levels is converted and stored invalid (G10) rather than dropped. The pump's hold and back-off use `PendingWrite.notBefore` (`data-model.md` §8.2).

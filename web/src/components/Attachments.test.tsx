@@ -1,7 +1,7 @@
 // The attachment row (docs/plan.md M4): a file is prepared through the engine, and a refusal is
 // shown with the engine's own reason rather than a generic failure.
 
-import type { MediaRef } from "@lessdugin/engine/types";
+import type { MediaRef } from "@pandoras-forum/engine/types";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 

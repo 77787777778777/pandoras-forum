@@ -17,17 +17,17 @@
 //! 0.28 s L3 (50,000 opinions through three stages); every other layer takes under 0.1 s.
 //! The budgets ([`BUDGET_RELEASE`], [`BUDGET_DEBUG`]) are about 3× and 7× those times; a run
 //! prints its own (`-- --nocapture`). For release numbers:
-//! `cargo test -p lessdugin-core --release --test social_perf -- --nocapture`.
+//! `cargo test -p pandoras-forum-core --release --test social_perf -- --nocapture`.
 
 mod social_gen;
 
 use std::collections::BTreeMap;
 use std::time::Duration;
 
-use lessdugin_core::social::full::query::{CommentQuery, CommentSort, PostQuery, PostSort};
-use lessdugin_core::social::full::{ForumView, Query, fold_view};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_core::social::full::query::{CommentQuery, CommentSort, PostQuery, PostSort};
+use pandoras_forum_core::social::full::{ForumView, Query, fold_view};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_lexicon::ns::NS;
 use serde_json::{Map, json};
 use social_gen::{DAY, Forum, Kind, MAX_MINUTE, Rng, T0, at, user};
 

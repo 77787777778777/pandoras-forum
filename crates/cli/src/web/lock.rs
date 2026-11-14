@@ -2,11 +2,11 @@
 //! `POST /bridge/lock`: the native `outbox:<did>` lock, held for a tab (`threat-model.md` §7.4,
 //! `sync.md` §7.1, §10.6).
 //!
-//! In `lessdugin web` the tab's outbox rows live in the native `state.sqlite` (`/bridge/kv`), so
-//! the tab and native clients (`lessdugin sync`, `outbox flush`, the TUI) pump the same rows. A
+//! In `pandoras-forum web` the tab's outbox rows live in the native `state.sqlite` (`/bridge/kv`), so
+//! the tab and native clients (`pandoras-forum sync`, `outbox flush`, the TUI) pump the same rows. A
 //! browser Web Lock does not exclude a native file lock, so without this endpoint both could
 //! send the same write ("one write in flight per account", sync.md §7.1). A tab in bridge mode
-//! therefore takes its Web Lock `lessdugin-outbox-<did>` and then this lock, for as long as it
+//! therefore takes its Web Lock `pandoras-forum-outbox-<did>` and then this lock, for as long as it
 //! holds the account's outbox:
 //!
 //! ```text
@@ -30,8 +30,8 @@ use std::time::Duration;
 use axum::body::{Body, Bytes};
 use axum::http::{HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::Host as _;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::Host as _;
 use serde_json::json;
 
 use super::policy::{BRIDGE_LOCK_HEARTBEAT_MS, BRIDGE_LOCK_WAIT_MS};
@@ -126,7 +126,7 @@ pub async fn handle(web: &Arc<Web>, token: &str, body: &[u8]) -> Response {
 
 /// A held lock and what ends it.
 struct Held {
-    _guard: lessdugin_native::host::NativeLock,
+    _guard: pandoras_forum_native::host::NativeLock,
     web: Arc<Web>,
     token: String,
     shutdown: tokio::sync::watch::Receiver<bool>,

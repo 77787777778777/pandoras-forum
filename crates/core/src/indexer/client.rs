@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use lessdugin_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::syntax::{AtUri, Did};
 
 use crate::host::Host;
 use crate::limits;
@@ -400,7 +400,7 @@ impl Client {
             .iter()
             .map(|u| ("uris", u.as_str()))
             .collect::<Vec<_>>();
-        let qs = lessdugin_atp::xrpc::query_string(&params);
+        let qs = pandoras_forum_atp::xrpc::query_string(&params);
         let resp = session
             .xrpc()
             .get(

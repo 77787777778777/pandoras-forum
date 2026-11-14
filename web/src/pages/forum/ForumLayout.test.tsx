@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The forum header's membership actions: a member leaves after confirming (engine-api.md §3.2
 // `leave`, social.md §3 "Leaving"; review finding conformance-2).
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { parseAtUri } from "../../lib/uri.ts";

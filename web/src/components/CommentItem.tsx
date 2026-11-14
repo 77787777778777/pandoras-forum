@@ -3,8 +3,8 @@
 // body with reacts, and actions (reply, link, moderate). Tombstones, missing placeholders and
 // collapsed comments render their reason instead of the body (social.md §10.2).
 
-import type { CommentNode, HiddenReason, ViewerCaps } from "@lessdugin/engine/types";
-import { isOrphanAnchor } from "@lessdugin/engine/types";
+import type { CommentNode, HiddenReason, ViewerCaps } from "@pandoras-forum/engine/types";
+import { isOrphanAnchor } from "@pandoras-forum/engine/types";
 import { useNavigate } from "@tanstack/react-router";
 import { type FocusEvent, type KeyboardEvent, useRef } from "react";
 import { useEngine } from "../engine/context.tsx";

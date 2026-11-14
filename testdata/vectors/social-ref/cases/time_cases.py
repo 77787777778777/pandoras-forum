@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 
-from lessdugin_ref.build import DAY, HOUR, MIN, SEC, T0, Forum, cid, dt, tid
-from lessdugin_ref.syntax import datetime_us
-from lessdugin_ref.time import tid_time
+from pandoras_forum_ref.build import DAY, HOUR, MIN, SEC, T0, Forum, cid, dt, tid
+from pandoras_forum_ref.syntax import datetime_us
+from pandoras_forum_ref.time import tid_time
 
 from .util import file_doc, vector
 
@@ -283,7 +283,7 @@ def time_vectors() -> list:
 
     f = Forum(created=0)
     f.decl["value"]["createdAt"] = "1969-07-20T20:17:40.000Z"
-    from lessdugin_ref.build import rec
+    from pandoras_forum_ref.build import rec
     f.decl = rec(f.decl["uri"], f.decl["value"])
     f.uri = f.decl["uri"]
     p = f.post("alice", T0)
@@ -298,7 +298,7 @@ def time_vectors() -> list:
     p = f.post("alice", T0 + HOUR)
     bad = f.post("bob", T0 + 2 * HOUR)
     bad["value"].pop("createdAt")
-    from lessdugin_ref.build import rec as _rec
+    from pandoras_forum_ref.build import rec as _rec
     bad = _rec(bad["uri"], bad["value"])
     at_us(f, bad, T0 + 2 * HOUR)
     v = V("missing-createdAt-excludes-the-item", f, [p, bad],

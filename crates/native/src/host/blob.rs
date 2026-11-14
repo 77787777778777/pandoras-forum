@@ -23,10 +23,10 @@ use std::time::Duration;
 use futures::FutureExt as _;
 use futures::future::{BoxFuture, Shared};
 
-use lessdugin_atp::cid as atp_cid;
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{BlobHandle, HostError};
-use lessdugin_core::limits;
+use pandoras_forum_atp::cid as atp_cid;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{BlobHandle, HostError};
+use pandoras_forum_core::limits;
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use url::Url;
@@ -62,7 +62,7 @@ impl std::fmt::Debug for BlobStore {
 
 /// Parses and checks a blob CID string: canonical CIDv1, codec raw, sha2-256. The canonical
 /// form is lowercase base32, so the string is also safe as a file name.
-fn parse_blob_cid(cid: &str) -> Result<lessdugin_atp::Cid, HostError> {
+fn parse_blob_cid(cid: &str) -> Result<pandoras_forum_atp::Cid, HostError> {
     let parsed = atp_cid::parse(cid)
         .map_err(|e| HostError::Unsupported(format!("blob CID {cid:?}: {e}")))?;
     if parsed.codec() != atp_cid::RAW

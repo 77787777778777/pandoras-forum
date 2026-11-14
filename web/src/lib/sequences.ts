@@ -4,7 +4,7 @@
 // displayable entries, so a draft built from it would drop the hidden and unavailable ones, and
 // its positions would not be the record's. Record JSON is untrusted: every field is checked.
 
-import type { MediaRef, SequenceDraft, SequencePosition } from "@lessdugin/engine/types";
+import type { MediaRef, SequenceDraft, SequencePosition } from "@pandoras-forum/engine/types";
 import { isSpilledBody, markdownOf, mediaRefsOf, objectField, stringField } from "./records.ts";
 
 /** The lexicon's caps (`sequence.chapters` maxLength 50, `#chapter.posts` maxLength 100). */

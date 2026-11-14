@@ -20,7 +20,11 @@ import { join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Strings found only in src/host/e2e.ts and the e2e branch of src/engine/real.ts. */
-export const E2E_MARKERS = ["__lessduginE2E", "__LESSDUGIN_E2E__", "End-to-end test build"];
+export const E2E_MARKERS = [
+  "__pandorasForumE2E",
+  "__PANDORAS_FORUM_E2E__",
+  "End-to-end test build",
+];
 
 /** Strings found only in the mock engine (packages/engine/src/mock*) and src/engine/mock.ts. */
 export const MOCK_MARKERS = [

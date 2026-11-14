@@ -2,7 +2,7 @@
 //! M1 acceptance (`docs/plan.md` §3 M1), offline: "Concurrent refresh is safe: parallel CLI
 //! processes refreshing one session never invalidate it."
 //!
-//! [`PROCESSES`] `lessdugin whoami` processes share one data directory and one stored
+//! [`PROCESSES`] `pandoras-forum whoami` processes share one data directory and one stored
 //! app-password session (the 0600 session file; the OS keyring is off), against a tiny PLC +
 //! PDS on 127.0.0.1 (the CLI in devnet mode) with the strictest refresh rules: a refresh token
 //! is single use, and presenting a spent one revokes every token of the session (the reference
@@ -21,7 +21,7 @@
 //! still works (another `whoami`, and another forced refresh).
 //!
 //! The same race against the reference PDS (app password and OAuth) is in `e2e_devnet.rs`
-//! (`LESSDUGIN_E2E=1`).
+//! (`PANDORAS_FORUM_E2E=1`).
 
 #![allow(clippy::disallowed_methods)] // a real clock and real sleeps for real processes
 
@@ -286,17 +286,17 @@ fn serve() -> Server {
 // ---------------------------------------------------------------------------------------------
 // The CLI
 
-/// `lessdugin --dev` against the server, with its own data directory and no OS keyring.
+/// `pandoras-forum --dev` against the server, with its own data directory and no OS keyring.
 fn cli(server: &Server, data: &Path) -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+    let mut c = Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
     for (k, _) in std::env::vars() {
-        if k.starts_with("LESSDUGIN_") {
+        if k.starts_with("PANDORAS_FORUM_") {
             c.env_remove(k);
         }
     }
     c.args(["--dev", "--plc-url", &server.url, "--pds-url", &server.url])
-        .env("LESSDUGIN_DATA_DIR", data)
-        .env("LESSDUGIN_KEYRING", "off")
+        .env("PANDORAS_FORUM_DATA_DIR", data)
+        .env("PANDORAS_FORUM_KEYRING", "off")
         .env("NO_COLOR", "1")
         .env_remove("RUST_LOG")
         .env_remove("BROWSER");
@@ -353,7 +353,7 @@ fn edit_session(data: &Path, f: impl FnOnce(&mut Value)) {
     let path = session_file(data);
     let mut v: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
     f(&mut v);
-    lessdugin_native::fsutil::write_private_atomic(&path, &serde_json::to_vec(&v).unwrap())
+    pandoras_forum_native::fsutil::write_private_atomic(&path, &serde_json::to_vec(&v).unwrap())
         .unwrap();
 }
 

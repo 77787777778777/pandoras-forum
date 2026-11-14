@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! The CLI part of the parity scenario (`docs/plan.md` §4.2, M2 text subset) against the local
-//! devnet (`packages/e2e/devnet.mjs`, ADR 0006). Runs only with `LESSDUGIN_E2E=1`;
-//! `LESSDUGIN_DEVNET_JSON=<file>` reuses a running devnet (a fresh one is better: the forum
+//! devnet (`packages/e2e/devnet.mjs`, ADR 0006). Runs only with `PANDORAS_FORUM_E2E=1`;
+//! `PANDORAS_FORUM_DEVNET_JSON=<file>` reuses a running devnet (a fresh one is better: the forum
 //! slug is fixed).
 //!
 //! alice creates an approval-mode forum with the CLI and approves bob and carol; alice and bob
 //! post, carol replies; an anonymous reader lists and reads the forum. With the same parity
-//! time (`LESSDUGIN_PARITY_NOW_MS`, `engine-api.md` §2.1), the anonymous reader and alice print
+//! time (`PANDORAS_FORUM_PARITY_NOW_MS`, `engine-api.md` §2.1), the anonymous reader and alice print
 //! byte-identical `read --json` output.
 
 #![allow(clippy::disallowed_methods)] // a real clock and real sleeps for a real network
@@ -19,22 +19,23 @@ use serde_json::Value;
 
 struct Devnet {
     info: Value,
-    _child: Option<lessdugin_testkit::node_devnet::NodeDevnet>,
+    _child: Option<pandoras_forum_testkit::node_devnet::NodeDevnet>,
 }
 
 impl Devnet {
     fn start() -> Option<Self> {
-        if std::env::var("LESSDUGIN_E2E").ok().as_deref() != Some("1") {
-            eprintln!("skipped: set LESSDUGIN_E2E=1 to run against the devnet");
+        if std::env::var("PANDORAS_FORUM_E2E").ok().as_deref() != Some("1") {
+            eprintln!("skipped: set PANDORAS_FORUM_E2E=1 to run against the devnet");
             return None;
         }
-        if let Ok(path) = std::env::var("LESSDUGIN_DEVNET_JSON") {
+        if let Ok(path) = std::env::var("PANDORAS_FORUM_DEVNET_JSON") {
             let info = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             return Some(Self { info, _child: None });
         }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         // one devnet per test: the tests of a binary run in parallel
-        let (child, info) = lessdugin_testkit::node_devnet::NodeDevnet::start(root, "cli-forum");
+        let (child, info) =
+            pandoras_forum_testkit::node_devnet::NodeDevnet::start(root, "cli-forum");
         Some(Self {
             info,
             _child: Some(child),
@@ -51,20 +52,20 @@ impl Devnet {
             .to_owned()
     }
 
-    /// `lessdugin --dev` with its own data directory.
+    /// `pandoras-forum --dev` with its own data directory.
     fn cli(&self, data: &Path) -> Command {
-        let mut c = Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
         for (k, _) in std::env::vars() {
-            if k.starts_with("LESSDUGIN_") {
+            if k.starts_with("PANDORAS_FORUM_") {
                 c.env_remove(k);
             }
         }
         c.arg("--dev")
-            .env("LESSDUGIN_DATA_DIR", data)
-            .env("LESSDUGIN_KEYRING", "off")
-            .env("LESSDUGIN_PLC_URL", self.s(&["plc"]))
-            .env("LESSDUGIN_PDS_URL", self.s(&["pds"]))
-            .env("LESSDUGIN_SESSION", "e2e")
+            .env("PANDORAS_FORUM_DATA_DIR", data)
+            .env("PANDORAS_FORUM_KEYRING", "off")
+            .env("PANDORAS_FORUM_PLC_URL", self.s(&["plc"]))
+            .env("PANDORAS_FORUM_PDS_URL", self.s(&["pds"]))
+            .env("PANDORAS_FORUM_SESSION", "e2e")
             .env("NO_COLOR", "1")
             .env_remove("RUST_LOG");
         c
@@ -75,7 +76,7 @@ fn run(cmd: &mut Command, stdin: Option<&str>) -> Output {
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
-    let mut child = cmd.spawn().expect("lessdugin");
+    let mut child = cmd.spawn().expect("pandoras-forum");
     {
         let mut si = child.stdin.take().unwrap();
         if let Some(s) = stdin {
@@ -228,7 +229,7 @@ fn e2e_cli_forum_scenario() {
 
     // parity: the same fixed time gives byte-identical views on two devices
     let t = (chrono_free_now_ms() + 86_400_000).to_string();
-    let env = [("LESSDUGIN_PARITY_NOW_MS", t.as_str())];
+    let env = [("PANDORAS_FORUM_PARITY_NOW_MS", t.as_str())];
     let (_, from_anon) = anon.json_env(&["read", &welcome], &env);
     let (_, from_alice) = alice.json_env(&["read", &welcome], &env);
     assert_eq!(from_anon, from_alice);
@@ -236,11 +237,11 @@ fn e2e_cli_forum_scenario() {
     let (_, list_carol) = carol.json_env(&["ls", &fref, "--all", "--sort", "old"], &env);
     assert_eq!(list_anon, list_carol);
     // parity mode is refused outside devnet mode
-    let mut c = Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+    let mut c = Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
     let out = run(
-        c.env("LESSDUGIN_DATA_DIR", anon.dir.path())
-            .env("LESSDUGIN_KEYRING", "off")
-            .env("LESSDUGIN_PARITY_NOW_MS", &t)
+        c.env("PANDORAS_FORUM_DATA_DIR", anon.dir.path())
+            .env("PANDORAS_FORUM_KEYRING", "off")
+            .env("PANDORAS_FORUM_PARITY_NOW_MS", &t)
             .args(["ls", &fref]),
         None,
     );

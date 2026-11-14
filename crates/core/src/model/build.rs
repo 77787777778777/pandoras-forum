@@ -28,10 +28,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::records::Forum;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::Forum;
 use serde_json::Value;
 
 use crate::discovery::forum_ref::ForumKey;

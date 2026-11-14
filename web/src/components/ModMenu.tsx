@@ -17,7 +17,7 @@ import type {
   ModActionValue,
   ModScope,
   Tier,
-} from "@lessdugin/engine/types";
+} from "@pandoras-forum/engine/types";
 import { useState } from "react";
 import { useEngine } from "../engine/context.tsx";
 import { writeStore } from "../engine/writes.ts";

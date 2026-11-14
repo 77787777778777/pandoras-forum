@@ -6,7 +6,7 @@
 //! engine runs) with the runner's validity, projected like every other runner ([`project`]).
 //!
 //! **Namespace.** The vectors are written in the final namespace (`ns` in each file). With the
-//! `final-ns` feature (`cargo test -p lessdugin-core --features final-ns --test social_vectors`)
+//! `final-ns` feature (`cargo test -p pandoras-forum-core --features final-ns --test social_vectors`)
 //! this build's lexicon is that namespace and record validity (rule V1) is computed exactly. In a
 //! default (`.temp`) build each record is checked after mapping its NSIDs into this build's
 //! namespace, ignoring the rules whose outcome depends on keys hashed from the namespace (G5, G9,
@@ -31,13 +31,13 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::social::digest;
-use lessdugin_core::social::full::{ForumView, Query, fold_view_with, project};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_core::social::time;
-use lessdugin_lexicon::ns::{NS, to_build_nsid};
-use lessdugin_lexicon::{RuleId, keys};
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::social::digest;
+use pandoras_forum_core::social::full::{ForumView, Query, fold_view_with, project};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_core::social::time;
+use pandoras_forum_lexicon::ns::{NS, to_build_nsid};
+use pandoras_forum_lexicon::{RuleId, keys};
 use serde_json::{Map, Value, json};
 // Natively this is a libtest test; on wasm32 the same body runs under wasm-bindgen-test in node.
 #[cfg(target_arch = "wasm32")]
@@ -211,7 +211,7 @@ fn validity(ns: &str, uri: &str, value: &Value) -> (bool, Option<String>) {
     let Ok(u) = AtUri::parse(&uri) else {
         return (false, Some("G4".into()));
     };
-    let v = lessdugin_lexicon::validity::check_uri(&u, &value);
+    let v = pandoras_forum_lexicon::validity::check_uri(&u, &value);
     let failed: Vec<RuleId> = v
         .violations
         .iter()

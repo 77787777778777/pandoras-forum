@@ -1,18 +1,18 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# LFM/1: lessdugin flavoured markdown (`lfm/1`)
+# LFM/1: Pandora's Forum flavoured markdown (`lfm/1`)
 
 | | |
 |---|---|
 | Status | Normative. Frozen at the first release that writes the final `NS` (M7). Before that it changes only together with its vectors. |
 | Behaviour ID | `lfm/1`. It is also the `profile` knownValue of `NS.markdown` (`data-model.md` §5). |
-| Implementation | `crates/markdown` (`lessdugin-markdown`, wasm-safe). It is the only implementation: CLI, TUI, SPA (wasm) and indexer call the same code, and their outputs are byte-identical. |
+| Implementation | `crates/markdown` (`pandoras-forum-markdown`, wasm-safe). It is the only implementation: CLI, TUI, SPA (wasm) and indexer call the same code, and their outputs are byte-identical. |
 | Vectors | `testdata/vectors/lfm1/` (§13), plus `terminal/`, `xss/` and `mathml/` |
 | Derived from | synthesis §2.7, §5.2 (F1, F5–F9, F16), §5.3, §6.8, §10 (C11); completeness review (pingbacks, streaming blobs) |
 
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used as in RFC 2119 and RFC 8174.
 
-`NS` is the build-time namespace constant: `online.7778777.lessdugin`, or `online.7778777.lessdugin.temp` in development builds. "Our collections" always means the collections under the build's `NS`.
+`NS` is the build-time namespace constant: `forum.pandoras`, or `forum.pandoras.temp` in development builds. "Our collections" always means the collections under the build's `NS`.
 
 ---
 
@@ -106,7 +106,7 @@ Every stage MUST be deterministic, on every target. Implementations MUST NOT key
 
 ## 2. Parser profile
 
-**Crate.** `pulldown-cmark = { version = "=0.13.4", default-features = false }`. The `html`, `getopts` and `simd` features are off, because lessdugin has its own writers.
+**Crate.** `pulldown-cmark = { version = "=0.13.4", default-features = false }`. The `html`, `getopts` and `simd` features are off, because Pandora's Forum has its own writers.
 
 **Base syntax.** CommonMark 0.31.2, as implemented by that version, on a source whose line endings and NUL characters pass 0 has already normalised (§3 step 0).
 
@@ -424,7 +424,7 @@ parse_at_link(rest, ctx):                  // rest = text after "at:"
                      so no port, path or percent-encoding) ;  any other method → reject
     len(segs) == 1 → Profile{did}
     len(segs) == 3 → segs[1] is a valid NSID whose authority (every segment but the last) is lower case,
-                     and segs[2] a valid record key (atproto syntax, lessdugin-atp)
+                     and segs[2] a valid record key (atproto syntax, pandoras-forum-atp)
                      → Record{uri = "at://" + did + "/" + nsid + "/" + rkey}       // the canonical AtUri
     otherwise (including a trailing '/') → reject
   segs[0] is a valid atproto handle (lowercased), len(segs) == 1, and ctx == Field → ProfileHandle{handle}
@@ -650,7 +650,7 @@ Other declarations:
 
 **Limits.** After filtering, if the element depth inside `math` (where `math` is 1) exceeds 64, or the serialised `math` element exceeds 65,536 bytes, the expression is a math error. The serialised `math` elements of one document total at most 16 MiB (16 · 2^20 bytes): an expression that would pass that is a math error (`math.json#mathml-document-budget`).
 
-**Stylesheet.** `crates/markdown/assets/mathml.css` (CC0-1.0) holds one rule `math .mc-x.mc-x` per class, with exactly the declarations of the two tables above: specificity (0,2,1) outranks every rule of math-core's `mathmlfixes.css` that can match the same element, without `!important`. It is loaded after `mathmlfixes.css` (MIT, shipped next to it with its licence notice: `mtd` padding, the `menclose` polyfill, accent margins). `lessdugin_markdown::math::MATHML_CSS` is the two files concatenated, for exports; the SPA imports both (`web/src/styles/mathml.css`). A test checks that every class has a rule.
+**Stylesheet.** `crates/markdown/assets/mathml.css` (CC0-1.0) holds one rule `math .mc-x.mc-x` per class, with exactly the declarations of the two tables above: specificity (0,2,1) outranks every rule of math-core's `mathmlfixes.css` that can match the same element, without `!important`. It is loaded after `mathmlfixes.css` (MIT, shipped next to it with its licence notice: `mtd` padding, the `menclose` polyfill, accent margins). `pandoras_forum_markdown::math::MATHML_CSS` is the two files concatenated, for exports; the SPA imports both (`web/src/styles/mathml.css`). A test checks that every class has a rule.
 
 **Remaining degradation.** Negative spaces other than `\!`, `\negmedspace` and `\negthickspace` (`\mkern-6mu`, `\kern-2pt`) are lost, and so on Firefox is a space in absolute units (`\hspace{2pt}`), which math-core writes in `rem` (`mathml/math-core-0.9.json#norm-negative-space-other-dropped`, `#norm-rem-space-width-style`). Colours other than named ones cannot be written. The `mathml/` vectors record which S10 snippets and probes the engine renders (§13).
 
@@ -833,7 +833,7 @@ flat(subtree) = in order: its Text, Literal and Code payloads as Text, and its m
 
 ### 8.5 Sanitiser obligations
 
-- **SPA.** Rendered HTML is inserted only through the Trusted Types policy `lessdugin-md`, which runs DOMPurify. The DOMPurify configuration is **generated from, or checked entry for entry by a CI test against, the Rust allowlist** (the tables of §8.2 and §7.3 that `allowlist::dompurify_config_json()` is built from; an equivalent guarantee, orchestrator decision O-11) and contains nothing else. The SPA keeps hand-written tables in `web/src/lib/sanitize.ts`; `web/src/lib/sanitize.allowlist.test.ts` compares them with the Rust tables both ways (tags, the attributes of each element, class tokens, the URI pattern, the options and their values) and probes the value grammars its hooks enforce against the patterns of the §8.2 table:
+- **SPA.** Rendered HTML is inserted only through the Trusted Types policy `pandoras-forum-md`, which runs DOMPurify. The DOMPurify configuration is **generated from, or checked entry for entry by a CI test against, the Rust allowlist** (the tables of §8.2 and §7.3 that `allowlist::dompurify_config_json()` is built from; an equivalent guarantee, orchestrator decision O-11) and contains nothing else. The SPA keeps hand-written tables in `web/src/lib/sanitize.ts`; `web/src/lib/sanitize.allowlist.test.ts` compares them with the Rust tables both ways (tags, the attributes of each element, class tokens, the URI pattern, the options and their values) and probes the value grammars its hooks enforce against the patterns of the §8.2 table:
   - `ALLOWED_TAGS` and `ALLOWED_ATTR` exactly as listed;
   - `ALLOW_DATA_ATTR: false` and `ALLOW_ARIA_ATTR: false`;
   - `ADD_URI_SAFE_ATTR`: every allowlisted attribute except `href`, so that DOMPurify's URI check does not drop `dir`, `rel`, `id`, `alt` and the like;
@@ -864,7 +864,7 @@ flat(subtree) = in order: its Text, Literal and Code payloads as Text, and its m
 
 ### 9.1 `TermText` and `term_sanitize`
 
-**Type.** `TermText` is a newtype in `lessdugin-markdown`, a sequence of runs `{text, kind: Plain | Escaped}`. Only `term_sanitize` can construct it.
+**Type.** `TermText` is a newtype in `pandoras-forum-markdown`, a sequence of runs `{text, kind: Plain | Escaped}`. Only `term_sanitize` can construct it.
 
 It is the only text type accepted by:
 - `StyledDoc` spans;
@@ -1154,7 +1154,7 @@ lcp_prefix(a, b) = length of the longest common prefix of a and b
 - `input` is `{text | gen, media?, profile?, encoding_error?}` for render vectors (`gen` = `prefix + repeat × times + suffix`, for large inputs), plus `print` for `terminal` vectors, or the arguments of the function under test.
 - `expected` holds only the fields the vector asserts: any `Rendered` field (`html`, `styled`, `text` (P), `excerpt`, `word_count`, `read_minutes`, `toc`, `links`, `mentions`, `media_used`, `anchors`, `flags`, `error`), or a derived field: `html_temml`, `text_x` (P_x), `html_head`, `html_tail`, `html_rle`, `html_bytes`, and for `terminal` vectors `printed`, `printed_bytes`, `printed_rle`.
 
-**Runners.** One Rust runner, `crates/markdown/tests/vectors.rs`, runs every file natively (`cargo test -p lessdugin-markdown`, and `--features ammonia` for the ammonia equality) and on wasm32 under node (`cargo xtask test-wasm`), where it embeds the same files; both runs MUST pass, which proves native = wasm. The SPA's DOMPurify runner is described in §8.5. Inputs are generated by `testdata/vectors/lfm1/gen_inputs.py` (which keeps the expected values of unchanged inputs); `LESSDUGIN_BLESS=1 cargo test -p lessdugin-markdown --test vectors` rewrites the expected values (`LESSDUGIN_BLESS_ONLY=dir/file.json,…` limits it to some files), and the diff is reviewed. Vectors are never edited by hand. M4 requires at least 150 `lfm1` vectors; the runner fails below that.
+**Runners.** One Rust runner, `crates/markdown/tests/vectors.rs`, runs every file natively (`cargo test -p pandoras-forum-markdown`, and `--features ammonia` for the ammonia equality) and on wasm32 under node (`cargo xtask test-wasm`), where it embeds the same files; both runs MUST pass, which proves native = wasm. The SPA's DOMPurify runner is described in §8.5. Inputs are generated by `testdata/vectors/lfm1/gen_inputs.py` (which keeps the expected values of unchanged inputs); `PANDORAS_FORUM_BLESS=1 cargo test -p pandoras-forum-markdown --test vectors` rewrites the expected values (`PANDORAS_FORUM_BLESS_ONLY=dir/file.json,…` limits it to some files), and the diff is reviewed. Vectors are never edited by hand. M4 requires at least 150 `lfm1` vectors; the runner fails below that.
 
 | File | Covers |
 |---|---|

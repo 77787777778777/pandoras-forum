@@ -2,7 +2,7 @@
 // The engine worker against the real release wasm (pkg/, `cargo xtask wasm`) in node: the JS host
 // (IndexedDB over fake-indexeddb, fetch, locks, timers), the dto/1 boundary, events, the leader
 // election between two "tabs" and the change relay. Skipped locally without pkg/; required
-// under CI (or with LESSDUGIN_WASM_TEST=1).
+// under CI (or with PANDORAS_FORUM_WASM_TEST=1).
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { deflateSync } from "node:zlib";
@@ -17,16 +17,16 @@ import type { EngineError } from "./types.ts";
 import { type WasmModule, WorkerEngine, type WorkerEnv } from "./worker-core.ts";
 
 const PKG = new URL("../pkg/", import.meta.url);
-const WASM = new URL("lessdugin_engine_bg.wasm", PKG);
+const WASM = new URL("pandoras_forum_engine_bg.wasm", PKG);
 const present = existsSync(WASM);
-const required = process.env.CI !== undefined || process.env.LESSDUGIN_WASM_TEST === "1";
+const required = process.env.CI !== undefined || process.env.PANDORAS_FORUM_WASM_TEST === "1";
 
 let loaded: Promise<WasmModule> | null = null;
 /** The module's linear memory (to check that blob bytes stay out of it). */
 let memory: WebAssembly.Memory | null = null;
 function load(): Promise<WasmModule> {
   loaded ??= (async () => {
-    const glue = new URL("lessdugin_engine.js", PKG).href;
+    const glue = new URL("pandoras_forum_engine.js", PKG).href;
     const m = (await import(/* @vite-ignore */ glue)) as WasmModule & {
       initSync(input: { module: BufferSource }): { memory: WebAssembly.Memory };
     };

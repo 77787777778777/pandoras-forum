@@ -5,11 +5,11 @@
 mod common;
 
 use common::{MINUTE, block_on, scenario, tui};
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     AccessLevel, CommentDraft, ModActionIntent, ModActionValue, ModScope, SyncOpts,
 };
 
-type Tui = lessdugin_tui::Headless<lessdugin_testkit::MemHost>;
+type Tui = pandoras_forum_tui::Headless<pandoras_forum_testkit::MemHost>;
 
 /// The status line's message as plain text.
 fn status(t: &Tui) -> String {
@@ -108,9 +108,9 @@ fn a_banned_viewer_cannot_vote() {
         status(&t)
     );
 }
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig};
-use lessdugin_testkit::MemHost;
-use lessdugin_testkit::fake_pds::Fault;
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig};
+use pandoras_forum_testkit::MemHost;
+use pandoras_forum_testkit::fake_pds::Fault;
 
 /// A fresh read-only device on the scenario's network (no account): sees the forum as a
 /// reader who never listed a repo before.
@@ -124,8 +124,8 @@ fn reader(name: &str, s: &common::Scenario) -> Engine<MemHost> {
 
 #[test]
 fn a_degraded_forum_shows_its_banner() {
-    use lessdugin_core::dto::ModRole;
-    use lessdugin_core::dto::{BodyDraft, DefaultTier, ForumDraft, ModeratorDraft, PostDraft};
+    use pandoras_forum_core::dto::ModRole;
+    use pandoras_forum_core::dto::{BodyDraft, DefaultTier, ForumDraft, ModeratorDraft, PostDraft};
     let s = scenario();
     let (alice, bob) = (&s.w.alice, &s.w.bob);
     // a forum with bob as a declared moderator: bob's repo then becomes an authority's repo
@@ -158,9 +158,9 @@ fn a_degraded_forum_shows_its_banner() {
     let r = block_on(late.sync_forum(&forum, &SyncOpts::default())).unwrap();
     assert!(r.degraded || r.repos_unavailable > 0, "{r:?}");
 
-    let mut t = block_on(lessdugin_tui::Headless::new(
+    let mut t = block_on(pandoras_forum_tui::Headless::new(
         late,
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 80,
             height: 24,
             auto_sync: false,
@@ -184,7 +184,7 @@ fn a_degraded_forum_shows_its_banner() {
 /// nina's own shows "(not counted yet)".
 #[test]
 fn an_unestablished_voters_vote_shows_as_not_counted() {
-    use lessdugin_core::dto::{
+    use pandoras_forum_core::dto::{
         BodyDraft, DefaultTier, ForumDraft, KarmaValue, MembershipMode, OpinionIntent, PostDraft,
     };
     let s = scenario();
@@ -235,7 +235,7 @@ fn an_unestablished_voters_vote_shows_as_not_counted() {
     block_on(nina.sync_forum(&forum, &SyncOpts::default())).unwrap();
     // nina comments and a seed (bob) replies: the reply pulls nina's repo into the closure
     // (`sync.md` §4.3) so other devices discover her records, her opinion included
-    let tc = block_on(nina.comment(&lessdugin_core::dto::CommentDraft::new(
+    let tc = block_on(nina.comment(&pandoras_forum_core::dto::CommentDraft::new(
         &welcome,
         None,
         "New here!",
@@ -243,18 +243,21 @@ fn an_unestablished_voters_vote_shows_as_not_counted() {
     .unwrap();
     block_on(nina.outbox_flush()).unwrap();
     let nina_c = match block_on(nina.write_status(&tc.id)).unwrap().unwrap().state {
-        lessdugin_core::dto::WriteState::Done { uri, .. } => uri,
+        pandoras_forum_core::dto::WriteState::Done { uri, .. } => uri,
         other => panic!("{other:?}"),
     };
     s.w.tick(MINUTE);
     // bob point-syncs nina's comment (sync.md §4.2: an unknown author is confirmed first),
     // then replies: the reply pulls nina's repo into the closure for everyone else
     block_on(bob.engine.sync_thread(&nina_c, &SyncOpts::default())).unwrap();
-    block_on(bob.engine.comment(&lessdugin_core::dto::CommentDraft::new(
-        &welcome,
-        Some(nina_c),
-        "Welcome!",
-    )))
+    block_on(
+        bob.engine
+            .comment(&pandoras_forum_core::dto::CommentDraft::new(
+                &welcome,
+                Some(nina_c),
+                "Welcome!",
+            )),
+    )
     .unwrap();
     bob.flush();
     s.w.tick(MINUTE);
@@ -271,9 +274,9 @@ fn an_unestablished_voters_vote_shows_as_not_counted() {
     s.w.tick(MINUTE);
 
     // carol's TUI shows the note on the list
-    let mut t = block_on(lessdugin_tui::Headless::new(
+    let mut t = block_on(pandoras_forum_tui::Headless::new(
         carol.engine.clone(),
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 100,
             height: 24,
             auto_sync: true,
@@ -286,9 +289,9 @@ fn an_unestablished_voters_vote_shows_as_not_counted() {
     assert!(screen.contains("1 vote not yet counted"), "{screen}");
 
     // nina's own TUI shows her vote as not counted yet
-    let mut tn = block_on(lessdugin_tui::Headless::new(
+    let mut tn = block_on(pandoras_forum_tui::Headless::new(
         nina,
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 140,
             height: 24,
             auto_sync: true,
@@ -305,7 +308,7 @@ fn an_unestablished_voters_vote_shows_as_not_counted() {
 /// so no karma is needed to start a react) and bob is a granted seed. Returns the forum uri,
 /// bob's post and bob's comment on it.
 fn react_forum(s: &common::Scenario) -> (String, String, String) {
-    use lessdugin_core::dto::{
+    use pandoras_forum_core::dto::{
         BodyDraft, CommentDraft, DefaultTier, ForumDraft, ModRole, ModeratorDraft, PostDraft,
     };
     let (alice, bob, carol) = (&s.w.alice, &s.w.bob, &s.w.carol);
@@ -377,7 +380,7 @@ fn the_react_palette_opens_and_lists_the_palette() {
     block_on(t.press("Tab"));
     assert_eq!(
         t.state.react.as_ref().map(|o| o.stance),
-        Some(lessdugin_core::dto::Stance::Against)
+        Some(pandoras_forum_core::dto::Stance::Against)
     );
     block_on(t.press("Esc"));
     assert!(t.state.react.is_none(), "the palette closed");
@@ -385,7 +388,7 @@ fn the_react_palette_opens_and_lists_the_palette() {
 
 #[test]
 fn a_react_shows_in_the_palette_and_under_the_item() {
-    use lessdugin_core::dto::OpinionIntent;
+    use pandoras_forum_core::dto::OpinionIntent;
     let s = scenario();
     let (forum, _, bob_c) = react_forum(&s);
     let mut t = tui(&s, 80, 24);
@@ -409,7 +412,7 @@ fn a_react_shows_in_the_palette_and_under_the_item() {
     block_on(t.press("x"));
     let o = t.state.react.as_ref().expect("the palette opened");
     let first = o.tallies.get("agree").expect("carol's tally");
-    assert_eq!(first.mine, Some(lessdugin_core::dto::Stance::For));
+    assert_eq!(first.mine, Some(pandoras_forum_core::dto::Stance::For));
     block_on(t.press("Enter"));
     block_on(t.engine().outbox_flush()).unwrap();
     block_on(t.settle());
@@ -439,8 +442,8 @@ fn a_react_shows_in_the_palette_and_under_the_item() {
 /// tasks, so a remove-then-add pair could land add-first and the remove would delete the react.
 #[test]
 fn a_stance_switch_is_one_add() {
-    use lessdugin_core::dto::{OpinionIntent, Stance};
-    use lessdugin_tui::{Action, Effect};
+    use pandoras_forum_core::dto::{OpinionIntent, Stance};
+    use pandoras_forum_tui::{Action, Effect};
     let s = scenario();
     let (forum, _, _) = react_forum(&s);
     let mut t = tui(&s, 80, 24);
@@ -453,7 +456,7 @@ fn a_stance_switch_is_one_add() {
     // the palette again, against, Enter: the effects of that one key
     block_on(t.keys(&["x", "Tab"]));
     let fx = t.state.update(Action::Key(
-        lessdugin_tui::keys::parse_key("Enter").unwrap(),
+        pandoras_forum_tui::keys::parse_key("Enter").unwrap(),
     ));
     let opinions: Vec<&OpinionIntent> = fx
         .iter()
@@ -476,7 +479,7 @@ fn a_stance_switch_is_one_add() {
 
 #[test]
 fn the_mod_menu_hides_an_item_with_a_reason() {
-    use lessdugin_core::dto::{ItemState, ThreadOpts};
+    use pandoras_forum_core::dto::{ItemState, ThreadOpts};
     let s = scenario();
     let (forum, bob_post, _) = react_forum(&s); // carol is a moderator there
     let mut t = tui(&s, 100, 30);
@@ -509,14 +512,14 @@ fn the_mod_menu_hides_an_item_with_a_reason() {
     s.w.tick(MINUTE);
     // the post is hidden in bob's thread view (carol is an authority, so she sees the reason)
     let tv = block_on(t.engine().get_thread(&bob_post, &ThreadOpts::default())).unwrap();
-    let lessdugin_core::dto::ThreadRoot::Post(p) = &tv.post else {
+    let pandoras_forum_core::dto::ThreadRoot::Post(p) = &tv.post else {
         panic!("the post is gone");
     };
     assert!(
         matches!(
             p.post.state,
             ItemState::Hidden {
-                reason: lessdugin_core::dto::HiddenReason::Removed { .. }
+                reason: pandoras_forum_core::dto::HiddenReason::Removed { .. }
             }
         ),
         "{:?}",
@@ -535,7 +538,7 @@ fn the_mod_menu_hides_an_item_with_a_reason() {
 
 #[test]
 fn the_mod_queue_and_log_screens() {
-    use lessdugin_core::dto::{ModActionValue, ModScope};
+    use pandoras_forum_core::dto::{ModActionValue, ModScope};
     let s = scenario();
     let (forum, bob_post, _) = react_forum(&s);
     // alice (the owner, rank 3) hides bob's post, carol (a moderator, rank 1) keeps it: the
@@ -633,7 +636,7 @@ fn dave_applies(s: &common::Scenario) -> String {
     s.w.tick(MINUTE);
     // dave comments; bob (a seed) replies, which pulls dave's repo into the closure
     // (sync.md §4.3) so alice's next sync discovers dave's membership (the application)
-    let td = block_on(dave.comment(&lessdugin_core::dto::CommentDraft::new(
+    let td = block_on(dave.comment(&pandoras_forum_core::dto::CommentDraft::new(
         &s.welcome,
         None,
         "Let me in!",
@@ -642,7 +645,7 @@ fn dave_applies(s: &common::Scenario) -> String {
     s.w.tick(MINUTE);
     block_on(dave.outbox_flush()).unwrap();
     let dave_c = match block_on(dave.write_status(&td.id)).unwrap().unwrap().state {
-        lessdugin_core::dto::WriteState::Done { uri, .. } => uri,
+        pandoras_forum_core::dto::WriteState::Done { uri, .. } => uri,
         other => panic!("{other:?}"),
     };
     s.w.tick(MINUTE);
@@ -656,9 +659,9 @@ fn dave_applies(s: &common::Scenario) -> String {
 
 /// alice's TUI on the Mod screen's queue of `s`'s forum.
 fn alice_queue(s: &common::Scenario) -> Tui {
-    let mut t = block_on(lessdugin_tui::Headless::new(
+    let mut t = block_on(pandoras_forum_tui::Headless::new(
         s.w.alice.engine.clone(),
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 100,
             height: 24,
             ..Default::default()
@@ -689,7 +692,7 @@ fn alice_queue(s: &common::Scenario) -> Tui {
 /// find them only through CORE+ hints. The cursor still moves over the items under it.
 #[test]
 fn the_mod_queue_says_where_its_applicants_come_from() {
-    use lessdugin_core::engine::{EngineConfig, Sources};
+    use pandoras_forum_core::engine::{EngineConfig, Sources};
     for (sources, mark, said) in [
         (
             Sources::Direct,
@@ -770,7 +773,7 @@ fn an_applicant_shows_in_the_queue_and_enter_approves() {
     let members = block_on(
         s.w.alice
             .engine
-            .members(&s.forum, &lessdugin_core::dto::MembersQuery::default()),
+            .members(&s.forum, &pandoras_forum_core::dto::MembersQuery::default()),
     )
     .unwrap();
     assert!(
@@ -787,7 +790,7 @@ fn the_activity_tab_lists_recent_discussion() {
     let t = block_on(
         s.w.carol
             .engine
-            .comment(&lessdugin_core::dto::CommentDraft::new(
+            .comment(&pandoras_forum_core::dto::CommentDraft::new(
                 &s.bob_post,
                 None,
                 "Nice first post, bob.",
@@ -828,7 +831,7 @@ fn the_activity_tab_lists_recent_discussion() {
     block_on(t.press("Tab"));
     assert_eq!(
         t.state.top_forum_screen().unwrap().tab,
-        lessdugin_tui::ForumTab::Posts
+        pandoras_forum_tui::ForumTab::Posts
     );
 }
 
@@ -922,9 +925,9 @@ fn the_command_line_moderates_end_to_end() {
     s.w.tick(MINUTE);
     block_on(t.settle());
     // the write reached the engine: the thread view holds the hide with its reason
-    use lessdugin_core::dto::{HiddenReason, ItemState, ThreadOpts};
+    use pandoras_forum_core::dto::{HiddenReason, ItemState, ThreadOpts};
     let tv = block_on(t.engine().get_thread(&bob_post, &ThreadOpts::default())).unwrap();
-    let lessdugin_core::dto::ThreadRoot::Post(p) = &tv.post else {
+    let pandoras_forum_core::dto::ThreadRoot::Post(p) = &tv.post else {
         panic!("the post is gone");
     };
     assert!(
@@ -957,7 +960,7 @@ fn the_command_line_opens_activity_and_notifications() {
     run_command(&mut t, "activity");
     assert_eq!(
         t.state.top_forum_screen().unwrap().tab,
-        lessdugin_tui::ForumTab::Activity
+        pandoras_forum_tui::ForumTab::Activity
     );
     assert!(t.state.top_forum_screen().unwrap().activity.is_some());
 
@@ -966,7 +969,7 @@ fn the_command_line_opens_activity_and_notifications() {
     assert!(
         matches!(
             t.state.top().map(|s| &s.kind),
-            Some(lessdugin_tui::app::ScreenKind::Notifications(_))
+            Some(pandoras_forum_tui::app::ScreenKind::Notifications(_))
         ),
         "the notifications screen is on top"
     );
@@ -1035,9 +1038,9 @@ fn the_command_line_adds_a_moderator_end_to_end() {
     let s = scenario();
     let (forum, _, _) = react_forum(&s);
     // alice owns the forum: her `mods add` writes the declaration
-    let mut t = block_on(lessdugin_tui::Headless::new(
+    let mut t = block_on(pandoras_forum_tui::Headless::new(
         s.w.alice.engine.clone(),
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 100,
             height: 30,
             auto_sync: false,
@@ -1094,12 +1097,12 @@ fn the_notifications_screen_lists_unread_reasons_and_marks_them_read() {
     let s = scenario();
     let _comment = alice_with_a_notification(&s);
     // alice drives this test: the notifications belong to the welcome post's author
-    let mut t = block_on(lessdugin_tui::Headless::new(
+    let mut t = block_on(pandoras_forum_tui::Headless::new(
         s.w.alice.engine.clone(),
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 80,
             height: 24,
-            ..lessdugin_tui::HeadlessOpts::default()
+            ..pandoras_forum_tui::HeadlessOpts::default()
         },
     ))
     .unwrap();
@@ -1177,12 +1180,12 @@ fn versions_panel_shows_the_history_and_says_when_it_was_redacted() {
 
 /// alice's TUI (headless, syncing as the TUI does).
 fn alice_tui(s: &common::Scenario, width: u16, height: u16) -> Tui {
-    block_on(lessdugin_tui::Headless::new(
+    block_on(pandoras_forum_tui::Headless::new(
         s.w.alice.engine.clone(),
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width,
             height,
-            ..lessdugin_tui::HeadlessOpts::default()
+            ..pandoras_forum_tui::HeadlessOpts::default()
         },
     ))
     .unwrap()
@@ -1224,21 +1227,21 @@ fn the_read_command_marks_only_the_selected_notification() {
 }
 
 /// Types `line` into the `:` overlay and returns the effects of its Enter (not run).
-fn command_effects(t: &mut Tui, line: &str) -> Vec<lessdugin_tui::Effect> {
+fn command_effects(t: &mut Tui, line: &str) -> Vec<pandoras_forum_tui::Effect> {
     block_on(t.press(":"));
     for c in line.chars() {
         block_on(t.press(&c.to_string()));
     }
-    t.state.update(lessdugin_tui::Action::Key(
-        lessdugin_tui::keys::parse_key("Enter").unwrap(),
+    t.state.update(pandoras_forum_tui::Action::Key(
+        pandoras_forum_tui::keys::parse_key("Enter").unwrap(),
     ))
 }
 
 /// The opinion subjects of `fx`.
-fn opinion_subjects(fx: &[lessdugin_tui::Effect]) -> Vec<String> {
+fn opinion_subjects(fx: &[pandoras_forum_tui::Effect]) -> Vec<String> {
     fx.iter()
         .filter_map(|e| match e {
-            lessdugin_tui::Effect::Opinion { subject, .. } => Some(subject.clone()),
+            pandoras_forum_tui::Effect::Opinion { subject, .. } => Some(subject.clone()),
             _ => None,
         })
         .collect()
@@ -1248,7 +1251,7 @@ fn opinion_subjects(fx: &[lessdugin_tui::Effect]) -> Vec<String> {
 /// the selection; and they work where nothing is selected (the Notifications screen).
 #[test]
 fn opinion_commands_act_on_the_named_subject() {
-    use lessdugin_core::dto::{KarmaValue, ThreadOpts, ThreadRoot};
+    use pandoras_forum_core::dto::{KarmaValue, ThreadOpts, ThreadRoot};
     let s = scenario();
     let mut t = tui(&s, 100, 30);
     block_on(t.start(Some(s.forum.clone())));
@@ -1300,7 +1303,7 @@ fn opinion_commands_act_on_the_named_subject() {
 /// TUI (it was a removal of the owner's own, non-existent hide, refused with `not_found`).
 #[test]
 fn the_owner_keeps_an_item_a_moderator_hid() {
-    use lessdugin_core::dto::{ItemState, ThreadOpts, ThreadRoot};
+    use pandoras_forum_core::dto::{ItemState, ThreadOpts, ThreadRoot};
     let s = scenario();
     let (forum, bob_post, _) = react_forum(&s); // carol moderates, alice owns
     block_on(s.w.carol.engine.mod_action(&ModActionIntent::Assert {
@@ -1345,7 +1348,7 @@ fn the_owner_keeps_an_item_a_moderator_hid() {
 /// way round: each sets one dimension of the one `#restrict` record (`social.md` §4.2).
 #[test]
 fn restrict_then_nullify_keeps_both() {
-    use lessdugin_core::dto::MembersQuery;
+    use pandoras_forum_core::dto::MembersQuery;
     let s = scenario();
     let bob = s.w.bob.did();
     let mut t = alice_tui(&s, 100, 30);
@@ -1388,7 +1391,7 @@ fn restrict_then_nullify_keeps_both() {
 }
 
 /// bob's membership as alice's engine reads it, its restrictions sorted.
-fn bob_member(t: &Tui, s: &common::Scenario) -> lessdugin_core::dto::MemberView {
+fn bob_member(t: &Tui, s: &common::Scenario) -> pandoras_forum_core::dto::MemberView {
     let mut m = block_on(t.engine().members(&s.forum, &Default::default()))
         .unwrap()
         .into_iter()
@@ -1461,9 +1464,9 @@ fn the_menu_restrictions_add_up() {
 
 /// `--until` a few minutes from alice's clock, as `mod` takes it.
 fn until_soon(s: &common::Scenario) -> String {
-    use lessdugin_core::host::Host as _;
+    use pandoras_forum_core::host::Host as _;
     let at = s.w.alice.host.now_ms() + 2 * MINUTE;
-    lessdugin_atp::syntax::Datetime::from_millis(at)
+    pandoras_forum_atp::syntax::Datetime::from_millis(at)
         .unwrap()
         .as_str()
         .to_owned()
@@ -1539,16 +1542,17 @@ fn the_menu_presets_add_only_to_a_restriction_in_effect() {
 /// merged capabilities with no `until`, which made the whole restriction permanent.
 #[test]
 fn the_menu_presets_keep_a_timed_restrictions_expiry() {
-    use lessdugin_core::host::Host as _;
+    use pandoras_forum_core::host::Host as _;
     let s = scenario();
     let bob = s.w.bob.did();
     let mut t = alice_tui(&s, 100, 30);
     block_on(t.start(Some(s.forum.clone())));
     // ten minutes from alice's clock
-    let until = lessdugin_atp::syntax::Datetime::from_millis(s.w.alice.host.now_ms() + 10 * MINUTE)
-        .unwrap()
-        .as_str()
-        .to_owned();
+    let until =
+        pandoras_forum_atp::syntax::Datetime::from_millis(s.w.alice.host.now_ms() + 10 * MINUTE)
+            .unwrap()
+            .as_str()
+            .to_owned();
     run_command(
         &mut t,
         &format!("mod restrict post,comment --until {until} {bob}"),
@@ -1586,7 +1590,7 @@ fn the_menu_presets_keep_a_timed_restrictions_expiry() {
 /// `y` sends it and records the acknowledgement, which every client on the device shares.
 #[test]
 fn the_first_public_action_of_each_kind_asks_first() {
-    use lessdugin_core::dto::PublicActionKind;
+    use pandoras_forum_core::dto::PublicActionKind;
     let s = common::scenario_unacknowledged();
     let engine = s.w.carol.engine.clone();
     let acked = |k| block_on(engine.public_action_acknowledged(k)).unwrap();
@@ -1653,7 +1657,7 @@ fn the_first_public_action_of_each_kind_asks_first() {
     let fx = command_effects(&mut t, &format!("mod hide {}", s.bob_post));
     assert!(
         !fx.iter()
-            .any(|e| matches!(e, lessdugin_tui::Effect::ModAction { .. })),
+            .any(|e| matches!(e, pandoras_forum_tui::Effect::ModAction { .. })),
         "{fx:?}"
     );
     let n = t.state.public_notice.as_ref().expect("the mod action asks");
@@ -1681,8 +1685,8 @@ fn the_first_public_action_of_each_kind_asks_first() {
 /// waits behind the interstitial of its kind.
 #[test]
 fn a_join_and_a_queue_approval_ask_first() {
-    use lessdugin_core::dto::PublicActionKind;
-    use lessdugin_tui::Effect;
+    use pandoras_forum_core::dto::PublicActionKind;
+    use pandoras_forum_tui::Effect;
     let s = common::scenario_unacknowledged();
     // carol is granted but has not joined
     let mut t = tui(&s, 80, 24);
@@ -1703,8 +1707,8 @@ fn a_join_and_a_queue_approval_ask_first() {
     let mut t = alice_queue(&s);
     assert!(t.render().contains("applicant"), "{}", t.render());
     let before = block_on(t.engine().writes()).unwrap().len();
-    let fx = t.state.update(lessdugin_tui::Action::Key(
-        lessdugin_tui::keys::parse_key("Enter").unwrap(),
+    let fx = t.state.update(pandoras_forum_tui::Action::Key(
+        pandoras_forum_tui::keys::parse_key("Enter").unwrap(),
     ));
     assert!(!fx.iter().any(|e| e.operation() == Some("grant")), "{fx:?}");
     let n = t.state.public_notice.as_ref().expect("the approval asks");
@@ -1721,7 +1725,7 @@ fn a_join_and_a_queue_approval_ask_first() {
     let members = block_on(
         s.w.alice
             .engine
-            .members(&s.forum, &lessdugin_core::dto::MembersQuery::default()),
+            .members(&s.forum, &pandoras_forum_core::dto::MembersQuery::default()),
     )
     .unwrap();
     assert!(
@@ -1734,7 +1738,7 @@ fn a_join_and_a_queue_approval_ask_first() {
 /// to an account that has not seen the interstitial, the next public action asks again.
 #[test]
 fn another_active_account_asks_again() {
-    use lessdugin_core::dto::PublicActionKind;
+    use pandoras_forum_core::dto::PublicActionKind;
     let s = scenario();
     let mut t = tui(&s, 80, 24);
     block_on(t.start(Some(s.forum.clone())));
@@ -1793,7 +1797,7 @@ fn spec_operations() -> std::collections::BTreeSet<String> {
 /// (or says why it does not).
 #[test]
 fn every_engine_operation_has_a_way_in() {
-    use lessdugin_tui::command::{REACH, Reach};
+    use pandoras_forum_tui::command::{REACH, Reach};
     let spec = spec_operations();
     assert!(spec.len() > 40, "the spec's tables were not read: {spec:?}");
     let reach: std::collections::BTreeSet<String> =
@@ -1826,7 +1830,7 @@ fn every_engine_operation_has_a_way_in() {
 /// that calls it.
 #[test]
 fn every_key_and_command_reaches_its_operation() {
-    use lessdugin_tui::command::{REACH, Reach};
+    use pandoras_forum_tui::command::{REACH, Reach};
     let s = scenario();
     let _comment = alice_with_a_notification(&s);
     let mut t = alice_tui(&s, 100, 30);
@@ -1866,8 +1870,8 @@ fn every_key_and_command_reaches_its_operation() {
                 for k in first {
                     block_on(t.press(k));
                 }
-                t.state.update(lessdugin_tui::Action::Key(
-                    lessdugin_tui::keys::parse_key(last).unwrap(),
+                t.state.update(pandoras_forum_tui::Action::Key(
+                    pandoras_forum_tui::keys::parse_key(last).unwrap(),
                 ))
             }
             Reach::Automatic(_) | Reach::NotHere(_) => continue,
@@ -1916,8 +1920,8 @@ fn dto_kinds(name: &str) -> std::collections::BTreeSet<String> {
 /// public-action interstitial) include an opinion or an assertion of that kind.
 #[test]
 fn every_opinion_and_mod_action_value_has_a_way_in() {
-    use lessdugin_core::dto::ModActionIntent;
-    use lessdugin_tui::command::{Reach, VALUE_REACH};
+    use pandoras_forum_core::dto::ModActionIntent;
+    use pandoras_forum_tui::command::{Reach, VALUE_REACH};
     let mut want = dto_kinds("OpinionIntent");
     want.extend(dto_kinds("ModActionValue"));
     assert!(want.len() >= 11, "the dto unions were not read: {want:?}");
@@ -1950,8 +1954,8 @@ fn every_opinion_and_mod_action_value_has_a_way_in() {
                 for k in first {
                     block_on(t.press(k));
                 }
-                t.state.update(lessdugin_tui::Action::Key(
-                    lessdugin_tui::keys::parse_key(last).unwrap(),
+                t.state.update(pandoras_forum_tui::Action::Key(
+                    pandoras_forum_tui::keys::parse_key(last).unwrap(),
                 ))
             }
             other => panic!("{kind}: {other:?} is not a way in"),
@@ -1966,13 +1970,13 @@ fn every_opinion_and_mod_action_value_has_a_way_in() {
         let sent: Vec<String> = all
             .iter()
             .filter_map(|e| match e {
-                lessdugin_tui::Effect::Opinion { intent, .. } => Some(format!(
+                pandoras_forum_tui::Effect::Opinion { intent, .. } => Some(format!(
                     "OpinionIntent.{}",
                     serde_json::to_value(intent).unwrap()["kind"]
                         .as_str()
                         .unwrap()
                 )),
-                lessdugin_tui::Effect::ModAction {
+                pandoras_forum_tui::Effect::ModAction {
                     intent: ModActionIntent::Assert { action, .. },
                     ..
                 } => Some(format!(
@@ -1998,7 +2002,7 @@ fn every_opinion_and_mod_action_value_has_a_way_in() {
 /// to a revision and takes her assertion back.
 #[test]
 fn the_command_line_tags_posts_and_moderates_tags() {
-    use lessdugin_core::dto::{OpinionIntent, WikiDraft};
+    use pandoras_forum_core::dto::{OpinionIntent, WikiDraft};
     let s = scenario();
     let (alice, carol) = (&s.w.alice, &s.w.carol);
     let t = block_on(alice.engine.wiki_edit(
@@ -2007,7 +2011,7 @@ fn the_command_line_tags_posts_and_moderates_tags() {
         WikiDraft {
             name: "Rust".into(),
             description: None,
-            body: Some(lessdugin_core::dto::BodyDraft::text("About Rust.")),
+            body: Some(pandoras_forum_core::dto::BodyDraft::text("About Rust.")),
             is_tag: true,
             parent_tags: Vec::new(),
             summary: None,
@@ -2025,9 +2029,9 @@ fn the_command_line_tags_posts_and_moderates_tags() {
     block_on(t.open_thread(&s.bob_post));
     let fx = command_effects(&mut t, "vote up --tag rust");
     let tagged = fx.iter().any(|e| {
-        matches!(e, lessdugin_tui::Effect::Opinion {
+        matches!(e, pandoras_forum_tui::Effect::Opinion {
             subject,
-            intent: OpinionIntent::Tag { slug, value: Some(lessdugin_core::dto::KarmaValue::Up) },
+            intent: OpinionIntent::Tag { slug, value: Some(pandoras_forum_core::dto::KarmaValue::Up) },
             ..
         } if slug == "rust" && *subject == s.bob_post)
     });
@@ -2036,7 +2040,7 @@ fn the_command_line_tags_posts_and_moderates_tags() {
     block_on(t.settle());
     assert!(status(&t).contains("Tag vote recorded"), "{}", status(&t));
     block_on(t.engine().outbox_flush()).unwrap();
-    let opinion = lessdugin_lexicon::collection::nsid::OPINION;
+    let opinion = pandoras_forum_lexicon::collection::nsid::OPINION;
     let recs: Vec<serde_json::Value> = carol
         .acct
         .list(opinion)
@@ -2087,7 +2091,7 @@ fn the_command_line_tags_posts_and_moderates_tags() {
     assert!(
         !log.entries.iter().any(|e| e.subject == "tag:rust"
             && e.action == "tag"
-            && e.status == lessdugin_core::dto::ModLogStatus::Effective),
+            && e.status == pandoras_forum_core::dto::ModLogStatus::Effective),
         "{:?}",
         log.entries
     );
@@ -2099,7 +2103,7 @@ fn the_command_line_tags_posts_and_moderates_tags() {
 /// none, writes nothing; another value is written.
 #[test]
 fn the_thread_shows_tag_relevance_and_tag_votes_start_from_mine() {
-    use lessdugin_core::dto::{KarmaValue, OpinionIntent, WikiDraft};
+    use pandoras_forum_core::dto::{KarmaValue, OpinionIntent, WikiDraft};
     let s = scenario();
     let (alice, carol) = (&s.w.alice, &s.w.carol);
     let t = block_on(alice.engine.wiki_edit(
@@ -2108,7 +2112,7 @@ fn the_thread_shows_tag_relevance_and_tag_votes_start_from_mine() {
         WikiDraft {
             name: "Rust".into(),
             description: None,
-            body: Some(lessdugin_core::dto::BodyDraft::text("About Rust.")),
+            body: Some(pandoras_forum_core::dto::BodyDraft::text("About Rust.")),
             is_tag: true,
             parent_tags: Vec::new(),
             summary: None,
@@ -2119,10 +2123,10 @@ fn the_thread_shows_tag_relevance_and_tag_votes_start_from_mine() {
     alice.flush();
     alice.done(&t);
     carol.sync(&s.forum);
-    let tag_votes = |fx: &[lessdugin_tui::Effect]| -> Vec<Option<KarmaValue>> {
+    let tag_votes = |fx: &[pandoras_forum_tui::Effect]| -> Vec<Option<KarmaValue>> {
         fx.iter()
             .filter_map(|e| match e {
-                lessdugin_tui::Effect::Opinion {
+                pandoras_forum_tui::Effect::Opinion {
                     intent: OpinionIntent::Tag { value, .. },
                     ..
                 } => Some(*value),
@@ -2175,7 +2179,7 @@ fn the_thread_shows_tag_relevance_and_tag_votes_start_from_mine() {
 /// item's raw view, bookmarks, mutes, and alice renames the forum.
 #[test]
 fn the_command_line_reaches_membership_items_and_local_state() {
-    use lessdugin_core::dto::{MembersQuery, OpinionIntent, ThreadOpts};
+    use pandoras_forum_core::dto::{MembersQuery, OpinionIntent, ThreadOpts};
     let s = scenario();
     let (alice, carol) = (&s.w.alice, &s.w.carol);
     let mut t = tui(&s, 100, 30);
@@ -2205,7 +2209,7 @@ fn the_command_line_reaches_membership_items_and_local_state() {
         &format!("react agree for {} --quote Thanks for the forum", s.bob_c1),
     );
     let quoted = fx.iter().any(|e| {
-        matches!(e, lessdugin_tui::Effect::Opinion {
+        matches!(e, pandoras_forum_tui::Effect::Opinion {
             intent: OpinionIntent::React { quote: Some(q), .. }, ..
         } if q.exact == "Thanks for the forum")
     });
@@ -2259,7 +2263,7 @@ fn the_command_line_reaches_membership_items_and_local_state() {
     let t2 = block_on(
         carol
             .engine
-            .comment(&lessdugin_core::dto::CommentDraft::new(
+            .comment(&pandoras_forum_core::dto::CommentDraft::new(
                 &s.welcome,
                 None,
                 "To be deleted.",
@@ -2277,7 +2281,7 @@ fn the_command_line_reaches_membership_items_and_local_state() {
         block_on(t.engine().writes())
             .unwrap()
             .iter()
-            .filter(|w| !matches!(w.state, lessdugin_core::dto::WriteState::Done { .. }))
+            .filter(|w| !matches!(w.state, pandoras_forum_core::dto::WriteState::Done { .. }))
             .count(),
         0
     );
@@ -2319,7 +2323,7 @@ fn the_command_line_reaches_membership_items_and_local_state() {
     assert!(!status(&ta).contains("relies on"), "{}", status(&ta));
 
     // an open forum, created or switched to, carries the L7 label (threat-model.md L7)
-    let label = lessdugin_tui::view::OPEN_MODE_LABEL;
+    let label = pandoras_forum_tui::view::OPEN_MODE_LABEL;
     run_command(&mut ta, "forum edit --mode open");
     assert!(status(&ta).contains(label), "{}", status(&ta));
     run_command(&mut ta, "forum create cafe The cafe --open");
@@ -2363,7 +2367,7 @@ fn a_restrict_over_a_timed_nullification_shows_the_shared_expiry() {
 
 /// bob made a moderator, who hid bob_c1; alice un-hid it, so bob's hide is not in effect.
 fn bob_moderator_with_an_overridden_hide(s: &common::Scenario) {
-    use lessdugin_core::dto::{ModRole, ModsChange};
+    use pandoras_forum_core::dto::{ModRole, ModsChange};
     let (alice, bob) = (&s.w.alice, &s.w.bob);
     block_on(alice.engine.mods_set(
         &s.forum,
@@ -2450,7 +2454,7 @@ fn mods_remove_shows_the_adoption_and_what_it_does_not_adopt() {
 /// keep overrode, so it never counted.
 #[test]
 fn mod_adopt_lists_what_it_did_not_adopt() {
-    use lessdugin_core::dto::{ModRole, ModsChange};
+    use pandoras_forum_core::dto::{ModRole, ModsChange};
     let s = scenario();
     let (alice, bob) = (&s.w.alice, &s.w.bob);
     block_on(alice.engine.mods_set(
@@ -2509,7 +2513,7 @@ fn mod_adopt_lists_what_it_did_not_adopt() {
 /// the same blob.
 #[test]
 fn forum_edit_keeps_a_spilled_about() {
-    use lessdugin_core::dto::{BodyDraft, ForumDraft};
+    use pandoras_forum_core::dto::{BodyDraft, ForumDraft};
     let s = scenario();
     let alice = &s.w.alice;
     let mut about = "# Rules\n\n".to_owned();
@@ -2522,10 +2526,11 @@ fn forum_edit_keeps_a_spilled_about() {
     alice.flush();
     let forum = alice.done(&t);
     let blob_of = || {
-        use lessdugin_core::host::Host as _;
-        let u = lessdugin_atp::syntax::AtUri::parse(&forum).unwrap();
+        use pandoras_forum_core::host::Host as _;
+        let u = pandoras_forum_atp::syntax::AtUri::parse(&forum).unwrap();
         let v = block_on(
-            lessdugin_core::store::records::RecordStore::new(alice.engine.host().cache()).get(&u),
+            pandoras_forum_core::store::records::RecordStore::new(alice.engine.host().cache())
+                .get(&u),
         )
         .unwrap()
         .unwrap()
@@ -2555,11 +2560,11 @@ fn forum_edit_keeps_a_spilled_about() {
 /// keeps a body's; before, a name change dropped every image of the about.
 #[test]
 fn forum_edit_keeps_the_abouts_media() {
-    use lessdugin_core::dto::{BodyDraft, ForumDraft, MediaInput, PostDraft};
+    use pandoras_forum_core::dto::{BodyDraft, ForumDraft, MediaInput, PostDraft};
     let s = scenario();
     let alice = &s.w.alice;
     let pic = block_on(alice.engine.prepare_media(
-        lessdugin_testkit::fake_pds::tiny_png(3),
+        pandoras_forum_testkit::fake_pds::tiny_png(3),
         &MediaInput {
             declared_mime: Some("image/png".into()),
             alt: Some("the rules, drawn".into()),
@@ -2584,10 +2589,11 @@ fn forum_edit_keeps_the_abouts_media() {
     alice.flush();
     let forum = alice.done(&t);
     let about = || {
-        use lessdugin_core::host::Host as _;
-        let u = lessdugin_atp::syntax::AtUri::parse(&forum).unwrap();
+        use pandoras_forum_core::host::Host as _;
+        let u = pandoras_forum_atp::syntax::AtUri::parse(&forum).unwrap();
         let v = block_on(
-            lessdugin_core::store::records::RecordStore::new(alice.engine.host().cache()).get(&u),
+            pandoras_forum_core::store::records::RecordStore::new(alice.engine.host().cache())
+                .get(&u),
         )
         .unwrap()
         .unwrap()
@@ -2621,9 +2627,9 @@ fn forum_edit_keeps_the_abouts_media() {
 /// once the retry is due.
 #[test]
 fn forum_edit_fetches_a_spilled_about_from_the_owners_pds() {
-    use lessdugin_core::dto::{BodyDraft, ForumDraft};
-    use lessdugin_core::host::Host as _;
-    use lessdugin_tui::{Headless, HeadlessOpts};
+    use pandoras_forum_core::dto::{BodyDraft, ForumDraft};
+    use pandoras_forum_core::host::Host as _;
+    use pandoras_forum_tui::{Headless, HeadlessOpts};
     let s = scenario();
     let alice = &s.w.alice;
     let mut about = "# Rules\n\n".to_owned();
@@ -2638,7 +2644,7 @@ fn forum_edit_fetches_a_spilled_about_from_the_owners_pds() {
     let on_pds = || {
         let v = alice
             .acct
-            .get(lessdugin_lexicon::collection::nsid::FORUM, "long")
+            .get(pandoras_forum_lexicon::collection::nsid::FORUM, "long")
             .unwrap();
         (v["name"].clone(), v["about"]["textBlob"].clone())
     };

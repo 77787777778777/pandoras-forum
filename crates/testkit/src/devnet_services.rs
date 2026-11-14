@@ -25,10 +25,10 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use futures::StreamExt;
-use lessdugin_atp::car::{CarLimits, read_car};
-use lessdugin_atp::syntax::{Datetime, Did, Tid};
-use lessdugin_atp::{Cid, Ipld, dagcbor, datamodel};
-use lessdugin_core::host::{HttpRequest, Target};
+use pandoras_forum_atp::car::{CarLimits, read_car};
+use pandoras_forum_atp::syntax::{Datetime, Did, Tid};
+use pandoras_forum_atp::{Cid, Ipld, dagcbor, datamodel};
+use pandoras_forum_core::host::{HttpRequest, Target};
 use serde::Serialize;
 use serde_json::{Value, json};
 use tokio_tungstenite::tungstenite::Message;
@@ -485,7 +485,7 @@ impl Http {
             "/_devnet/log" => return response(200, self.log_json()),
             "/_devnet/record" => {
                 let found = params.get("uri").and_then(|u| {
-                    let at = lessdugin_atp::syntax::AtUri::parse(u).ok()?;
+                    let at = pandoras_forum_atp::syntax::AtUri::parse(u).ok()?;
                     let key = (at.collection().to_string(), at.rkey().to_string());
                     lock(&self.mirror.0)
                         .records
@@ -643,7 +643,7 @@ impl DevnetServices {
 
     /// True once the mirror holds the record `uri` (its create reached the firehose).
     pub fn has_record(&self, uri: &str) -> bool {
-        let Ok(at) = lessdugin_atp::syntax::AtUri::parse(uri) else {
+        let Ok(at) = pandoras_forum_atp::syntax::AtUri::parse(uri) else {
             return false;
         };
         let key = (at.collection().to_string(), at.rkey().to_string());
@@ -704,10 +704,7 @@ mod tests {
             for (i, d) in NOISE_DIDS.iter().enumerate() {
                 let records = st.records.entry(Did::parse(d).unwrap()).or_default();
                 records.insert(
-                    (
-                        "online.7778777.lessdugin.temp.membership".into(),
-                        format!("k{i}"),
-                    ),
+                    ("forum.pandoras.temp.membership".into(), format!("k{i}")),
                     json!({}),
                 );
             }
@@ -721,7 +718,7 @@ mod tests {
         };
         let mut params = BTreeMap::from([(
             "collection".to_owned(),
-            "online.7778777.lessdugin.temp.membership".to_owned(),
+            "forum.pandoras.temp.membership".to_owned(),
         )]);
         let mut seen = Vec::new();
         for _ in 0..5 {

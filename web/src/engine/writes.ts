@@ -3,7 +3,7 @@
 // one is about, for the `[pending]` badge (sync.md §1.6: own item or own opinion with an outbox
 // write that is not `done`).
 
-import type { WriteState, WriteTicket } from "@lessdugin/engine/types";
+import type { WriteState, WriteTicket } from "@pandoras-forum/engine/types";
 import { useSyncExternalStore } from "react";
 
 export type TerminalWriteState = Extract<WriteState, { kind: "done" | "failed" | "undone" }>;
@@ -52,7 +52,7 @@ export interface ReportAcknowledgements {
   setItem(key: string, value: string): void;
 }
 
-const REPORT_ACK_KEY = "lessdugin.adoptionReports.acknowledged.v1";
+const REPORT_ACK_KEY = "pandoras-forum.adoptionReports.acknowledged.v1";
 /** Core retains done/undone writes for seven days (`DONE_KEEP_MS`). Keep dismissals for 30 days:
  * a 23-day margin, with no count-based eviction of a still-retained report (engine-api.md §3.5). */
 const REPORT_ACK_KEEP_MS = 30 * 24 * 60 * 60 * 1000;

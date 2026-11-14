@@ -14,15 +14,15 @@ use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::{Json, Router};
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::dto::{self, CommentSort, ItemState, PostFilter, PostSort, Tier};
-use lessdugin_core::host::Host;
-use lessdugin_core::model::ForumModel;
-use lessdugin_core::model::render::RenderCache;
-use lessdugin_core::model::views::{Viewer, Views, post_filter, post_sort};
-use lessdugin_core::social::full::query::{PostQuery, Query};
-use lessdugin_core::store::records::RecordStore;
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::dto::{self, CommentSort, ItemState, PostFilter, PostSort, Tier};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::model::ForumModel;
+use pandoras_forum_core::model::render::RenderCache;
+use pandoras_forum_core::model::views::{Viewer, Views, post_filter, post_sort};
+use pandoras_forum_core::social::full::query::{PostQuery, Query};
+use pandoras_forum_core::store::records::RecordStore;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tokio::time::Instant;
@@ -136,7 +136,7 @@ pub fn router(indexer: Indexer) -> Router {
 }
 
 async fn source(State(i): State<Indexer>) -> Response {
-    (StatusCode::OK,[(header::CONTENT_TYPE,"text/html; charset=utf-8")],format!("<!doctype html><html><head><title>lessdugin indexer</title></head><body><h1>lessdugin indexer {}</h1><p>Optional hint and proof service. All non-proof responses are untrusted hints.</p><p>Source and corresponding AGPLv3 source: <a href=\"{}\">{}</a></p><p><a href=\"/_health\">health</a> · <a href=\"/metrics\">metrics</a></p></body></html>",env!("CARGO_PKG_VERSION"),html(&i.config.source_url),html(&i.config.source_url))).into_response()
+    (StatusCode::OK,[(header::CONTENT_TYPE,"text/html; charset=utf-8")],format!("<!doctype html><html><head><title>Pandora's Forum indexer</title></head><body><h1>Pandora's Forum indexer {}</h1><p>Optional hint and proof service. All non-proof responses are untrusted hints.</p><p>Source and corresponding AGPLv3 source: <a href=\"{}\">{}</a></p><p><a href=\"/_health\">health</a> · <a href=\"/metrics\">metrics</a></p></body></html>",env!("CARGO_PKG_VERSION"),html(&i.config.source_url),html(&i.config.source_url))).into_response()
 }
 fn html(s: &str) -> String {
     s.replace('&', "&amp;")
@@ -398,7 +398,7 @@ fn known_forum(i: &Indexer, forum: &str) -> Result<(ForumKey, ForumRow)> {
 /// The indexed forum whose key range holds `uri` (an indexed lookup by its fk).
 fn forum_of(i: &Indexer, uri: &AtUri) -> Result<(ForumKey, ForumRow)> {
     let rkey = uri.rkey().as_str();
-    if let Some(fk) = lessdugin_lexicon::keys::fk_of(rkey)
+    if let Some(fk) = pandoras_forum_lexicon::keys::fk_of(rkey)
         && rkey[fk.len()..].starts_with('-')
     {
         for f in i.store.forums_by_fk(fk) {
@@ -500,7 +500,7 @@ async fn stored_value(i: &Indexer, uri: &str) -> Option<Value> {
         .await
         .ok()
         .flatten()
-        .and_then(|r| lessdugin_atp::datamodel::record_cbor_to_json(&r.cbor).ok())
+        .and_then(|r| pandoras_forum_atp::datamodel::record_cbor_to_json(&r.cbor).ok())
 }
 
 async fn list_posts(
@@ -609,7 +609,7 @@ async fn recent_discussion(
             let comments = entry
                 .comments
                 .iter()
-                .take(lessdugin_core::limits::DISCUSSION_COMMENTS)
+                .take(pandoras_forum_core::limits::DISCUSSION_COMMENTS)
                 .filter_map(|c| v.comment_node(c, &entry.post))
                 .filter(|c| !i.blocked_record(&row, &c.uri) && !i.blocked(&c.author.did))
                 .map(|c| comment_hint(&c, false, None))

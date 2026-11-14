@@ -43,13 +43,13 @@ interface RequestRow {
   url: string;
 }
 
-const fixturePath = process.env.LESSDUGIN_COLD_START_JSON;
-if (!fixturePath) throw new Error("LESSDUGIN_COLD_START_JSON is required");
+const fixturePath = process.env.PANDORAS_FORUM_COLD_START_JSON;
+if (!fixturePath) throw new Error("PANDORAS_FORUM_COLD_START_JSON is required");
 const fixture = JSON.parse(readFileSync(fixturePath, "utf8")) as Fixture;
-const app = process.env.LESSDUGIN_COLD_START_APP;
-if (!app) throw new Error("LESSDUGIN_COLD_START_APP is required (global setup did not run)");
+const app = process.env.PANDORAS_FORUM_COLD_START_APP;
+if (!app) throw new Error("PANDORAS_FORUM_COLD_START_APP is required (global setup did not run)");
 const resultsPath =
-  process.env.LESSDUGIN_COLD_START_RESULTS ?? "test-results/m6-cold-start/results.json";
+  process.env.PANDORAS_FORUM_COLD_START_RESULTS ?? "test-results/m6-cold-start/results.json";
 /** The SPA's forum page size (web/src/pages/forum/ForumPostsPage.tsx, `PAGE`). */
 const FIRST_PAGE = 20;
 // the fixture's posts are newest first (the owner's, then member 1's, member 2's, …)
@@ -125,7 +125,7 @@ test("M6: three fresh Chromium contexts cold-paint a first page by distinct part
     try {
       await page.addInitScript(
         (options) => {
-          window.__LESSDUGIN_E2E__ = options;
+          window.__PANDORAS_FORUM_E2E__ = options;
         },
         {
           devnet: { plc: fixture.plc, pds: fixture.pds },
@@ -162,7 +162,7 @@ test("M6: three fresh Chromium contexts cold-paint a first page by distinct part
         const decoded = decodeURIComponent(r.url);
         return (
           decoded.includes("com.atproto.repo.getRecord") &&
-          decoded.includes("lessdugin.temp.post") &&
+          decoded.includes("pandoras-forum.temp.post") &&
           firstPage.some((p) => decoded.includes(p.uri.split("/").at(-1) ?? ""))
         );
       });
@@ -199,7 +199,7 @@ test("M6: three fresh Chromium contexts cold-paint a first page by distinct part
       // indexer JSON itself is checked below to ensure it never supplied the title text.
       const dtoText = await page.evaluate(
         ([forum, limit]) =>
-          window.__lessduginE2E?.listPosts({ forum, sort: "new", filter: "all", limit }),
+          window.__pandorasForumE2E?.listPosts({ forum, sort: "new", filter: "all", limit }),
         [fixture.forum, FIRST_PAGE] as const,
       );
       const dto = JSON.parse(dtoText ?? "{}") as {
@@ -255,7 +255,7 @@ test("M6: three fresh Chromium contexts cold-paint a first page by distinct part
     acceptance: "docs/plan.md M6 cold SPA title from 2,000 signed participants in under 2 s",
     measuredAt: new Date().toISOString(),
     targetMs: 2_000,
-    command: process.env.LESSDUGIN_COLD_START_COMMAND ?? null,
+    command: process.env.PANDORAS_FORUM_COLD_START_COMMAND ?? null,
     pds: fixture.pds,
     plc: fixture.plc,
     indexer: fixture.indexer,

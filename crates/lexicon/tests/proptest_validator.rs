@@ -10,15 +10,15 @@ mod common;
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
 use common::{nsid, sample_record};
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::ns::NS;
-use lessdugin_lexicon::records::Record;
-use lessdugin_lexicon::schemas::StringFormat;
-use lessdugin_lexicon::validate::formats::{check_format, is_valid_language};
-use lessdugin_lexicon::validate::{Options, Validator, validate_record};
-use lessdugin_lexicon::validity::check;
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::ns::NS;
+use pandoras_forum_lexicon::records::Record;
+use pandoras_forum_lexicon::schemas::StringFormat;
+use pandoras_forum_lexicon::validate::formats::{check_format, is_valid_language};
+use pandoras_forum_lexicon::validate::{Options, Validator, validate_record};
+use pandoras_forum_lexicon::validity::check;
 use proptest::prelude::*;
 use serde_json::{Map, Value, json};
 
@@ -40,7 +40,7 @@ fn key() -> impl Strategy<Value = String> {
 /// Strings that are often meaningful: our NSIDs, at-uris, CIDs, dates, slugs.
 fn text() -> impl Strategy<Value = String> {
     let post =
-        format!("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{NS}.post/uetjixxr3a33-3l2s5xxv2ze2c");
+        format!("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{NS}.post/nkglkm5wsp3d-3l2s5xxv2ze2c");
     let forum = format!("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/{NS}.forum/rationality");
     prop_oneof![
         3 => prop::sample::select(vec![
@@ -150,7 +150,7 @@ proptest! {
         let mut v = sample_record(c.nsid());
         mutate(&mut v, choice, x);
         let opts = Options { allow_legacy_blobs: false, ..Options::default() };
-        let _ = Validator::new(lessdugin_lexicon::schemas::registry(), opts).record(c.nsid(), Some(&k), &v);
+        let _ = Validator::new(pandoras_forum_lexicon::schemas::registry(), opts).record(c.nsid(), Some(&k), &v);
         if let Ok(uri) = AtUri::parse(&format!("at://did:plc:abcdefghijklmnopqrstuvwx/{}/{k}", c.nsid())) {
             let a = check(c.nsid(), &uri, &v);
             prop_assert_eq!(a.valid, a.violations.is_empty());
@@ -171,7 +171,7 @@ proptest! {
         v["body"] = inner;
         let uri = AtUri::parse(&format!("at://did:plc:abcdefghijklmnopqrstuvwx/{}/self", c.nsid())).unwrap();
         let a = check(c.nsid(), &uri, &v);
-        prop_assert_eq!(a.fails(lessdugin_lexicon::RuleId::G10), depth + 1 > 32);
+        prop_assert_eq!(a.fails(pandoras_forum_lexicon::RuleId::G10), depth + 1 > 32);
     }
 
     #[test]

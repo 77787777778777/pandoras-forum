@@ -156,7 +156,7 @@ describe("checkRequest refuses", () => {
       `${NS}.unknown`,
       `${NS}.post.extra`,
       `${NS}x.post`,
-      "online.7778777.lessdugin.post",
+      "forum.pandoras.post",
       42,
       undefined,
     ]) {
@@ -355,11 +355,9 @@ describe("AuthBridge", () => {
     // the pure check takes another prefix (the final namespace of release 0.1)
     const finalNs = write("com.atproto.repo.createRecord", {
       repo: ALICE,
-      collection: "online.7778777.lessdugin.post",
+      collection: "forum.pandoras.post",
     });
-    expect(checkRequest(finalNs, "online.7778777.lessdugin").nsid).toBe(
-      "com.atproto.repo.createRecord",
-    );
+    expect(checkRequest(finalNs, "forum.pandoras").nsid).toBe("com.atproto.repo.createRecord");
     expect(blocked(() => checkRequest(finalNs))).toContain("collection");
   });
 });
@@ -399,7 +397,7 @@ describe("sessions", () => {
       // forwarded from the PDS: returned as it is, even a 401
       new Response('{"error":"InvalidToken"}', {
         status: 401,
-        headers: { "x-lessdugin-upstream": "pds", "content-type": "application/json" },
+        headers: { "x-pandoras-forum-upstream": "pds", "content-type": "application/json" },
       }),
       // the bridge's own answers
       new Response('{"error":"auth_required","message":"no session"}', { status: 401 }),

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The lexicon validator (`lessdugin_lexicon::validate`), the record validity rules
+//! The lexicon validator (`pandoras_forum_lexicon::validate`), the record validity rules
 //! (`validity::check`, rules G1–G10 and the per-collection rules), the typed records and the
 //! atproto data model of a record, on raw JSON input (as a record arrives from a PDS or the
 //! firehose).
@@ -15,14 +15,14 @@
 
 use std::sync::LazyLock;
 
-use lessdugin_atp::datamodel;
-use lessdugin_atp::syntax::{AtUri, Did, Nsid, RecordKey};
-use lessdugin_atp::{dagcbor, datamodel::Limits};
-use lessdugin_fuzz::common::FUZZ_DID;
-use lessdugin_fuzz::{fnv, on_small_stack};
-use lessdugin_lexicon::schemas::{Def, registry};
-use lessdugin_lexicon::validate::{Options, Validator, validate_record};
-use lessdugin_lexicon::{Record, ns, validity};
+use pandoras_forum_atp::datamodel;
+use pandoras_forum_atp::syntax::{AtUri, Did, Nsid, RecordKey};
+use pandoras_forum_atp::{dagcbor, datamodel::Limits};
+use pandoras_forum_fuzz::common::FUZZ_DID;
+use pandoras_forum_fuzz::{fnv, on_small_stack};
+use pandoras_forum_lexicon::schemas::{Def, registry};
+use pandoras_forum_lexicon::validate::{Options, Validator, validate_record};
+use pandoras_forum_lexicon::{Record, ns, validity};
 use libfuzzer_sys::fuzz_target;
 use serde_json::Value;
 
@@ -56,7 +56,7 @@ const RKEYS: &[&str] = &[
     "a",
     "fk1-2222222222222-abcdefghijklmnop",
     "sk1:abc",
-    "online.7778777.lessdugin.temp.post",
+    "forum.pandoras.temp.post",
     "x~y:z._-",
 ];
 

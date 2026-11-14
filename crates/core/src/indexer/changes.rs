@@ -3,10 +3,10 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_atp::tid::Tid;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys::PROFILE_RKEY;
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys::PROFILE_RKEY;
 
 use crate::discovery::forum::NEWCOMER_BUDGET;
 use crate::host::Host;
@@ -104,7 +104,7 @@ fn validate_change(c: &Change, previous: i64) -> Result<Option<(AtUri, Did)>, Xr
     }
     Tid::parse(&c.rev).map_err(|e| invalid(format!("bad change rev: {e}")))?;
     if let Some(cid) = &c.cid {
-        lessdugin_atp::Cid::try_from(cid.as_str())
+        pandoras_forum_atp::Cid::try_from(cid.as_str())
             .map_err(|e| invalid(format!("bad change CID: {e}")))?;
     }
     // Unknown enum values are ignored entry-by-entry (data-model.md §13.3).
@@ -113,7 +113,7 @@ fn validate_change(c: &Change, previous: i64) -> Result<Option<(AtUri, Did)>, Xr
 
 fn source_name(client: &Client, forum: Option<&AtUri>) -> String {
     let fk = forum
-        .and_then(|u| lessdugin_lexicon::keys::fk(u.as_str()).ok())
+        .and_then(|u| pandoras_forum_lexicon::keys::fk(u.as_str()).ok())
         .unwrap_or_else(|| "global".to_owned());
     format!("indexer:{}:{fk}", client.did())
 }

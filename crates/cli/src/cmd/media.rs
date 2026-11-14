@@ -31,14 +31,14 @@
 use std::ops::Range;
 use std::path::{Component, Path, PathBuf};
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     BodyDraft, CommentSort, MediaInput, MediaRef, NoticeCode, ThreadOpts, ThreadRoot,
 };
-use lessdugin_core::engine::{Engine, EngineError, ErrorCode};
-use lessdugin_core::limits::BLOB_HARD_MAX_BYTES;
-use lessdugin_core::media::MediaOwner;
-use lessdugin_core::outbox::blob::normalise_mime;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineError, ErrorCode};
+use pandoras_forum_core::limits::BLOB_HARD_MAX_BYTES;
+use pandoras_forum_core::media::MediaOwner;
+use pandoras_forum_core::outbox::blob::normalise_mime;
+use pandoras_forum_native::host::NativeHost;
 use pulldown_cmark::{Event, LinkType, Parser, Tag, TagEnd};
 use serde::Serialize;
 
@@ -47,7 +47,7 @@ use crate::cmd::{read, refs};
 use crate::ctx::{CliError, Ctx};
 use crate::out::{Style, cat, dto, lit, tt};
 
-/// `lessdugin media add|get|open`.
+/// `pandoras-forum media add|get|open`.
 pub async fn run(ctx: &Ctx, args: MediaArgs) -> Result<(), CliError> {
     match args.action {
         MediaAction::Add { file, alt } => add(ctx, &file, alt).await,
@@ -144,7 +144,7 @@ fn destination_in(img: &str, dest: &str) -> Option<Range<usize>> {
     None
 }
 
-/// The images of `src` that publishing attaches, parsed as `lfm/1` parses (`lessdugin_markdown`'s
+/// The images of `src` that publishing attaches, parsed as `lfm/1` parses (`pandoras_forum_markdown`'s
 /// options), so an image in a code block is text. An image inside another image's alt is never
 /// shown (`lfm-1.md` §6.3) and is skipped. A draft-local file must be an inline image: the
 /// destination of a reference-style image lives in its definition, which this does not rewrite.
@@ -153,7 +153,7 @@ fn images(src: &str) -> Result<Images, String> {
     // the outermost image being read: (destination, link type, source range, alt)
     let mut open: Option<(String, LinkType, Range<usize>, String)> = None;
     let mut depth = 0usize;
-    for (ev, range) in Parser::new_ext(src, lessdugin_markdown::OPTIONS).into_offset_iter() {
+    for (ev, range) in Parser::new_ext(src, pandoras_forum_markdown::OPTIONS).into_offset_iter() {
         match ev {
             Event::Start(Tag::Image {
                 link_type,
@@ -265,20 +265,20 @@ fn draft_file(path: &str, dir: &Path) -> Result<PathBuf, EngineError> {
 /// The bytes of a media file the user named: a regular file (`fstat`), not a symlink
 /// (`O_NOFOLLOW`), of at most the hard blob limit (`limits.md` §5). `what` names it in errors.
 fn read_media(path: &Path, what: &str) -> Result<Vec<u8>, EngineError> {
-    lessdugin_native::fsutil::read_regular_nofollow(path, BLOB_HARD_MAX_BYTES).map_err(|e| match e
-        .kind()
-    {
-        std::io::ErrorKind::NotFound => {
-            EngineError::not_found(format!("{what}: {} does not exist", path.display()))
-        }
-        std::io::ErrorKind::InvalidData => EngineError::new(
-            ErrorCode::TooLarge,
-            format!(
-                "{what} is larger than {} MiB (limits.md §5)",
-                BLOB_HARD_MAX_BYTES / (1024 * 1024)
+    pandoras_forum_native::fsutil::read_regular_nofollow(path, BLOB_HARD_MAX_BYTES).map_err(|e| {
+        match e.kind() {
+            std::io::ErrorKind::NotFound => {
+                EngineError::not_found(format!("{what}: {} does not exist", path.display()))
+            }
+            std::io::ErrorKind::InvalidData => EngineError::new(
+                ErrorCode::TooLarge,
+                format!(
+                    "{what} is larger than {} MiB (limits.md §5)",
+                    BLOB_HARD_MAX_BYTES / (1024 * 1024)
+                ),
             ),
-        ),
-        _ => EngineError::invalid_input(format!("{what}: {e}")),
+            _ => EngineError::invalid_input(format!("{what}: {e}")),
+        }
     })
 }
 
@@ -333,7 +333,7 @@ pub async fn attach(
         (None, Some(img)) => {
             return Err(EngineError::invalid_input(format!(
                 "the image path {:?} names a file, but a text from -m or standard input has no \
-                 directory; prepare the file with `lessdugin media add` and name it by its cid:",
+                 directory; prepare the file with `pandoras-forum media add` and name it by its cid:",
                 img.path
             ))
             .into());
@@ -478,7 +478,7 @@ pub fn confirm_uploads(
     if !crate::prompt::stdin_is_tty() || ctx.out.is_json() {
         return Err(CliError::usage(format!(
             "this would upload files of this machine ({}); that is confirmed on a terminal{}: \
-             write it there, or prepare the files with `lessdugin media add` and name them by \
+             write it there, or prepare the files with `pandoras-forum media add` and name them by \
              cid:",
             local.join(", "),
             if foreign {
@@ -516,7 +516,7 @@ pub fn confirm_uploads(
 // ---------------------------------------------------------------------------------------------
 // media add
 
-/// `lessdugin media add <file> [--alt]`: prepares a file on this device and prints the
+/// `pandoras-forum media add <file> [--alt]`: prepares a file on this device and prints the
 /// reference to put in a post (`![alt](cid:…)`); the bytes stay here until a post that uses it
 /// is published.
 async fn add(ctx: &Ctx, file: &Path, alt: Option<String>) -> Result<(), CliError> {
@@ -725,7 +725,7 @@ fn save(from: &Path, to: &Path, replace: bool) -> Result<(), CliError> {
         }
     };
     let target = if replace {
-        lessdugin_native::fsutil::temp_path_for(to)
+        pandoras_forum_native::fsutil::temp_path_for(to)
     } else {
         to.to_path_buf()
     };
@@ -775,7 +775,7 @@ fn type_warning(ctx: &Ctx, f: &Fetched) {
     }
 }
 
-/// `lessdugin media get <ref> --index N [-o path]`.
+/// `pandoras-forum media get <ref> --index N [-o path]`.
 async fn get(ctx: &Ctx, reference: &str, index: u16, out: Option<&Path>) -> Result<(), CliError> {
     let f = fetch(ctx, reference, index).await?;
     type_warning(ctx, &f);
@@ -787,7 +787,7 @@ async fn get(ctx: &Ctx, reference: &str, index: u16, out: Option<&Path>) -> Resu
     save(&f.file, &to, replace)?;
     if ctx.out.is_json() {
         ctx.out.json(&Saved {
-            dto: lessdugin_core::dto::DTO_VERSION,
+            dto: pandoras_forum_core::dto::DTO_VERSION,
             mime: f.agreed(),
             cid: f.cid,
             size_bytes: f.size,
@@ -812,7 +812,7 @@ async fn get(ctx: &Ctx, reference: &str, index: u16, out: Option<&Path>) -> Resu
     Ok(())
 }
 
-/// `lessdugin media open <ref> --index N`: saves an image, video or audio item under the cache
+/// `pandoras-forum media open <ref> --index N`: saves an image, video or audio item under the cache
 /// directory as `<cid>.<ext>` and opens it with the system's viewer (`$BROWSER`, then the
 /// desktop's opener), the path being one argument of its command line (FILE-4, FILE-5).
 /// Anything else, a PDF included, is save-only (`media get`).
@@ -824,12 +824,12 @@ async fn open(ctx: &Ctx, reference: &str, index: u16) -> Result<(), CliError> {
     }) {
         return Err(EngineError::invalid_input(format!(
             "media item {index} is not an image, video or audio file, so it is not opened; save \
-             it with `lessdugin media get {reference} --index {index}`"
+             it with `pandoras-forum media get {reference} --index {index}`"
         ))
         .into());
     }
     let dir = ctx.paths.cache_dir.join("open");
-    lessdugin_native::fsutil::ensure_private_dir(&dir)
+    pandoras_forum_native::fsutil::ensure_private_dir(&dir)
         .map_err(|e| EngineError::internal(format!("{}: {e}", dir.display())))?;
     let to = dir.join(f.file_name());
     save(&f.file, &to, true)?;
@@ -848,7 +848,7 @@ async fn open(ctx: &Ctx, reference: &str, index: u16) -> Result<(), CliError> {
         .unwrap_or(false);
     if ctx.out.is_json() {
         ctx.out.json(&serde_json::json!({
-            "dto": lessdugin_core::dto::DTO_VERSION,
+            "dto": pandoras_forum_core::dto::DTO_VERSION,
             "cid": f.cid,
             "path": target,
             "opened": opened,

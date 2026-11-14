@@ -6,22 +6,22 @@
 //! §1.1, §12).
 //!
 //! The vectors are in the final namespace, so this test exists only in a `final-ns` build:
-//! `cargo test -p lessdugin-core --features final-ns --test model_reorder`.
+//! `cargo test -p pandoras-forum-core --features final-ns --test model_reorder`.
 
 #![cfg(feature = "final-ns")]
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::model::ForumModel;
-use lessdugin_core::social::full::query::{
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::model::ForumModel;
+use pandoras_forum_core::social::full::query::{
     CommentQuery, CommentSort, PostFilter, PostQuery, PostSort,
 };
-use lessdugin_core::social::full::{Query, fold_view, lexicon_validity};
-use lessdugin_core::social::input::FoldInput;
-use lessdugin_core::store::records::Level;
+use pandoras_forum_core::social::full::{Query, fold_view, lexicon_validity};
+use pandoras_forum_core::social::input::FoldInput;
+use pandoras_forum_core::store::records::Level;
 use serde_json::Value;
 
 fn root() -> PathBuf {

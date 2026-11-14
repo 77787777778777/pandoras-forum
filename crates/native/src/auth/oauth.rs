@@ -3,14 +3,14 @@
 //! (`docs/design/synthesis-v1.md` §6.7, `data-model.md` §10, `threat-model.md` AUTH-1, AUTH-5,
 //! AUTH-7, AUTH-8, AUTH-10).
 //!
-//! The flow, with what comes from jacquard and what lessdugin adds:
+//! The flow, with what comes from jacquard and what Pandora's Forum adds:
 //!
-//! 1. [`begin`]: the identity (DID, PDS) comes from `lessdugin-core` through
+//! 1. [`begin`]: the identity (DID, PDS) comes from `pandoras-forum-core` through
 //!    [`super::resolve_login_target`] (resolved now, never through a hint); the PDS's
 //!    `oauth-protected-resource` names exactly one authorization server, whose metadata is
 //!    fetched with jacquard's `resolve_*` helpers through `Bridge` (SSRF guard).
 //! 2. PAR with jacquard's `oauth_request` (DPoP with `use_dpop_nonce` retry, PKCE S256 and
-//!    `state` from jacquard's generators), but with lessdugin's own parameters: `response_mode=
+//!    `state` from jacquard's generators), but with our own parameters: `response_mode=
 //!    query` (jacquard's `par()` sends none), the loopback `client_id` form of `data-model.md`
 //!    §10.4 (jacquard builds `http://localhost/?…`), the scope candidates of [`scope`], the
 //!    hosted client metadata after `invalid_client`.
@@ -54,9 +54,9 @@ use jacquard_oauth::types::{
     TokenGrantType, TokenRequestParameters,
 };
 use jacquard_oauth::utils::{generate_dpop_key, generate_nonce, generate_pkce};
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::engine::{AccountInfo, Engine, EngineError, ErrorCode};
-use lessdugin_core::host::{HostError, HttpRequest, HttpResponse, KvStore};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineError, ErrorCode};
+use pandoras_forum_core::host::{HostError, HttpRequest, HttpResponse, KvStore};
 use sha2::{Digest, Sha256};
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
@@ -78,7 +78,7 @@ pub enum ClientKind {
     #[default]
     Loopback,
     /// The hosted native metadata: [`OAuthOptions::hosted_client_id`], by default
-    /// `https://lessdugin.7778777.online/oauth/cli-client-metadata.json`.
+    /// `https://pandoras.forum/oauth/cli-client-metadata.json`.
     Hosted,
 }
 
@@ -387,7 +387,7 @@ pub async fn begin<K: KvStore + 'static>(
     let dpop_key = generate_dpop_key(&mut server).ok_or_else(|| {
         EngineError::new(
             ErrorCode::Unsupported,
-            "the authorization server supports no DPoP algorithm lessdugin has (ES256)",
+            "the authorization server supports no DPoP algorithm Pandora's Forum has (ES256)",
         )
     })?;
     let mut dpop = DpopReqData {
@@ -628,7 +628,7 @@ fn check_token(token: &OAuthTokenResponse, requested: &str) -> Result<(), Engine
     Ok(())
 }
 
-/// A scope token broader than lessdugin ever asks for: `transition:*` (AUTH-1), identity and
+/// A scope token broader than Pandora's Forum ever asks for: `transition:*` (AUTH-1), identity and
 /// account control, and wildcards other than the enumerated blob types (AUTH-2).
 fn is_broad_scope(token: &str) -> bool {
     token.starts_with("transition:")
@@ -1131,11 +1131,11 @@ mod tests {
         }
         // A permission set may be expanded into granular scopes, but never into broad ones.
         let include = format!(
-            "atproto include:online.7778777.lessdugin.authFull {}",
+            "atproto include:forum.pandoras.authFull {}",
             scope::BLOB_SCOPES
         );
         let expanded = format!(
-            "atproto repo?collection=online.7778777.lessdugin.post {}",
+            "atproto repo?collection=forum.pandoras.post {}",
             scope::BLOB_SCOPES
         );
         assert!(check_granted_scope(&include, &expanded).is_ok());

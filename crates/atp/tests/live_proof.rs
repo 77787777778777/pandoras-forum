@@ -8,11 +8,11 @@ mod common;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
-use lessdugin_atp::commit::{Commit, CommitError, MAX_FUTURE_SKEW_MICROS};
-use lessdugin_atp::did_doc::DidDocument;
-use lessdugin_atp::proof::{ProofCaps, ProofError, verify_record_proof};
-use lessdugin_atp::syntax::{Did, Nsid, RecordKey};
-use lessdugin_atp::{car, datamodel};
+use pandoras_forum_atp::commit::{Commit, CommitError, MAX_FUTURE_SKEW_MICROS};
+use pandoras_forum_atp::did_doc::DidDocument;
+use pandoras_forum_atp::proof::{ProofCaps, ProofError, verify_record_proof};
+use pandoras_forum_atp::syntax::{Did, Nsid, RecordKey};
+use pandoras_forum_atp::{car, datamodel};
 
 const DID: &str = "did:plc:z72i7hdynmk6r22z27h6tvur";
 
@@ -102,7 +102,7 @@ fn present_proof_verifies() {
 fn absent_proof_verifies() {
     let f = fixture();
     let key = f.doc.signing_key().unwrap();
-    let rkey = RecordKey::parse("lessdugin-absent").unwrap();
+    let rkey = RecordKey::parse("pandoras-forum-absent").unwrap();
     let out = verify_record_proof(
         &f.absent,
         &f.did,
@@ -145,7 +145,7 @@ fn rejects_future_rev_wrong_did_wrong_key() {
         verify_record_proof(&f.present, &other, &coll(), &rkey, &key, f.now, &caps),
         Err(ProofError::Commit(CommitError::DidMismatch { .. }))
     ));
-    let wrong = lessdugin_atp::crypto::PublicKey::from_did_key(
+    let wrong = pandoras_forum_atp::crypto::PublicKey::from_did_key(
         "did:key:zQ3shqwJEJyMBsBXCWyCBpUBMqxcon9oHB7mCvx4sSpMdLJwc",
     )
     .unwrap();
@@ -160,7 +160,7 @@ fn every_one_byte_tamper_fails() {
     let f = fixture();
     let key = f.doc.signing_key().unwrap();
     let caps = ProofCaps::default();
-    for (car, rkey) in [(&f.present, "self"), (&f.absent, "lessdugin-absent")] {
+    for (car, rkey) in [(&f.present, "self"), (&f.absent, "pandoras-forum-absent")] {
         let rkey = RecordKey::parse(rkey).unwrap();
         assert!(verify_record_proof(car, &f.did, &coll(), &rkey, &key, f.now, &caps).is_ok());
         for i in 0..car.len() {

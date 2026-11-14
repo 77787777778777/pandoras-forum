@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use lessdugin_core::host::HttpResponse;
+use pandoras_forum_core::host::HttpResponse;
 
 /// What a matching request gets instead of (or on top of) the normal answer.
 #[derive(Clone, Debug)]

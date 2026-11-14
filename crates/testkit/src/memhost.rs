@@ -21,12 +21,12 @@ use std::sync::atomic::{AtomicBool, AtomicI64, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Poll, Waker};
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{
     BlobHandle, Host, HostError, HttpRequest, HttpResponse, ProcessLock, ProcessLocks, Redirects,
     Target, WebSocket, WsMessage,
 };
-use lessdugin_core::store::mem::MemKv;
+use pandoras_forum_core::store::mem::MemKv;
 
 use crate::resp;
 
@@ -447,11 +447,11 @@ impl Host for MemHost {
                 locator: format!("mem:{cid}"),
             });
         }
-        let parsed = lessdugin_atp::cid::parse(&cid)
+        let parsed = pandoras_forum_atp::cid::parse(&cid)
             .ok()
             .filter(|c| {
-                c.codec() == lessdugin_atp::cid::RAW
-                    && c.hash().code() == lessdugin_atp::cid::SHA2_256
+                c.codec() == pandoras_forum_atp::cid::RAW
+                    && c.hash().code() == pandoras_forum_atp::cid::SHA2_256
             })
             .ok_or_else(|| HostError::Unsupported(format!("not a raw sha2-256 CID: {cid}")))?;
         std::future::poll_fn(|cx| {
@@ -468,7 +468,8 @@ impl Host for MemHost {
             }
         })
         .await;
-        let qs = lessdugin_atp::xrpc::query_string(&[("did", did.as_str()), ("cid", cid.as_str())]);
+        let qs =
+            pandoras_forum_atp::xrpc::query_string(&[("did", did.as_str()), ("cid", cid.as_str())]);
         let url = format!(
             "{}/xrpc/com.atproto.sync.getBlob?{qs}",
             pds.as_str().trim_end_matches('/')
@@ -482,7 +483,7 @@ impl Host for MemHost {
                 .and_then(|v| v.get("error")?.as_str().map(str::to_owned));
             return Err(HostError::HttpStatus(resp.status, name));
         }
-        lessdugin_atp::cid::verify(&parsed, &resp.body).map_err(|_| HostError::CidMismatch)?;
+        pandoras_forum_atp::cid::verify(&parsed, &resp.body).map_err(|_| HostError::CidMismatch)?;
         let size = resp.body.len() as u64;
         self.put_blob(&cid, resp.body);
         Ok(BlobHandle {
@@ -505,7 +506,7 @@ impl Host for MemHost {
             .get(cid)
             .map(|b| {
                 let start = usize::try_from(offset).unwrap_or(usize::MAX).min(b.len());
-                let n = len.min(lessdugin_core::host::BLOB_READ_MAX_BYTES) as usize;
+                let n = len.min(pandoras_forum_core::host::BLOB_READ_MAX_BYTES) as usize;
                 b[start..b.len().min(start.saturating_add(n))].to_vec()
             })
             .ok_or_else(|| HostError::Storage(format!("blob {cid} is not stored")))?;

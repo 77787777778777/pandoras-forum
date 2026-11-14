@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
-// The `state` store of `lessdugin web` mode: the native `state.sqlite` behind
+// The `state` store of `pandoras-forum web` mode: the native `state.sqlite` behind
 // `POST /bridge/kv` (threat-model §7.4; the wire format is crates/cli/src/web/kv.rs's), so
 // drafts, the outbox and read marks never live in the browser storage of the bridge's origin.
 // Keys and values travel as standard base64 with padding:

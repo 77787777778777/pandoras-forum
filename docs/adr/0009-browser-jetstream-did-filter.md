@@ -19,7 +19,7 @@ While some followed or open forum is open-mode, or the viewer is one of its auth
 (`F_new ≠ ∅`), a side connection without a DID filter carries the membership commits of every
 DID, so newcomers are still found.
 
-The filter keeps a tab's traffic in proportion to the forums it reads instead of to all lessdugin
+The filter keeps a tab's traffic in proportion to the forums it reads instead of to all Pandora's Forum
 traffic, which a browser worker cannot afford for long. But the filter is data the Jetstream
 operator receives. `threat-model.md` PRIV-11 still said that the subscription has no DID filter
 and does not reveal which forum is read, which is true only of `wildcard`. Nothing told the user.
@@ -36,7 +36,7 @@ against it the browser keeps receiving the unfiltered stream, so nothing below d
    Jetstream operator, and anything that can read the request on its path, learns D. A set of
    authorities and participants identifies the forums being read, and D also holds the viewer's
    own DIDs, so the operator can link the viewer's accounts, the forums and the connecting IP.
-   The membership side connection names no DID; it only shows that the client wants lessdugin
+   The membership side connection names no DID; it only shows that the client wants Pandora's Forum
    membership commits.
 3. When it happens: only in `assisted` mode, only in the browser, only after every followed or
    open forum has finished one discovery pass, and again whenever D changes (at most once per 10

@@ -3,25 +3,25 @@
 use std::sync::Arc;
 
 use futures::executor::block_on;
-use lessdugin_atp::syntax::{AtUri, Datetime, Did};
-use lessdugin_core::discovery::sources::{
+use pandoras_forum_atp::syntax::{AtUri, Datetime, Did};
+use pandoras_forum_core::discovery::sources::{
     CONSTELLATION_HINTS_MAX, CONSTELLATION_PAGE_LIMIT, CorePlusHints, DIRECTORY_OWNERS_MAX,
     DidHints, GET_BACKLINKS, GET_BACKLINKS_COUNT, LIST_REPOS_BY_COLLECTION,
     NEWCOMER_RELAY_UNION_LIMIT, NewcomerHints, RECENT_POSTS_DISCOVERY, RELAY_PAGE_LIMIT,
     SourceEndpoints, SourceError, Sources,
 };
-use lessdugin_core::discovery::state::{
+use pandoras_forum_core::discovery::state::{
     DISC_ROWS_MAX, DiscRow, DiscState, disc_rows, put_disc_rows, relay_rows,
 };
-use lessdugin_core::discovery::{ForumKey, NEWCOMER_BUDGET, SyncOpts};
-use lessdugin_core::engine::{Engine, EngineConfig, Platform, Sources as SourceMode};
-use lessdugin_core::host::{Host, HttpRequest, KvOp, KvStore, Target};
-use lessdugin_core::store::RecordStore;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::records::{Forum, Membership};
-use lessdugin_lexicon::values::MembershipMode;
-use lessdugin_testkit::fake_pds::ServiceKind;
-use lessdugin_testkit::{FakeNet, MemHost, resp};
+use pandoras_forum_core::discovery::{ForumKey, NEWCOMER_BUDGET, SyncOpts};
+use pandoras_forum_core::engine::{Engine, EngineConfig, Platform, Sources as SourceMode};
+use pandoras_forum_core::host::{Host, HttpRequest, KvOp, KvStore, Target};
+use pandoras_forum_core::store::RecordStore;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::records::{Forum, Membership};
+use pandoras_forum_lexicon::values::MembershipMode;
+use pandoras_forum_testkit::fake_pds::ServiceKind;
+use pandoras_forum_testkit::{FakeNet, MemHost, resp};
 use serde_json::{Value, json};
 use url::Url;
 
@@ -95,7 +95,7 @@ fn mode_change_between_pages_stops_the_next_request() {
     let writer = host.clone();
     host.on_get(&route, move |_| {
         let write = writer.state().write(vec![KvOp::Put(
-            lessdugin_core::key!("loc", "setting", "sources"),
+            pandoras_forum_core::key!("loc", "setting", "sources"),
             b"direct".to_vec(),
         )]);
         futures::pin_mut!(write);
@@ -370,8 +370,7 @@ fn malformed_relay_entries_and_wildcards_are_rejected() {
         assert!(matches!(err, SourceError::Malformed { .. }), "{err}");
     }
     let host = MemHost::new();
-    let err =
-        block_on(service(&host).relay_repositories("online.7778777.lessdugin.*")).unwrap_err();
+    let err = block_on(service(&host).relay_repositories("forum.pandoras.*")).unwrap_err();
     assert!(matches!(err, SourceError::InvalidInput(_)));
     assert!(host.requests().is_empty());
 }
@@ -392,10 +391,13 @@ fn requests_have_caps_no_headers_no_userinfo_and_no_redirects() {
     assert!(req.body.is_none());
     assert_eq!(
         req.max_bytes,
-        lessdugin_core::limits::DEFAULT_RESPONSE_MAX_BYTES
+        pandoras_forum_core::limits::DEFAULT_RESPONSE_MAX_BYTES
     );
-    assert_eq!(req.timeout_ms, lessdugin_core::limits::REQUEST_TIMEOUT_MS);
-    assert_eq!(req.redirects, lessdugin_core::host::Redirects::None);
+    assert_eq!(
+        req.timeout_ms,
+        pandoras_forum_core::limits::REQUEST_TIMEOUT_MS
+    );
+    assert_eq!(req.redirects, pandoras_forum_core::host::Redirects::None);
     let Target::Anon(url) = &req.target else {
         panic!("CORE+ request carried credentials");
     };
@@ -416,7 +418,7 @@ fn transport_http_and_json_errors_are_structured() {
     let host = MemHost::new();
     host.fail(
         &format!("{CONSTELLATION}/xrpc/{GET_BACKLINKS_COUNT}"),
-        lessdugin_core::host::HostError::Timeout,
+        pandoras_forum_core::host::HostError::Timeout,
     );
     assert!(matches!(
         block_on(service(&host).membership_count(&forum())),
@@ -967,7 +969,7 @@ fn failing_sources_do_not_discard_the_others() {
     });
     host.fail(
         &format!("{RELAY1}/xrpc/{LIST_REPOS_BY_COLLECTION}"),
-        lessdugin_core::host::HostError::Timeout,
+        pandoras_forum_core::host::HostError::Timeout,
     );
     let hints = block_on(engine(&host, SourceMode::Assisted).discover_newcomers(&f)).unwrap();
     assert_eq!(

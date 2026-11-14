@@ -9,9 +9,9 @@
 //! by a native run; the same test on wasm32 under node then proves the wasm build equal:
 //!
 //! ```sh
-//! cargo test -p lessdugin-core --test social_parity                    # native
+//! cargo test -p pandoras-forum-core --test social_parity                    # native
 //! CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
-//!   cargo test -p lessdugin-core --target wasm32-unknown-unknown --test social_parity   # wasm32
+//!   cargo test -p pandoras-forum-core --target wasm32-unknown-unknown --test social_parity   # wasm32
 //! ```
 //!
 //! (add `--features final-ns` to both for the final namespace). When the fold's outputs or the
@@ -20,7 +20,7 @@
 
 mod social_gen;
 
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_lexicon::ns::NS;
 use social_gen::{
     Rng, Size, build, check_validity, first_post, fold, queries, random_spec, serialize,
 };
@@ -32,15 +32,17 @@ use wasm_bindgen_test::wasm_bindgen_test as test;
 /// `social.md` §14 sequence library that 0e5e421 implemented (`ForumView.library` went from
 /// pending to computed); the golden lagged behind that fold change from 0e5e421 to e570a55, so
 /// P9 failed natively on those commits. No other fold change moved it, and both targets produced
-/// this digest: it is not a native/wasm divergence.
+/// this digest: it is not a native/wasm divergence. Both digests were recorded again when the
+/// namespace became `forum.pandoras` (ADR 0011): every view names NSIDs, keys and CIDs that
+/// derive from it. The fold did not change.
 const GOLDEN: &[(&str, &str)] = &[
     (
-        "online.7778777.lessdugin.temp",
-        "ed3af28d89ff6488687703eb2a75a55ccc0acf7a75193b2c2457f7c5dbe958fc",
+        "forum.pandoras.temp",
+        "d648c20080dc3bf33f83de74ef0df0ee0846c52d1bae0ad3192d80c4545498ca",
     ),
     (
-        "online.7778777.lessdugin",
-        "a104bfab43611df85debca13c81381b9e42b709dd4270f4a9192f0f4d09f416b",
+        "forum.pandoras",
+        "8857bff7fe6d6c7c8162dd9f4e2a88d84bad931285ce498aecceb8813f2a64e7",
     ),
 ];
 
@@ -68,11 +70,11 @@ fn parity_digest() -> (String, usize) {
         for q in queries(first_post(&f).as_deref()).into_iter().step_by(3) {
             let v = fold(&input, &q);
             check_validity(&f, &input, &v);
-            all.extend_from_slice(&lessdugin_atp::cid::sha256(serialize(&v).as_bytes()));
+            all.extend_from_slice(&pandoras_forum_atp::cid::sha256(serialize(&v).as_bytes()));
             views += 1;
         }
     }
-    (hex(&lessdugin_atp::cid::sha256(&all)), views)
+    (hex(&pandoras_forum_atp::cid::sha256(&all)), views)
 }
 
 #[test]

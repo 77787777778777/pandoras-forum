@@ -5,14 +5,14 @@
 
 use std::future::Future;
 
-use lessdugin_core::engine::{Engine, EngineConfig, Sources};
-use lessdugin_testkit::identity::{DOH, PLC};
-use lessdugin_testkit::repo::tid_at_ms;
-use lessdugin_testkit::{FakeIdentity, FakePds, MemHost};
+use pandoras_forum_core::engine::{Engine, EngineConfig, Sources};
+use pandoras_forum_testkit::identity::{DOH, PLC};
+use pandoras_forum_testkit::repo::tid_at_ms;
+use pandoras_forum_testkit::{FakeIdentity, FakePds, MemHost};
 use serde_json::json;
 
 pub const PDS: &str = "https://pds.example.com";
-pub const POST: &str = "online.7778777.lessdugin.post";
+pub const POST: &str = "forum.pandoras.post";
 pub const RKEY: &str = "3l2s5xxv2zaa2";
 pub const SLINGSHOT: &str = "https://slingshot.microcosm.blue";
 

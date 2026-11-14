@@ -10,15 +10,15 @@ use std::sync::{Arc, Mutex};
 
 use common::block_on;
 use futures::FutureExt;
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     CommentDraft, DefaultTier, Draft, EditOpts, Event, ForumDraft, ForumRole, ListPostsQuery,
     MembershipMode, PostDraft, PostFilter, PostSort, Ref, RefContext, SyncOpts, ThreadOpts,
     ThreadRoot, Topic, WriteState, WriteTicket,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::fake_pds::{AccountHandle, Fault};
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, Fault};
+use pandoras_forum_testkit::{FakeNet, MemHost};
 
 const MINUTE: i64 = 60_000;
 
@@ -143,7 +143,7 @@ fn the_outbox_pump_is_long_lived_and_follows_the_accounts() {
 
     // a write that waits (a rate limit) runs once the clock reaches its time
     let pds = net.default_pds();
-    pds.set_rate_limit(Some(lessdugin_testkit::fake_pds::RateLimit {
+    pds.set_rate_limit(Some(pandoras_forum_testkit::fake_pds::RateLimit {
         limit: 0,
         window_ms: 10 * MINUTE,
     }));
@@ -264,7 +264,7 @@ fn sync_progress_is_reported_while_the_sync_runs() {
     let carol = Device::new(&f.net, "carol", 3);
     let events = record(&carol.engine);
     // bob's post is on screen (an open forum finds newcomers from hints, M5)
-    let opts = lessdugin_core::discovery::SyncOpts {
+    let opts = pandoras_forum_core::discovery::SyncOpts {
         on_screen: vec![bob_acct.did().to_string()],
         ..Default::default()
     };
@@ -293,8 +293,8 @@ fn sync_progress_is_reported_while_the_sync_runs() {
     // a sync that fails part-way still closes its progress and reports the change (the point
     // fetch stored a tombstone)
     events.lock().unwrap().clear();
-    let rkey = lessdugin_lexicon::keys::comment_rkey(
-        lessdugin_lexicon::ns::NS,
+    let rkey = pandoras_forum_lexicon::keys::comment_rkey(
+        pandoras_forum_lexicon::ns::NS,
         &f.forum,
         &f.post,
         "2222222222222",
@@ -403,7 +403,7 @@ fn forum_open_syncs_the_authorities_and_reuses_the_declaration() {
     assert_eq!(bob.host.requests().len(), n);
     // later, the declaration is fetched again
     bob.host
-        .advance_ms(lessdugin_core::limits::FORUM_REOPEN_MS + 1);
+        .advance_ms(pandoras_forum_core::limits::FORUM_REOPEN_MS + 1);
     block_on(bob.engine.forum_open(&f.forum)).unwrap();
     assert!(bob.host.requests().len() > n);
 }
@@ -452,7 +452,7 @@ fn live_tail_keeps_followed_forums_fresh_and_verifies_handles() {
     block_on(bob.engine.join(&f.forum, None)).unwrap();
     bob.flush();
     let alice = &f.alice;
-    let opts = lessdugin_core::discovery::SyncOpts {
+    let opts = pandoras_forum_core::discovery::SyncOpts {
         on_screen: vec![bob_acct.did().to_string()],
         ..Default::default()
     };
@@ -484,7 +484,7 @@ fn live_tail_keeps_followed_forums_fresh_and_verifies_handles() {
         alice.host.advance_ms(13 * 60 * MINUTE);
         bob.host.advance_ms(13 * 60 * MINUTE);
         let r = block_on(alice.engine.live_step()).unwrap();
-        assert!(r.next_ms >= 1 && r.next_ms <= lessdugin_core::limits::LIVE_TAIL_IDLE_MS);
+        assert!(r.next_ms >= 1 && r.next_ms <= pandoras_forum_core::limits::LIVE_TAIL_IDLE_MS);
         let l = block_on(alice.engine.list_posts(&ListPostsQuery {
             filter: PostFilter::All,
             ..ListPostsQuery::new(&f.forum)
@@ -749,7 +749,7 @@ fn a_deleted_comment_with_replies_becomes_a_placeholder_elsewhere() {
     // alice answers bob's comment (bob is on screen: an open forum finds newcomers from hints,
     // M5)
     let alice = &f.alice.engine;
-    let opts = lessdugin_core::discovery::SyncOpts {
+    let opts = pandoras_forum_core::discovery::SyncOpts {
         on_screen: vec![bob_acct.did().to_string()],
         ..Default::default()
     };
@@ -813,7 +813,7 @@ fn an_applicants_post_is_hidden_in_an_approval_forum() {
     eve.flush();
     let spam = done_uri(&eve.engine, &t);
     // alice's sync sees eve's post (on screen): an applicant's post is hidden, without content
-    let opts = lessdugin_core::discovery::SyncOpts {
+    let opts = pandoras_forum_core::discovery::SyncOpts {
         on_screen: vec![eve_acct.did().to_string()],
         ..Default::default()
     };
@@ -822,8 +822,8 @@ fn an_applicants_post_is_hidden_in_an_approval_forum() {
     assert!(
         matches!(
             p.post.state,
-            lessdugin_core::dto::ItemState::Hidden {
-                reason: lessdugin_core::dto::HiddenReason::NotParticipant
+            pandoras_forum_core::dto::ItemState::Hidden {
+                reason: pandoras_forum_core::dto::HiddenReason::NotParticipant
             }
         ),
         "{:?}",
@@ -844,7 +844,7 @@ fn an_applicants_post_is_hidden_in_an_approval_forum() {
     assert!(
         matches!(
             p.post.state,
-            lessdugin_core::dto::ItemState::Tombstone { .. }
+            pandoras_forum_core::dto::ItemState::Tombstone { .. }
         ),
         "{:?}",
         p.post.state
@@ -902,7 +902,7 @@ fn a_refused_session_holds_writes_until_the_account_logs_in_again() {
     assert!(
         events.lock().unwrap().iter().any(|e| matches!(
             e,
-            Event::Auth { did: d, state: lessdugin_core::dto::AuthState::Expired } if *d == did
+            Event::Auth { did: d, state: pandoras_forum_core::dto::AuthState::Expired } if *d == did
         )),
         "Auth Expired is emitted"
     );
@@ -951,7 +951,7 @@ fn send_now_ends_a_back_off_but_not_a_rate_limit() {
             .once(),
     );
     let t = block_on(engine.publish(&PostDraft::article(&f.forum, "Retry", "Body"))).unwrap();
-    let step = lessdugin_core::outbox::Session::new(
+    let step = pandoras_forum_core::outbox::Session::new(
         f.alice_acct.did().clone(),
         url::Url::parse(&f.alice_acct.pds_base()).unwrap(),
     );
@@ -984,7 +984,7 @@ fn send_now_ends_a_back_off_but_not_a_rate_limit() {
 
     // `retry` on a backing-off write is "send now" too; a PDS rate limit is left alone.
     let pds = f.net.default_pds();
-    pds.set_rate_limit(Some(lessdugin_testkit::fake_pds::RateLimit {
+    pds.set_rate_limit(Some(pandoras_forum_testkit::fake_pds::RateLimit {
         limit: 0,
         window_ms: 10 * MINUTE,
     }));
@@ -1015,8 +1015,8 @@ fn a_hung_pds_does_not_block_opening_a_cached_forum() {
     let took = f.alice.host.now() - started;
     assert_eq!(view.forum.uri, f.forum);
     assert!(
-        took <= lessdugin_core::limits::FORUM_DECL_CACHED_BUDGET_MS
-            + lessdugin_core::limits::FORUM_OPEN_SYNC_BUDGET_MS,
+        took <= pandoras_forum_core::limits::FORUM_DECL_CACHED_BUDGET_MS
+            + pandoras_forum_core::limits::FORUM_OPEN_SYNC_BUDGET_MS,
         "forum_open took {took} ms of (fake) time with a hung PDS"
     );
     // The cached thread is still readable.

@@ -10,21 +10,21 @@
 
 use std::sync::OnceLock;
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::dto::AccountView;
-use lessdugin_core::engine::{Engine, EngineConfig, EngineError, ErrorCode};
-use lessdugin_core::outbox::Session;
-use lessdugin_native::auth::{SecretStore, restore_session};
-use lessdugin_native::config::{
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::dto::AccountView;
+use pandoras_forum_core::engine::{Engine, EngineConfig, EngineError, ErrorCode};
+use pandoras_forum_core::outbox::Session;
+use pandoras_forum_native::auth::{SecretStore, restore_session};
+use pandoras_forum_native::config::{
     Config, DevnetProfile, DnsMode, IndexerMode, IndexerSetting, NetworkProfile, Paths,
 };
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_native::host::NativeHost;
 
 use crate::args::GlobalArgs;
 use crate::out::{Printer, tt};
 use crate::state::CliState;
 
-pub use lessdugin_native::engine::engine_config;
+pub use pandoras_forum_native::engine::engine_config;
 
 /// A command failure: an engine error (exit code by its code), a usage error (exit 2), or an
 /// error already reported (exit code only).
@@ -78,7 +78,7 @@ pub struct Ctx {
     pub state: CliState,
     /// The keyring service of the session store (a devnet's own in devnet mode).
     keyring_service: Option<String>,
-    /// The test-only parity-mode time (`LESSDUGIN_PARITY_NOW_MS`, devnet only;
+    /// The test-only parity-mode time (`PANDORAS_FORUM_PARITY_NOW_MS`, devnet only;
     /// `engine-api.md` §2.1).
     parity_now_ms: Option<i64>,
     engine: OnceLock<Engine<NativeHost>>,
@@ -164,9 +164,9 @@ impl Ctx {
                 .map_err(|e| CliError::usage(e.to_string()))?;
         }
         if let Some(url) = &cli_indexer
-            && !lessdugin_core::indexer::endpoint_allowed(
+            && !pandoras_forum_core::indexer::endpoint_allowed(
                 url,
-                lessdugin_core::indexer::EndpointPolicy::Production,
+                pandoras_forum_core::indexer::EndpointPolicy::Production,
             )
         {
             return Err(CliError::usage(format!(
@@ -203,7 +203,7 @@ impl Ctx {
             )));
         }
         // test-only parity mode (`engine-api.md` §2.1): devnet only
-        let parity_now_ms = lessdugin_native::config::parity_now_ms(&config)
+        let parity_now_ms = pandoras_forum_native::config::parity_now_ms(&config)
             .map_err(|e| CliError::usage(e.to_string()))?;
         if let Some(t) = parity_now_ms {
             out.warn(tt(&format!(

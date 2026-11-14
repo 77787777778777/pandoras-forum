@@ -27,7 +27,7 @@ cargo xtask fuzz dagcbor -- -runs=0    # extra libFuzzer flags after --
 
 `cargo xtask fuzz` first runs the seed generator (`seeds/`). It writes seeds from the vectors and
 fixtures to `corpus/<target>/` and adds the kept reproducers from `regressions/<target>/`. Then it
-runs each target with `cargo +nightly fuzz run` (set `LESSDUGIN_FUZZ_TOOLCHAIN` to use another
+runs each target with `cargo +nightly fuzz run` (set `PANDORAS_FORUM_FUZZ_TOOLCHAIN` to use another
 nightly; CI pins one). The build goes to `$CARGO_TARGET_DIR/fuzz` (default `target/fuzz`). The
 command fails if any target stops on a crash, a timeout or an out-of-memory error. libFuzzer
 writes the input to `artifacts/<target>/`.

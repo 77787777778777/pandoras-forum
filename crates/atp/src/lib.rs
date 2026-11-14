@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Minimal, wasm-safe AT Protocol primitives used by lessdugin.
+//! Minimal, wasm-safe AT Protocol primitives used by Pandora's Forum.
 //!
 //! This crate performs no I/O and never reads clocks: callers pass time in. It never panics on
 //! malformed input; every decoder has explicit caps (depth, element counts, sizes) that are checked
@@ -7,7 +7,7 @@
 //!
 //! | Module | Contents |
 //! |---|---|
-//! | [`syntax`] | [`syntax::Did`], [`syntax::Handle`], [`syntax::Nsid`], [`syntax::RecordKey`], [`syntax::AtUri`] (canonical, with the lessdugin DID policy), [`syntax::LooseAtUri`] (lenient), [`syntax::Datetime`] |
+//! | [`syntax`] | [`syntax::Did`], [`syntax::Handle`], [`syntax::Nsid`], [`syntax::RecordKey`], [`syntax::AtUri`] (canonical, with the Pandora's Forum DID policy), [`syntax::LooseAtUri`] (lenient), [`syntax::Datetime`] |
 //! | [`tid`] | [`tid::Tid`], [`tid::TidGenerator`] (ignores far-future observed revs) |
 //! | [`cid`] | CIDv1 helpers over [`Cid`] (sha-256, dag-cbor / raw) |
 //! | [`dagcbor`] | strict canonical DAG-CBOR codec over [`Ipld`]; allocation-free validation and raw navigation |
@@ -18,7 +18,7 @@
 //! | [`mst`] | MST node codec, key heights, the `sync.md` §8.5 walk, deterministic builder |
 //! | [`commit`] | v3 commit decode and verification (`sync.md` §8.4) |
 //! | [`proof`] | `proofs/1` (`sync.md` §8): [`proof::verify_proof`], [`proof::verify_proof_in`], [`proof::ProofBundle`], error kinds |
-//! | [`xrpc`] | request/response structs for the XRPC subset lessdugin uses |
+//! | [`xrpc`] | request/response structs for the XRPC subset Pandora's Forum uses |
 //!
 //! See `docs/spec/sync.md` §3.2 and §8 (`proofs/1`), `docs/spec/data-model.md` and
 //! `docs/spec/limits.md`.

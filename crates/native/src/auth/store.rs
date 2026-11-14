@@ -6,7 +6,7 @@
 //! - in the OS keyring (`keyring` crate: Keychain, Credential Manager, Secret Service), service
 //!   [`KEYRING_SERVICE`], account = the DID;
 //! - when no keyring backend is usable (headless Linux CI, no D-Bus session) or
-//!   `LESSDUGIN_KEYRING=off`: in `<data>/sessions/<h(did)>.json`, a 0600 file in a 0700
+//!   `PANDORAS_FORUM_KEYRING=off`: in `<data>/sessions/<h(did)>.json`, a 0600 file in a 0700
 //!   directory, written to an `O_EXCL | O_NOFOLLOW` temporary name and renamed atomically, and
 //!   refused on read if it is a symlink or grants any group or world permission.
 //!
@@ -23,7 +23,7 @@
 
 use std::path::{Path, PathBuf};
 
-use lessdugin_core::engine::{EngineError, ErrorCode};
+use pandoras_forum_core::engine::{EngineError, ErrorCode};
 use serde::{Deserialize, Serialize};
 
 use super::redact::{Secret, SecretJson};
@@ -31,9 +31,9 @@ use crate::config::{Paths, lock_hash};
 use crate::fsutil;
 
 /// The keyring service name.
-pub const KEYRING_SERVICE: &str = "lessdugin";
+pub const KEYRING_SERVICE: &str = "pandoras-forum";
 /// Environment variable: `off` (or `0`, `false`, `file`) keeps sessions out of the OS keyring.
-pub const KEYRING_ENV: &str = "LESSDUGIN_KEYRING";
+pub const KEYRING_ENV: &str = "PANDORAS_FORUM_KEYRING";
 /// Largest accepted session secret.
 pub const SESSION_MAX_BYTES: u64 = 256 * 1024;
 /// Version of the stored session format.
@@ -171,7 +171,7 @@ pub enum Backend {
 pub enum KeyringStatus {
     /// A keyring backend answered.
     Available,
-    /// Disabled by `LESSDUGIN_KEYRING=off`.
+    /// Disabled by `PANDORAS_FORUM_KEYRING=off`.
     Disabled,
     /// No usable backend (the reason).
     Unavailable(String),
@@ -189,7 +189,7 @@ fn storage_error(what: &str, e: impl std::fmt::Display) -> EngineError {
     EngineError::internal(format!("{what}: {e}"))
 }
 
-/// `true` unless `LESSDUGIN_KEYRING` disables the keyring.
+/// `true` unless `PANDORAS_FORUM_KEYRING` disables the keyring.
 pub fn keyring_enabled_by_env() -> bool {
     match std::env::var(KEYRING_ENV) {
         Ok(v) => !matches!(
@@ -201,7 +201,7 @@ pub fn keyring_enabled_by_env() -> bool {
 }
 
 impl SecretStore {
-    /// The store for `paths`; the keyring is used unless `LESSDUGIN_KEYRING` disables it.
+    /// The store for `paths`; the keyring is used unless `PANDORAS_FORUM_KEYRING` disables it.
     pub fn new(paths: &Paths) -> Self {
         Self {
             dir: paths.data_dir.join("sessions"),
@@ -220,7 +220,7 @@ impl SecretStore {
     }
 
     /// The same store with another keyring service name (devnet sessions use
-    /// `lessdugin-devnet-<h(plc, pds)>`, so they never share entries with production).
+    /// `pandoras-forum-devnet-<h(plc, pds)>`, so they never share entries with production).
     pub fn with_keyring_service(mut self, service: impl Into<String>) -> Self {
         self.service = service.into();
         self
@@ -257,7 +257,7 @@ impl SecretStore {
             if let Err(e) = keyring::Entry::store_status() {
                 return Err(e.to_string());
             }
-            let entry = keyring::Entry::new(&service, "lessdugin-doctor-probe")
+            let entry = keyring::Entry::new(&service, "pandoras-forum-doctor-probe")
                 .map_err(|e| e.to_string())?;
             match entry.get_secret() {
                 Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
@@ -548,7 +548,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let store = SecretStore::file_only(dir.path());
         assert_eq!(store.keyring_service(), KEYRING_SERVICE);
-        let dev = store.with_keyring_service("lessdugin-devnet-x");
-        assert_eq!(dev.keyring_service(), "lessdugin-devnet-x");
+        let dev = store.with_keyring_service("pandoras-forum-devnet-x");
+        assert_eq!(dev.keyring_service(), "pandoras-forum-devnet-x");
     }
 }

@@ -22,7 +22,7 @@ async function listRecords(
   collection: string,
 ): Promise<{ uri: string; value: Record<string, unknown> }[]> {
   const r = await fetch(
-    `${s.devnet.pds}/xrpc/com.atproto.repo.listRecords?repo=${did}&collection=online.7778777.lessdugin.temp.${collection}&limit=100`,
+    `${s.devnet.pds}/xrpc/com.atproto.repo.listRecords?repo=${did}&collection=forum.pandoras.temp.${collection}&limit=100`,
   );
   return ((await r.json()) as { records: { uri: string; value: Record<string, unknown> }[] })
     .records;
@@ -56,18 +56,21 @@ test("anonymous read: forum, post list, post and its thread", async ({ page }) =
   await expect(
     page.getByRole("heading", { level: 1, name: "Hello from the PDS API" }),
   ).toBeVisible();
-  // The body went through the renderer and the `lessdugin-md` policy.
+  // The body went through the renderer and the `pandoras-forum-md` policy.
   await expect(page.locator("[data-rendered-root] strong").first()).toHaveText("createRecord");
   await expect(page.getByText("A first comment from alice.")).toBeVisible();
   await expect(page.getByText("Sign in to comment.")).toBeVisible();
 
   // The debug hook (e2e builds only) returns the engine's dto/1 text.
-  const thread = await page.evaluate((uri) => window.__lessduginE2E?.getThread(uri), s.post.uri);
+  const thread = await page.evaluate(
+    (uri) => window.__pandorasForumE2E?.getThread(uri),
+    s.post.uri,
+  );
   expect(thread?.startsWith('{"dto":1,')).toBe(true);
   const parsed = JSON.parse(thread ?? "{}") as { comments: { uri: string }[] };
   expect(parsed.comments.map((c) => c.uri)).toEqual([s.comment.uri]);
   const list = await page.evaluate(
-    (forum) => window.__lessduginE2E?.listPosts({ forum }),
+    (forum) => window.__pandorasForumE2E?.listPosts({ forum }),
     s.forum.uri,
   );
   expect(JSON.parse(list ?? "{}").items.map((p: { uri: string }) => p.uri)).toEqual([s.post.uri]);
@@ -121,7 +124,7 @@ test("bob signs in with OAuth, joins, comments, publishes a post and edits it (a
   expect(priv.length).toBeGreaterThan(0);
   expect(priv.every((k) => !k.extractable)).toBe(true);
   const accounts = JSON.parse(
-    (await page.evaluate(() => window.__lessduginE2E?.accounts())) ?? "[]",
+    (await page.evaluate(() => window.__pandorasForumE2E?.accounts())) ?? "[]",
   ) as { did: string; authKind: string }[];
   expect(accounts).toEqual([expect.objectContaining({ did: bob.did, authKind: "oauth" })]);
 
@@ -168,7 +171,7 @@ test("bob signs in with OAuth, joins, comments, publishes a post and edits it (a
   await expect(page.locator("[data-rendered-root] strong").first()).toHaveText("DPoP");
   const m = /#\/p\/(did:plc:[a-z2-7]{24})\/([a-z2-7-]+)$/.exec(page.url());
   expect(m?.[1]).toBe(bob.did);
-  const postUri = `at://${m?.[1]}/online.7778777.lessdugin.temp.post/${m?.[2]}`;
+  const postUri = `at://${m?.[1]}/forum.pandoras.temp.post/${m?.[2]}`;
 
   // The attached image, on click (or by the engine's autoload verdict, sync.md §11.3): fetched,
   // CID-checked and sniffed, then shown from a typed object URL (sync.md §11.2, threat-model
@@ -195,7 +198,7 @@ test("bob signs in with OAuth, joins, comments, publishes a post and edits it (a
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "History (1 revision)" })).toBeVisible();
   const history = JSON.parse(
-    (await page.evaluate((uri) => window.__lessduginE2E?.history(uri), postUri)) ?? "{}",
+    (await page.evaluate((uri) => window.__pandorasForumE2E?.history(uri), postUri)) ?? "{}",
   ) as { versions: { n: number }[] };
   expect(history.versions.length).toBe(2);
   const revisions = await listRecords(bob.did, "revision");

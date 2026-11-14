@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment jsdom
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { renderWithApp } from "../test/render.tsx";

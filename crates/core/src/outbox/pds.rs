@@ -13,8 +13,8 @@
 //!   5xx or a dropped connection on a write is ambiguous (re-read before deciding, never resend
 //!   blindly); everything else is a refusal.
 
-use lessdugin_atp::syntax::{AtIdentifier, Did, Nsid, RecordKey};
-use lessdugin_atp::xrpc::{CommitMeta, GetLatestCommit, GetRecord, XrpcError};
+use pandoras_forum_atp::syntax::{AtIdentifier, Did, Nsid, RecordKey};
+use pandoras_forum_atp::xrpc::{CommitMeta, GetLatestCommit, GetRecord, XrpcError};
 use serde_json::{Value, json};
 
 use crate::engine::{EngineError, ErrorCode};
@@ -357,7 +357,7 @@ impl<'h, H: Host> PdsClient<'h, H> {
             rkey: key,
             cid: None,
         };
-        let path = lessdugin_atp::xrpc::query_path(&params);
+        let path = pandoras_forum_atp::xrpc::query_path(&params);
         let opts = CallOpts::capped(limits::RECORD_RESPONSE_MAX_BYTES);
         let resp = match Xrpc::new(self.host)
             .get(&self.service(), &path, &opts)

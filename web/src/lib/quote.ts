@@ -10,7 +10,7 @@
 // math, whose P is the TeX source) is reported as `unmatched`, so the UI can say so instead of
 // sending a quote that resolves to "quoted text no longer present".
 
-import type { TextQuote } from "@lessdugin/engine/types";
+import type { TextQuote } from "@pandoras-forum/engine/types";
 
 const WS = /[\s\u{85}\u{a0}\u{1680}\u{2000}-\u{200a}\u{2028}\u{2029}\u{202f}\u{205f}\u{3000}]+/gu;
 const MAX_QUOTE_BYTES = 2000;

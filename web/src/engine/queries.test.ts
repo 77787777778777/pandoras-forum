@@ -3,8 +3,8 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import { invalidateTopics, keysForTopic, qk } from "./queries.ts";
 
-const FORUM = "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.forum/f";
-const POST = "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.post/3kabc";
+const FORUM = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.forum/f";
+const POST = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.post/3kabc";
 
 describe("changed topics → query invalidation (engine-api.md §3.8)", () => {
   it("invalidates post and thread queries when their forum changes", async () => {
@@ -32,7 +32,7 @@ describe("changed topics → query invalidation (engine-api.md §3.8)", () => {
 
   it("refreshes a sequence on its thread topic (its continue-reading position moved)", () => {
     const qc = new QueryClient();
-    const SEQ = "at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.sequence/s";
+    const SEQ = "at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.sequence/s";
     qc.setQueryData([...qk.sequence(SEQ)], 1);
     qc.setQueryData([...qk.sequence(`${SEQ}2`)], 1);
     invalidateTopics(qc, [{ kind: "thread", uri: SEQ }]);

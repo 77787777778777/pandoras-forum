@@ -3,12 +3,12 @@
 
 #![cfg(feature = "http")]
 
-use lessdugin_atp::proof::{ProofCaps, verify_record_proof};
-use lessdugin_atp::syntax::{Nsid, RecordKey};
-use lessdugin_testkit::fake_pds::{FakeNet, Fault, SystemClock};
+use pandoras_forum_atp::proof::{ProofCaps, verify_record_proof};
+use pandoras_forum_atp::syntax::{Nsid, RecordKey};
+use pandoras_forum_testkit::fake_pds::{FakeNet, Fault, SystemClock};
 use serde_json::{Value, json};
 
-const POST: &str = "online.7778777.lessdugin.post";
+const POST: &str = "forum.pandoras.post";
 
 #[tokio::test]
 async fn serves_pds_plc_and_relay_over_http() {

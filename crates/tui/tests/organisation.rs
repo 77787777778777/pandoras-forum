@@ -4,12 +4,12 @@
 mod common;
 
 use common::{MINUTE, block_on, scenario};
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     BodyDraft, SequenceChapterDraft, SequenceDraft, WikiDraft, WriteState, WriteTicket,
 };
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_testkit::MemHost;
-use lessdugin_tui::{Headless, HeadlessOpts};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_testkit::MemHost;
+use pandoras_forum_tui::{Headless, HeadlessOpts};
 use serde_json::json;
 
 type Tui = Headless<MemHost>;
@@ -25,7 +25,7 @@ fn run_command(t: &mut Tui, line: &str) {
     assert!(t.state.command.is_none());
 }
 
-fn alice_tui(s: &common::Scenario, editor: Option<lessdugin_tui::EditorConfig>) -> Tui {
+fn alice_tui(s: &common::Scenario, editor: Option<pandoras_forum_tui::EditorConfig>) -> Tui {
     block_on(Headless::new(
         s.w.alice.engine.clone(),
         HeadlessOpts {
@@ -96,7 +96,7 @@ fn search_results_step_with_n_and_shift_n() {
     assert!(
         matches!(
             t.state.top().map(|s| &s.kind),
-            Some(lessdugin_tui::app::ScreenKind::Notifications(_))
+            Some(pandoras_forum_tui::app::ScreenKind::Notifications(_))
         ),
         "{}",
         t.render()
@@ -308,7 +308,7 @@ fn wiki_and_every_sequence_write_go_through_the_real_outbox() {
 
 /// An `$EDITOR` stand-in that saves the template it was given to `seen` and replaces the whole
 /// file with `text`.
-fn replacing_editor(dir: &std::path::Path, text: &str) -> lessdugin_tui::EditorConfig {
+fn replacing_editor(dir: &std::path::Path, text: &str) -> pandoras_forum_tui::EditorConfig {
     let reply = dir.join("reply.txt");
     std::fs::write(&reply, text).unwrap();
     let script = dir.join("replace.sh");
@@ -367,8 +367,8 @@ fn wiki_parents(s: &common::Scenario, revision: &str) -> Vec<String> {
 /// and writes the redo on the new head.
 #[test]
 fn a_wiki_edit_whose_page_moved_is_refused_and_redone_on_the_new_head() {
-    use lessdugin_tui::exec::{ExecOpts, run};
-    use lessdugin_tui::{Action, Effect};
+    use pandoras_forum_tui::exec::{ExecOpts, run};
+    use pandoras_forum_tui::{Action, Effect};
     let s = scenario();
     let r1 = wiki_revision(&s, "rust", "The first text.", None);
     let dir = tempfile::tempdir().unwrap();
@@ -381,7 +381,7 @@ fn a_wiki_edit_whose_page_moved_is_refused_and_redone_on_the_new_head() {
         block_on(t.press(&c.to_string()));
     }
     let mut fx = t.state.update(Action::Key(
-        lessdugin_tui::keys::parse_key("Enter").unwrap(),
+        pandoras_forum_tui::keys::parse_key("Enter").unwrap(),
     ));
     assert!(
         matches!(fx.as_slice(), [Effect::StartWiki { slug, .. }] if slug == "rust"),
@@ -392,7 +392,7 @@ fn a_wiki_edit_whose_page_moved_is_refused_and_redone_on_the_new_head() {
     let Some(Effect::Editor(request)) = fx.pop() else {
         panic!("no editor session: {fx:?}");
     };
-    let lessdugin_tui::app::Compose::Wiki { draft, .. } = &request.compose else {
+    let pandoras_forum_tui::app::Compose::Wiki { draft, .. } = &request.compose else {
         panic!("{:?}", request.compose);
     };
     assert_eq!(draft.base.as_deref(), Some(r1.as_str()));
@@ -452,7 +452,7 @@ fn posts_opened_from_a_sequence_are_read_in_it() {
         let t = block_on(
             alice
                 .engine
-                .publish(&lessdugin_core::dto::PostDraft::article(
+                .publish(&pandoras_forum_core::dto::PostDraft::article(
                     &s.forum,
                     title,
                     format!("About {title}."),
@@ -488,7 +488,7 @@ fn posts_opened_from_a_sequence_are_read_in_it() {
     let depth = t.state.stack.len();
     let nav = |t: &Tui| {
         let n = &t.thread_view().expect("a thread").post;
-        let lessdugin_core::dto::ThreadRoot::Post(p) = n else {
+        let pandoras_forum_core::dto::ThreadRoot::Post(p) = n else {
             panic!("{n:?}");
         };
         let n = p.sequences.first().expect("a sequence nav");
@@ -612,9 +612,9 @@ fn freeze_fields(milestone: &str) -> std::collections::BTreeMap<String, &'static
 /// start with the link card dropped.
 #[test]
 fn every_new_field_has_a_way_in() {
-    use lessdugin_tui::command::{FIELD_REACH, Reach};
-    use lessdugin_tui::exec::{ExecOpts, run};
-    use lessdugin_tui::{Action, Effect};
+    use pandoras_forum_tui::command::{FIELD_REACH, Reach};
+    use pandoras_forum_tui::exec::{ExecOpts, run};
+    use pandoras_forum_tui::{Action, Effect};
     let spec = freeze_fields("M5");
     let have: std::collections::BTreeSet<String> =
         FIELD_REACH.iter().map(|(f, _)| (*f).to_owned()).collect();
@@ -664,9 +664,9 @@ fn every_new_field_has_a_way_in() {
         for k in first {
             block_on(t.press(k));
         }
-        let fx = t
-            .state
-            .update(Action::Key(lessdugin_tui::keys::parse_key(last).unwrap()));
+        let fx = t.state.update(Action::Key(
+            pandoras_forum_tui::keys::parse_key(last).unwrap(),
+        ));
         let sent = fx.iter().any(|e| match (*field, e) {
             ("WikiDraft.base", Effect::StartWiki { .. }) => {
                 match block_on(run(t.engine(), e.clone(), ExecOpts::default())) {

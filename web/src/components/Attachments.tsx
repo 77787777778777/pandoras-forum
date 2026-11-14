@@ -5,7 +5,7 @@
 // (data-model.md §4: `#media.name` is opt-in, a basename only; threat-model PRIV-4), and a
 // file without alt text carries the engine's `missingAlt` warning until the author writes one.
 
-import type { MediaRef } from "@lessdugin/engine/types";
+import type { MediaRef } from "@pandoras-forum/engine/types";
 import { type Ref, useCallback, useId, useImperativeHandle, useRef, useState } from "react";
 import { useEngine } from "../engine/context.tsx";
 import styles from "./Attachments.module.css";

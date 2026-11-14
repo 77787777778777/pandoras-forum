@@ -152,7 +152,7 @@ M1.
     `[workspace.dependencies]`; `unicode-segmentation`, `unicode-normalization` and
     `unicode-width` are exact pins in `crates/markdown/Cargo.toml`. → §2 "Unicode data".
     Residuals (workspace decisions, not spec bugs): `rust-toolchain.toml` floats on `stable`
-    (decision 34 bounds the effect); `lessdugin-atp` brings its crypto dependencies along.
+    (decision 34 bounds the effect); `pandoras-forum-atp` brings its crypto dependencies along.
 17. **§9.1 VT and FF.** Escaped in Prose and Code, spaces in Name. → §9.1
     (`term-sanitize.json#prose-vt-ff-escaped`, `#code-vt-ff-escaped`, `#name-vt-ff-spaces`).
 18. **DOMPurify trimming, `SAFE_FOR_XML`, jsdom serialisation.** → §8.3, §8.5 (decisions 25, 33).

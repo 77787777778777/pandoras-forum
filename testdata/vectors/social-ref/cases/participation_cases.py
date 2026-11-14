@@ -6,7 +6,7 @@ These inputs contain no opinions, so E = S (no K1, no seed upvotes) and `newcome
 
 from __future__ import annotations
 
-from lessdugin_ref.build import HOUR, T0, Forum, did, rec
+from pandoras_forum_ref.build import HOUR, T0, Forum, did, rec
 
 from .util import file_doc, vector
 

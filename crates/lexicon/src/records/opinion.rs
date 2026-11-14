@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use lessdugin_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use unicode_normalization::UnicodeNormalization;
@@ -98,7 +98,7 @@ impl TagVote {
 
 /// `qkey(quote)` (`lfm-1.md` §11): `norm(trim_ws(quote.exact))`, where `norm` removes the
 /// §10.2 controls, applies NFC and replaces every run of `White_Space` characters with one
-/// U+0020; `""` without a quote. Must stay identical to `lessdugin_markdown::quote::qkey`
+/// U+0020; `""` without a quote. Must stay identical to `pandoras_forum_markdown::quote::qkey`
 /// (both run `testdata/vectors/lfm1/quote.json`).
 pub fn qkey(quote: Option<&TextQuote>) -> String {
     let Some(q) = quote else {

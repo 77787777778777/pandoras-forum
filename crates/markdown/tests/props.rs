@@ -4,9 +4,9 @@
 //! or tab whitespace, terminal text never carries escapes, and deep nesting is cheap and
 //! stack-safe.
 
-use lessdugin_markdown::allowlist::check_html;
-use lessdugin_markdown::printer::{PrintOpts, check_printer_output, print_doc};
-use lessdugin_markdown::{
+use pandoras_forum_markdown::allowlist::check_html;
+use pandoras_forum_markdown::printer::{PrintOpts, check_printer_output, print_doc};
+use pandoras_forum_markdown::{
     MathMode, MediaItem, RenderOpts, Rendered, SKind, StyledDoc, derive_metadata, plain_projection,
     render, render_with_math_mode,
 };
@@ -103,7 +103,7 @@ fn token() -> impl Strategy<Value = String> {
         Just(format!("cid:{CID}")),
         Just("cid:bx".to_owned()),
         Just("at://did:plc:abcdefghijklmnopqrstuvwx".to_owned()),
-        Just("/online.7778777.lessdugin.post/3k".to_owned()),
+        Just("/forum.pandoras.post/3k".to_owned()),
         Just("@".to_owned()),
         Just("#x".to_owned()),
         Just("\"t\"".to_owned()),
@@ -186,7 +186,7 @@ fn check_all(src: &str, r: &Rendered) -> Result<(), TestCaseError> {
     }
     #[cfg(feature = "ammonia")]
     prop_assert_eq!(
-        lessdugin_markdown::allowlist::ammonia_clean(&r.html),
+        pandoras_forum_markdown::allowlist::ammonia_clean(&r.html),
         r.html.clone()
     );
     Ok(())
@@ -261,7 +261,7 @@ proptest! {
         let src = format!("[a](https://{host}/x)");
         let r = render(&src, &[], &RenderOpts::ALL);
         prop_assert_eq!(
-            lessdugin_markdown::allowlist::ammonia_clean(&r.html),
+            pandoras_forum_markdown::allowlist::ammonia_clean(&r.html),
             r.html.clone(),
             "{}",
             src
@@ -276,7 +276,7 @@ proptest! {
 #[test]
 fn links_and_mentions_of_rendered_content() {
     let did = "did:plc:abcdefghijklmnopqrstuvwx";
-    let uri = format!("at://{did}/online.7778777.lessdugin.post/3k2a");
+    let uri = format!("at://{did}/forum.pandoras.post/3k2a");
     let hidden = [
         format!("x\n\n[^x]: [@v](at://{did}) [r]({uri})"),
         format!("x[^x]\n\n[^x]: a\n\n[^x]: [@v](at://{did}) [r]({uri})"),

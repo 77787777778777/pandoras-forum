@@ -12,11 +12,11 @@ const KIND: &str = "did";
 ///
 /// Syntax: `^did:[a-z]+:[a-zA-Z0-9._:%-]*[a-zA-Z0-9._-]$`, at most [`MAX_DID_LEN`] bytes. DIDs are
 /// case-sensitive and never normalized. Method-specific checks are separate:
-/// [`Did::is_valid_plc`], [`Did::web_host`], [`Did::check_lessdugin_policy`].
+/// [`Did::is_valid_plc`], [`Did::web_host`], [`Did::check_pandoras_forum_policy`].
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Did(String);
 
-/// The method of a [`Did`], as far as lessdugin cares.
+/// The method of a [`Did`], as far as Pandora's Forum cares.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DidMethod {
     /// `did:plc`
@@ -74,7 +74,7 @@ impl Did {
         (self.method() == "web").then(|| self.identifier())
     }
 
-    /// For a `did:web` that passes [`Did::check_lessdugin_policy`] and whose host may be fetched
+    /// For a `did:web` that passes [`Did::check_pandoras_forum_policy`] and whose host may be fetched
     /// (see [`Did::web_document_url_with`], outside devnet mode), the DID document URL
     /// `https://<host>/.well-known/did.json`; `None` otherwise.
     pub fn web_document_url(&self) -> Option<String> {
@@ -88,7 +88,7 @@ impl Did {
     /// (`data-model.md` §2.3); they just never resolve.
     pub fn web_document_url_with(&self, devnet: bool) -> Option<String> {
         let host = self.web_host()?;
-        self.check_lessdugin_policy().ok()?;
+        self.check_pandoras_forum_policy().ok()?;
         let tld = host.rsplit('.').next().unwrap_or("");
         if handle::DISALLOWED_TLDS.contains(&tld) || (tld == "test" && !devnet) {
             return None;
@@ -96,9 +96,9 @@ impl Did {
         Some(format!("https://{host}/.well-known/did.json"))
     }
 
-    /// lessdugin policy (`data-model.md` §2.3): only `did:plc:[a-z2-7]{24}` and
+    /// Pandora's Forum policy (`data-model.md` §2.3): only `did:plc:[a-z2-7]{24}` and
     /// `did:web:<lowercase hostname>` (no port, no path, no percent-encoding) are accepted.
-    pub fn check_lessdugin_policy(&self) -> Result<(), SyntaxError> {
+    pub fn check_pandoras_forum_policy(&self) -> Result<(), SyntaxError> {
         match self.method_kind() {
             DidMethod::Plc => {
                 if is_plc_identifier(self.identifier()) {
@@ -180,7 +180,7 @@ mod tests {
         assert_eq!(d.identifier(), "ewvi7nxzyoun6zhxrhs64oiz");
         assert_eq!(d.method_kind(), DidMethod::Plc);
         assert!(d.is_valid_plc());
-        assert!(d.check_lessdugin_policy().is_ok());
+        assert!(d.check_pandoras_forum_policy().is_ok());
         let w = Did::parse("did:web:example.com").unwrap();
         assert_eq!(w.web_host(), Some("example.com"));
         assert_eq!(
@@ -194,7 +194,7 @@ mod tests {
                 .web_document_url()
                 .is_none()
         );
-        assert!(w.check_lessdugin_policy().is_ok());
+        assert!(w.check_pandoras_forum_policy().is_ok());
         // reserved and local-only TLDs never resolve; .test only in devnet
         for local in [
             "did:web:evil.localhost",
@@ -205,7 +205,7 @@ mod tests {
             "did:web:x.example",
         ] {
             let d = Did::parse(local).unwrap();
-            assert!(d.check_lessdugin_policy().is_ok(), "{local}");
+            assert!(d.check_pandoras_forum_policy().is_ok(), "{local}");
             assert!(d.web_document_url().is_none(), "{local}");
             assert!(d.web_document_url_with(true).is_none(), "{local}");
         }
@@ -234,7 +234,7 @@ mod tests {
             "did:key:zQ3shZc2QzApp2oymGvQbzP8eKheVshBHbU4ZYjeXqwSKEn6N",
         ] {
             let d = Did::parse(bad).unwrap();
-            assert!(d.check_lessdugin_policy().is_err(), "{bad}");
+            assert!(d.check_pandoras_forum_policy().is_err(), "{bad}");
         }
     }
 

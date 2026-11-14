@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //
 // `Host::lock(name, wait)` in the browser (sync.md §10.6, §12.3): the Web Lock
-// `lessdugin-<name>` with the first `:` replaced by `-` (`outbox:<did>` →
-// `lessdugin-outbox-<did>`, the DID unchanged), exclusive, `ifAvailable` unless `wait`. Web Locks
+// `pandoras-forum-<name>` with the first `:` replaced by `-` (`outbox:<did>` →
+// `pandoras-forum-outbox-<did>`, the DID unchanged), exclusive, `ifAvailable` unless `wait`. Web Locks
 // exclude other tabs of the origin and other tasks of this worker alike, and are released when
 // the holder's tab or worker goes away, so a lock is never left stale. The handle is released
 // when the Rust guard drops (`release()`).
@@ -14,7 +14,7 @@ export interface LockHandle {
 
 /** The Web Lock name of a host lock name. */
 export function webLockName(name: string): string {
-  return `lessdugin-${name.replace(":", "-")}`;
+  return `pandoras-forum-${name.replace(":", "-")}`;
 }
 
 /** The part of `LockManager` the host uses (injectable for tests). */

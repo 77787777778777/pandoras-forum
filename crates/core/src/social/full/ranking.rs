@@ -23,8 +23,8 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::values::{PostKind, Tier};
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::values::{PostKind, Tier};
 
 use crate::dto;
 use crate::social::full::author::AuthorTier;

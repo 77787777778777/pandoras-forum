@@ -8,16 +8,16 @@
 //! the view shows; otherwise (another version is displayed, or the body is not inline) the
 //! view's plain text P is printed, with its notices.
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::dto::{
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::dto::{
     ActorView, Anchor, Badges, CollapseReason, HandleState, HiddenReason, ItemState, KarmaValue,
     PostTag, ReactTally, RenderedBody, ScoreView, Stance,
 };
-use lessdugin_core::host::Host;
-use lessdugin_core::store::records::RecordStore;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_markdown::printer::{PrintOpts, print_doc_with};
-use lessdugin_markdown::{MediaItem, RenderOpts};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_markdown::printer::{PrintOpts, print_doc_with};
+use pandoras_forum_markdown::{MediaItem, RenderOpts};
 use serde_json::Value;
 
 use crate::out::{Style, TermText, cat, lit, name, tt};
@@ -221,7 +221,7 @@ pub fn react(t: &ReactTally, handle_of: &dyn Fn(&str) -> Option<String>) -> Term
         parts.push(lit(" by "));
         parts.push(match handle_of(c) {
             Some(h) => cat([lit("@"), name(&h)]),
-            None => tt(&lessdugin_core::identity::short_did(c)),
+            None => tt(&pandoras_forum_core::identity::short_did(c)),
         });
     }
     let seconded = t.for_count.saturating_sub(1);
@@ -311,7 +311,7 @@ pub fn markdown(
         styled: true,
         text: false,
     };
-    let r = lessdugin_markdown::render_profile(text, &media, profile, &opts);
+    let r = pandoras_forum_markdown::render_profile(text, &media, profile, &opts);
     let print = PrintOpts {
         color: style.color,
         hyperlinks: style.hyperlinks && style.color,

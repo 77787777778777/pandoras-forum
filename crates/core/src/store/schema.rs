@@ -22,7 +22,7 @@
 //! prefix scan `("rec", fk)`, a repo's range of one collection one prefix scan
 //! `("rec", fk, coll, did)`.
 
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_lexicon::ns::NS;
 
 use crate::host::{HostError, KeyRange, KvOp, KvStore};
 use crate::store::key::{self, Part};
@@ -217,7 +217,7 @@ impl RecKey {
     }
 
     /// The parts of a canonical at-uri.
-    pub fn of_uri(uri: &lessdugin_atp::syntax::AtUri) -> Self {
+    pub fn of_uri(uri: &pandoras_forum_atp::syntax::AtUri) -> Self {
         Self::new(
             uri.collection().as_str(),
             uri.did().as_str(),
@@ -297,13 +297,13 @@ mod tests {
         format!("{NS}.{short}")
     }
 
-    const FK: &str = "uetjixxr3a33";
+    const FK: &str = "nkglkm5wsp3d";
 
     #[test]
     fn fk_tokens() {
         assert!(is_fk(FK));
         assert!(!is_fk("uetjixxr3a3"));
-        assert!(!is_fk("uetjixxr3a331"));
+        assert!(!is_fk("nkglkm5wsp3d1"));
         assert!(!is_fk("UETJIXXR3A33"));
         assert!(!is_fk("uetjixxr3a31")); // '1' is not in the alphabet
         assert_eq!(fk_prefix(FK), Some(FK));
@@ -320,7 +320,7 @@ mod tests {
         assert_eq!(scope_of(&c("post"), &post), FK);
         assert_eq!(scope_of(&c("membership"), FK), FK);
         assert_eq!(
-            scope_of(&c("opinion"), &format!("{FK}-~-wcz54x7liy3jsh3g")),
+            scope_of(&c("opinion"), &format!("{FK}-~-liu73r73htncrny7")),
             FK
         );
         // a ranged collection with a key that does not start with an fk
@@ -330,10 +330,10 @@ mod tests {
         assert_eq!(scope_of(&c("profile"), "self"), GLOBAL_SCOPE);
         assert_eq!(scope_of("app.bsky.actor.profile", "self"), GLOBAL_SCOPE);
         // another namespace is not ours
-        let other = if NS == lessdugin_lexicon::ns::NS_TEMP {
-            lessdugin_lexicon::ns::NS_FINAL
+        let other = if NS == pandoras_forum_lexicon::ns::NS_TEMP {
+            pandoras_forum_lexicon::ns::NS_FINAL
         } else {
-            lessdugin_lexicon::ns::NS_TEMP
+            pandoras_forum_lexicon::ns::NS_TEMP
         };
         assert_eq!(scope_of(&format!("{other}.post"), &post), GLOBAL_SCOPE);
         assert!(is_ranged(&c("wikiRevision")));

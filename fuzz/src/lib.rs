@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Shared helpers of the lessdugin fuzz targets (see `README.md`).
+//! Shared helpers of the Pandora's Forum fuzz targets (see `README.md`).
 //!
 //! Every target is panic-free by contract: errors are fine; a panic, a stack overflow, a timeout
 //! or an allocation above the limits `cargo xtask fuzz` runs with is a bug in the crate under test
@@ -9,8 +9,8 @@ pub mod common;
 
 use std::sync::LazyLock;
 
-use lessdugin_atp::crypto::PublicKey;
-use lessdugin_atp::syntax::{Did, Nsid, RecordKey};
+use pandoras_forum_atp::crypto::PublicKey;
+use pandoras_forum_atp::syntax::{Did, Nsid, RecordKey};
 
 /// The stack the parsers and the renderer must fit in: wasm32's default 1 MiB (the props tests
 /// check the same bound for the deep-nesting cases, lfm-1.md §8.4).

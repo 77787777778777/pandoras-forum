@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // A byline always shows the verified handle or the short DID; a display name is never shown
 // alone (threat-model ID-5, review finding sec-11).
-import type { ActorView } from "@lessdugin/engine/types";
+import type { ActorView } from "@pandoras-forum/engine/types";
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { ActorName } from "./ActorName.tsx";

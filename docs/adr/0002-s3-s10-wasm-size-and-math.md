@@ -14,7 +14,7 @@
 - LFM/1 math (§2.7) renders TeX to MathML through math-core. If S10 fails, the fallback is
   `<span data-tex>` plus Temml loaded lazily. D15 says one Rust renderer produces HTML+MathML for the
   SPA and for export, and P4 requires native and wasm output to be byte-identical.
-- `lessdugin-markdown` lists ammonia behind a native-only `ammonia` feature. This spike checks that
+- `pandoras-forum-markdown` lists ammonia behind a native-only `ammonia` feature. This spike checks that
   it has to stay out of the wasm build.
 - The SPA CSP is `style-src 'self'`, with no `'unsafe-inline'`, and DOMPurify must leave the
   renderer's output unchanged (§5.2, M4). So the exact markup a math engine emits matters, not only
@@ -28,7 +28,7 @@
 |---|---|
 | rustc / cargo | 1.97.0 (2026-07-07) / 1.97.0, target `wasm32-unknown-unknown` |
 | wasm-bindgen CLI | 0.2.129 (`~/.cargo/bin/wasm-bindgen`) |
-| wasm-opt (binaryen) | version 132 (`/home/user/lessdugin/node_modules/.bin/wasm-opt`) |
+| wasm-opt (binaryen) | version 132 (`/home/user/pandoras-forum/node_modules/.bin/wasm-opt`) |
 | twiggy | 0.8 (installed into the scratch directory for attribution only) |
 | gzip | 1.12 (`gzip -9`); brotli is Node 22.22.0 `zlib.brotliCompressSync`, quality 11 |
 
@@ -126,7 +126,7 @@ so plain `-Oz` worked too.
   `gzip -9` was run on the dist files.
 - Network: about 10 npm registry requests (`npm view` ×7, `npm pack` ×3), 4 crates.io API calls
   (`GET /api/v1/crates/{math-core,pulldown-latex,k256,p256}/versions?per_page=6`, with
-  `User-Agent: lessdugin-spike/0.0 (+https://lessdugin.7778777.online)`), and cargo's own sparse
+  `User-Agent: pandoras-forum-spike/0.0 (+https://pandoras.forum)`), and cargo's own sparse
   index and crate downloads. Nothing was written anywhere. No PDS was contacted.
 
 ## Results
@@ -415,7 +415,7 @@ attributes instead (`columnalign`, `rowspacing`, `mathcolor`), most of which are
 3. **ammonia stays out of the wasm build** (confirmed). It costs +637 KB raw / **+266 KB gz**,
    106 % of the whole V6 production set, and makes rendering 5–6× slower. It stays behind the
    native-only `ammonia` feature as the test-time equality oracle. DOMPurify is the second
-   sanitiser layer in the SPA. `lessdugin-wasm` should `compile_error!` if `ammonia` is enabled on
+   sanitiser layer in the SPA. `pandoras-forum-wasm` should `compile_error!` if `ammonia` is enabled on
    `wasm32`.
 4. **The 900 KB gz budget is realistic. Keep the 900 KB target and the 1.1 MB CI failure line.**
    - The expected production set (V6, CID strings without multibase) is **531 KB raw / 231 KB gz**.

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! A small XRPC client over [`Host`] (`sync.md` §9.3, §9.5, §12.1).
 //!
-//! - URLs are built with the `lessdugin_atp::xrpc` helpers (RFC 3986 percent-encoded parameters).
+//! - URLs are built with the `pandoras_forum_atp::xrpc` helpers (RFC 3986 percent-encoded parameters).
 //! - Non-2xx responses and host failures map to a typed [`XrpcCallError`]: XRPC error bodies
 //!   `{"error", "message"}` are recognised by name, anything else by HTTP status.
 //! - GETs are retried ([`RetryPolicy`]: 3 retries, full-jitter exponential backoff of
@@ -12,8 +12,10 @@
 //! - Anonymous GETs carry no custom headers; at most a CORS-safelisted `accept`, so browsers send
 //!   no preflight. Request bodies and credentials are never logged.
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_atp::xrpc::{Endpoint, Method, QueryParams, XrpcError, procedure_path, query_path};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_atp::xrpc::{
+    Endpoint, Method, QueryParams, XrpcError, procedure_path, query_path,
+};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -561,7 +563,7 @@ impl<'h, H: Host> Xrpc<'h, H> {
         params: &[(&str, &str)],
         opts: &CallOpts,
     ) -> Result<T, XrpcCallError> {
-        let qs = lessdugin_atp::xrpc::query_string(params);
+        let qs = pandoras_forum_atp::xrpc::query_string(params);
         let path = if qs.is_empty() {
             format!("/xrpc/{nsid}")
         } else {

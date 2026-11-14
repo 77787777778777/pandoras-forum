@@ -8,15 +8,15 @@
 //! does not implement yet ([`UNSUPPORTED`], each with the milestone that brings it) and unknown
 //! names fail with `unsupported`.
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     CommentDraft, Draft, EditOpts, ForumDraft, KarmaCadence, ListPostsQuery, MediaInput,
     MembersQuery, ModActionIntent, ModsChange, NotificationsQuery, OpinionIntent, PostDraft,
     PublicActionKind, RefContext, SearchQuery, SequenceDraft, SequencePosition, Subscription,
     SyncOpts, ThreadOpts, Topic, WikiDraft,
 };
-use lessdugin_core::engine::{AccountInfo, Engine, EngineError, ErrorCode};
-use lessdugin_core::host::Host;
-use lessdugin_markdown::HrefCtx;
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineError, ErrorCode};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_markdown::HrefCtx;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
@@ -226,7 +226,7 @@ fn href_ctx(s: &str) -> Result<HrefCtx, EngineError> {
 /// `safe_href` as `types.ts` `Href`: the renderer tags its enum with `type`, every engine DTO
 /// with `kind`.
 fn safe_href(raw: &str, ctx: HrefCtx) -> Result<Value, EngineError> {
-    let Some(h) = lessdugin_markdown::safe_href(raw, ctx) else {
+    let Some(h) = pandoras_forum_markdown::safe_href(raw, ctx) else {
         return Ok(Value::Null);
     };
     let v = serde_json::to_value(&h).map_err(|e| EngineError::internal(e.to_string()))?;
@@ -626,16 +626,17 @@ pub async fn call<H: Host>(engine: &Engine<H>, op: &str, a: &str) -> Result<Stri
             })?;
             let view = match v.get(1) {
                 Some(m @ Value::Object(_)) => Some(
-                    serde_json::from_value::<lessdugin_core::dto::MediaView>(m.clone()).map_err(
-                        |e| EngineError::invalid_input(format!("{op}: bad arguments: {e}")),
-                    )?,
+                    serde_json::from_value::<pandoras_forum_core::dto::MediaView>(m.clone())
+                        .map_err(|e| {
+                            EngineError::invalid_input(format!("{op}: bad arguments: {e}"))
+                        })?,
                 ),
                 _ => None,
             };
             let owner = match (v.get(1), &view) {
-                (_, Some(m)) => Some(lessdugin_core::media::MediaOwner::of_view(m)),
+                (_, Some(m)) => Some(pandoras_forum_core::media::MediaOwner::of_view(m)),
                 (Some(Value::String(did)), None) => {
-                    Some(lessdugin_core::media::MediaOwner::author(did))
+                    Some(pandoras_forum_core::media::MediaOwner::author(did))
                 }
                 (None | Some(Value::Null), None) => None,
                 (Some(_), None) => {
@@ -667,18 +668,18 @@ pub async fn call<H: Host>(engine: &Engine<H>, op: &str, a: &str) -> Result<Stri
         "exportLocal" => {
             // the client's declaration takes no scope, so the server default applies
             out(&engine
-                .export_local(lessdugin_core::engine::ExportScope::default())
+                .export_local(pandoras_forum_core::engine::ExportScope::default())
                 .await?)
         }
         "importLocal" => {
             // `(export, scope?)`: `EngineApi.importLocal(json)` may leave the scope out
-            let (json, scope): (lessdugin_core::engine::LocalExport, Option<String>) =
+            let (json, scope): (pandoras_forum_core::engine::LocalExport, Option<String>) =
                 padded(op, a, 2)?;
             // `ExportScope` is a plain enum with no serde form, so the client names it: "mine"
             // (the default, PRIV-8) or "everything"
             let scope = match scope.as_deref() {
-                Some("everything") => lessdugin_core::engine::ExportScope::Everything,
-                _ => lessdugin_core::engine::ExportScope::Mine,
+                Some("everything") => pandoras_forum_core::engine::ExportScope::Everything,
+                _ => pandoras_forum_core::engine::ExportScope::Mine,
             };
             out(&engine.import_local(&json, scope).await?)
         }
@@ -820,7 +821,7 @@ pub async fn call<H: Host>(engine: &Engine<H>, op: &str, a: &str) -> Result<Stri
                     )));
                 }
             };
-            out(&lessdugin_core::engine::render_draft(
+            out(&pandoras_forum_core::engine::render_draft(
                 &markdown,
                 &media.unwrap_or_default(),
                 profile,
@@ -835,7 +836,7 @@ pub async fn call<H: Host>(engine: &Engine<H>, op: &str, a: &str) -> Result<Stri
             out(&engine.validate_record(&collection, &json).await?)
         }
         "deriveRkey" => {
-            let (input,): (lessdugin_core::dto::RkeyInput,) = args(op, a)?;
+            let (input,): (pandoras_forum_core::dto::RkeyInput,) = args(op, a)?;
             out(&engine.derive_rkey(&input)?)
         }
         "verify" => {
@@ -858,8 +859,8 @@ pub async fn call<H: Host>(engine: &Engine<H>, op: &str, a: &str) -> Result<Stri
 mod tests {
     use super::*;
     use futures::executor::block_on;
-    use lessdugin_core::engine::EngineConfig;
-    use lessdugin_testkit::MemHost;
+    use pandoras_forum_core::engine::EngineConfig;
+    use pandoras_forum_testkit::MemHost;
 
     fn engine() -> Engine<MemHost> {
         Engine::new(MemHost::new(), EngineConfig::default())
@@ -1289,14 +1290,13 @@ mod tests {
     #[test]
     fn validate_record_and_derive_rkey() {
         let e = engine();
-        let forum =
-            "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.temp.forum/meta";
+        let forum = "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.temp.forum/meta";
         let post = json!({
-            "$type": "online.7778777.lessdugin.temp.post",
+            "$type": "forum.pandoras.temp.post",
             "forum": forum,
             "kind": "article",
             "title": "Hello",
-            "body": {"$type": "online.7778777.lessdugin.temp.markdown", "text": "Hi."},
+            "body": {"$type": "forum.pandoras.temp.markdown", "text": "Hi."},
             "createdAt": "2024-01-01T00:00:00.000Z",
         });
         let r: Value = serde_json::from_str(&call_ok(
@@ -1311,7 +1311,7 @@ mod tests {
         let r: Value = serde_json::from_str(&call_ok(
             &e,
             "validateRecord",
-            &format!(r#"["online.7778777.lessdugin.temp.post", {untitled}]"#),
+            &format!(r#"["forum.pandoras.temp.post", {untitled}]"#),
         ))
         .unwrap();
         assert_eq!(r["valid"], false, "{r}");
@@ -1323,8 +1323,7 @@ mod tests {
         let fk = k(json!({"kind": "membership", "forum": forum}));
         let p = k(json!({"kind": "post", "forum": forum, "tid": "3l2s5xxv2ze2c"}));
         assert_eq!(p, format!("{fk}-3l2s5xxv2ze2c"));
-        let root =
-            format!("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.temp.post/{p}");
+        let root = format!("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.temp.post/{p}");
         let c = k(json!({"kind": "comment", "root": root, "tid": "3l2s6aaaaaaa2"}));
         assert_eq!(c, format!("{fk}-3l2s5xxv2ze2c-3l2s6aaaaaaa2"));
         let o = k(json!({"kind": "opinion", "forum": forum, "subject": root}));
@@ -1344,9 +1343,8 @@ mod tests {
         );
         assert_eq!(err.code, ErrorCode::InvalidInput);
         // a comment is not a root (data-model.md §3: the root is a post keyed FK-TID)
-        let on_comment = format!(
-            "at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/online.7778777.lessdugin.temp.comment/{c}"
-        );
+        let on_comment =
+            format!("at://did:plc:ewvi7nxzyoun6zhxrhs64oiz/forum.pandoras.temp.comment/{c}");
         let err = call_err(
             &e,
             "deriveRkey",
@@ -1362,20 +1360,16 @@ mod tests {
         for key in ["pin:forum", "com.example.action#x"] {
             assert!(block_on(call(&e, "deriveRkey", &mk(key))).is_ok(), "{key}");
         }
-        let err = call_err(
-            &e,
-            "deriveRkey",
-            &mk("online.7778777.lessdugin.temp.modAction#hide"),
-        );
+        let err = call_err(&e, "deriveRkey", &mk("forum.pandoras.temp.modAction#hide"));
         assert_eq!(err.code, ErrorCode::InvalidInput, "{err:?}");
         // the same key as the lexicon's derivation from the action itself
         let action = serde_json::Map::from_iter([(
             "$type".to_owned(),
-            json!("online.7778777.lessdugin.temp.modAction#hide"),
+            json!("forum.pandoras.temp.modAction#hide"),
         )]);
-        let d = lessdugin_lexicon::keys::derive(
-            lessdugin_lexicon::ns::NS,
-            &lessdugin_lexicon::keys::RkeyInput::ModAction {
+        let d = pandoras_forum_lexicon::keys::derive(
+            pandoras_forum_lexicon::ns::NS,
+            &pandoras_forum_lexicon::keys::RkeyInput::ModAction {
                 forum,
                 scope: None,
                 subject: &root,

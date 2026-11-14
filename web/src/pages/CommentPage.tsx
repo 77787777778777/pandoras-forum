@@ -2,7 +2,7 @@
 // A comment permalink: the comment and its replies, re-rooted (also the target of
 // "continue this thread →").
 
-import { isMissingRoot } from "@lessdugin/engine/types";
+import { isMissingRoot } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { getRouteApi } from "@tanstack/react-router";
 import type { ThreadContext } from "../components/CommentItem.tsx";

@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin threat model (normative)
+# Pandora's Forum threat model (normative)
 
 **Status:** draft for the `.temp` namespace (M0). It is re-reviewed in the M7 security pass, and every MUST in §5–§8 is a release blocker for 0.1.
 **Sources:** `docs/design/synthesis-v1.md` §5.1–§5.2 and §6.13 (with the measures it places in §1, §3, §6 and §10), every fix from `docs/design/completeness-review.md`, and the approved plan. Where they differ, the plan wins. Critique IDs (F1–F36, H*, M*, X*, C*) refer to `docs/design/archive/critiques.md`.
@@ -32,11 +32,11 @@
 | G1 | **Attribution integrity.** Text displayed as written by DID *d* was published by *d*: it was admitted at level `pds` or `proven` (`data-model.md` §7.1). No third party can put words in anyone's mouth. |
 | G2 | **Moderation integrity.** Given the records a client holds, it never shows content that the forum's current authorities have hidden. If authority data is missing, the view degrades instead of opening (fail closed). |
 | G3 | **Vote and karma integrity.** DIDs outside E cannot change karma, scores or other users' visibility, beyond the bounds stated in `social.md` (P5, P7). |
-| G4 | **Account safety.** A lessdugin bug, a compromised hosted SPA or an XSS cannot write outside the `NS` collections, cannot manage the account, and cannot take a durable credential off the device. |
-| G5 | **Local machine safety.** Content cannot execute code, control the terminal, read or publish local files, or write outside lessdugin's data directories. |
+| G4 | **Account safety.** A Pandora's Forum bug, a compromised hosted SPA or an XSS cannot write outside the `NS` collections, cannot manage the account, and cannot take a durable credential off the device. |
+| G5 | **Local machine safety.** Content cannot execute code, control the terminal, read or publish local files, or write outside the Pandora's Forum data directories. |
 | G6 | **Reader privacy.** Reading discloses nothing beyond the inherent limits of §4, and public actions are announced before their first use. |
 | G7 | **Availability.** Hostile content or hosts cause bounded, isolated failures. They cannot crash-loop a client, exhaust memory, or make one forum unusable because of another. |
-| G8 | **Distribution integrity.** Users can check which code they run, and they have a path (`lessdugin web`) that does not trust the hosted site. |
+| G8 | **Distribution integrity.** Users can check which code they run, and they have a path (`pandoras-forum web`) that does not trust the hosted site. |
 
 ---
 
@@ -66,7 +66,7 @@ The full admission rules are in `sync.md` and `data-model.md` §7.1. There is no
 | Relay, Jetstream, Constellation, Slingshot, indexers | hints only (§2.1) | any displayed text, any fold input |
 | Forum authorities (owner, admins, moderators) | moderation within their rank (`social.md` §4) | anything outside their forum |
 | The hosted SPA origin and its domain | the code it serves, while you use it (§4 L5) | — (verify with the published build hash, SUP-4) |
-| `lessdugin web` | the code embedded in the binary you installed | — |
+| `pandoras-forum web` | the code embedded in the binary you installed | — |
 | The local OS user account and its browser profile | everything (out of scope, §3.2) | — |
 | Other local users and processes | nothing | — |
 
@@ -83,9 +83,9 @@ The full admission rules are in `sync.md` and `data-model.md` §7.1. There is no
 | A3 | **Lying third party**: relay, Jetstream, Constellation, Slingshot, indexer, DoH provider | Fabricated, withheld, stale or replayed data. Records with self-consistent CIDs. Stale signed proofs. | putting words in mouths, resurrecting deleted or edited content, hiding content, steering clients at victims | INFRA-1 to INFRA-12, ID-9 to ID-11 |
 | A4 | **Network attacker** (café Wi-Fi, captive portal, on-path) | Spoofs plain DNS, intercepts plaintext | handle spoofing, login phishing, content injection | ID-1, ID-2, AUTH-\*, TLS everywhere (INFRA-9) |
 | A5 | **Malicious markdown and media** (the payload of A1) | Escape sequences, bidi tricks, deep nesting, TeX bombs, mXSS, SVG, polyglots, metadata, local-path references | code execution, terminal takeover, XSS, crash loops, file exfiltration | TERM-\*, FILE-\*, SPA-\*, PILL-\* |
-| A6 | **Compromised hosted SPA or domain**: DNS, registrar, static host, CI, publisher account | Serves modified code to hosted users; changes `_lexicon` TXT and permission-set text | token theft, mass writes | AUTH-1 to AUTH-4, SUP-\*, the zero-trust `lessdugin web` path (§7) |
+| A6 | **Compromised hosted SPA or domain**: DNS, registrar, static host, CI, publisher account | Serves modified code to hosted users; changes `_lexicon` TXT and permission-set text | token theft, mass writes | AUTH-1 to AUTH-4, SUP-\*, the zero-trust `pandoras-forum web` path (§7) |
 | A7 | **XSS or malicious code through dependencies** | Runs script in the SPA origin, or code in the native process | the same as A6, plus local secrets | SPA-1 to SPA-13, AUTH-4, AUTH-6, SUP-6 to SUP-10 |
-| A8 | **Another local user or process** on the same machine | Binds `127.0.0.1:47778` while lessdugin is not running (port squatting); reads world-readable files; races argv exposure | session theft, draft theft | §7, AUTH-7, AUTH-8, TERM-9 |
+| A8 | **Another local user or process** on the same machine | Binds `127.0.0.1:47778` while Pandora's Forum is not running (port squatting); reads world-readable files; races argv exposure | session theft, draft theft | §7, AUTH-7, AUTH-8, TERM-9 |
 
 **A rogue or former authority** acts under A1 with rank. `mod/1` bounds it: assertions lapse when the declaration drops the actor, higher ranks override, and every action is in the public mod log (`social.md` §4.10, §4.12).
 
@@ -109,7 +109,7 @@ These are not bugs. Each MUST be stated where the "Stated in" column says, in us
 | L2 | **Reading reveals your IP.** It is revealed to every PDS you sync (including self-hosted ones), to media hosts when media loads, to PLC and did:web hosts, to the DoH provider (which also sees the handle names you look up), and in assisted mode to Jetstream, Constellation, relays and indexers. In the browser, the Jetstream operator also learns the DIDs of the participants of the forums you follow and your own DIDs, and so which forums you read (PRIV-11). | Settings → Privacy; Settings → Data sources, next to `Assisted` (PRIV-11); the media click-through notice (PRIV-1) |
 | L3 | **Signed content is non-repudiable.** A saved copy of a deleted record, together with its proof, stays attributable to its author forever. | The editor's delete dialog; the user guide |
 | L4 | **Time-based rules are best-effort.** Timestamps and TIDs are claims. Backdating can only hurt its author (`social.md` §2), and rate limits are advisory (Reserved (P2), `ratelimit/1`). | The user guide; moderator help |
-| L5 | **The hosted SPA is trusted while you use it.** Whoever controls `lessdugin.7778777.online` controls the code hosted users run. `lessdugin web` is the zero-trust path. | Settings → About (with the build hash, SUP-4); the login page |
+| L5 | **The hosted SPA is trusted while you use it.** Whoever controls `pandoras.forum` controls the code hosted users run. `pandoras-forum web` is the zero-trust path. | Settings → About (with the build hash, SUP-4); the login page |
 | L6 | **Your PDS operator can write as you.** On a hosted PDS the operator holds your repo signing key. | The user guide |
 | L7 | **Open mode relies on public relay infrastructure.** Only approval mode is complete without third-party servers. Open mode finds brand-new members only through the Bluesky relay, Jetstream and Constellation (or an indexer). | The forum header and `forum create --mode open`: "Open mode relies on Bluesky relay, Jetstream and Constellation" |
 | L8 | **A forum is bound to its owner DID forever.** `fk` hashes the forum uri, which contains the owner DID. Losing the owner's keys loses the forum, and a takeover of the owner account (or, for did:web, of its domain) takes over the forum. | `forum create` (succession guidance, ID-12) |
@@ -147,14 +147,14 @@ Each subsection covers one area of synthesis §5.2. The rule texts are normative
 | FILE-3 | **Downloads** (`media get`) are saved as `<cid>.<ext>`. `ext` comes from a fixed map of the **sniffed** type, which MUST agree with the declared type (`sync.md`); an unknown type saves as `.bin`. `#media.name` is display-only and is never used as a file name. Without `-o`, the file goes to the current directory, and an existing file is never overwritten (`O_EXCL`). |
 | FILE-4 | **`media open`** works only for image, video and audio types. Everything else is save-only. The file path is passed to the platform opener as a single argv element, never through a shell. On Windows the file gets a Mark-of-the-Web (`Zone.Identifier` stream with `ZoneId=3`). |
 | FILE-5 | **No shell, anywhere.** External programs (`$EDITOR`, `less`, the platform opener, the browser) are started with an argv array. `$VISUAL`/`$EDITOR` are split into words like a POSIX shell would, without expansion, and the file path is appended as a separate element. |
-| FILE-6 | **Data paths.** lessdugin writes only under its config, data and cache directories (`~/.config/lessdugin`, `~/.local/share/lessdugin`, `~/.cache/lessdugin`, or the platform equivalents), the per-user temp directory, and files the user names with `-o` or `--out`. |
+| FILE-6 | **Data paths.** Pandora's Forum writes only under its config, data and cache directories (`~/.config/pandoras-forum`, `~/.local/share/pandoras-forum`, `~/.cache/pandoras-forum`, or the platform equivalents), the per-user temp directory, and files the user names with `-o` or `--out`. |
 
 ### 5.3 SPA (F5–F8)
 
 | ID | Measure |
 |---|---|
 | SPA-1 | **CSP and response headers** exactly as in §6. |
-| SPA-2 | **Trusted Types.** Exactly three policies exist, created once at startup:<br>• `lessdugin-md`: `createHTML(html)` returns the string `DOMPurify.sanitize(html, LFM_CONFIG)`, which the policy wraps as `TrustedHTML`. It is the only way rendered content reaches the DOM.<br>• `lessdugin-worker`: `createScriptURL(u)` returns `u` only if it equals, as an absolute URL string, one of the build's worker script URLs resolved against `location.origin`; otherwise it throws.<br>• `dompurify`: created by DOMPurify itself.<br>No `default` policy exists, and no policy implements `createScript`. |
+| SPA-2 | **Trusted Types.** Exactly three policies exist, created once at startup:<br>• `pandoras-forum-md`: `createHTML(html)` returns the string `DOMPurify.sanitize(html, LFM_CONFIG)`, which the policy wraps as `TrustedHTML`. It is the only way rendered content reaches the DOM.<br>• `pandoras-forum-worker`: `createScriptURL(u)` returns `u` only if it equals, as an absolute URL string, one of the build's worker script URLs resolved against `location.origin`; otherwise it throws.<br>• `dompurify`: created by DOMPurify itself.<br>No `default` policy exists, and no policy implements `createScript`. |
 | SPA-3 | **DOMPurify configuration** is generated from `lfm-1.md` §8.2 and §7.3 (allowed tags and attributes, `ALLOW_DATA_ATTR: false`, the URI regexp, and a hook for class tokens and value grammars), and contains nothing else. Vectors assert `DOMPurify.sanitize(html) === html` for every renderer output (`lfm-1.md` §8.5). |
 | SPA-4 | **Links.** Every `href` outside rendered content goes through `<SafeLink>`, which calls the core's `safeHref` (`lfm-1.md` §5.1). CI fails on any JSX `href` attribute outside `SafeLink`. External links open with `noopener,noreferrer`. `data-at-uri` and `data-did` are re-parsed by the core before use. |
 | SPA-5 | **Names and direction.** User-supplied names render as React text inside `<bdi>`. Rendered roots carry `dir="auto"`, and the stylesheet sets `unicode-bidi: isolate` on them. |
@@ -165,7 +165,7 @@ Each subsection covers one area of synthesis §5.2. The rule texts are normative
 | SPA-10 | **Frame guard.** Before rendering anything, the SPA checks `window.top === window.self`. If not, it clears the document and stops. This duplicates `frame-ancestors 'none'`, which a `<meta>` CSP cannot express (§6.3). |
 | SPA-11 | **Wasm boundary.** Maps crossing serde-wasm-bindgen are JS `Map` objects, never plain objects, so record keys cannot pollute prototypes (F24). |
 | SPA-12 | **No third-party code.** Scripts, styles, fonts and wasm load only from the SPA's own origin. There are no analytics, CDNs or remote fonts. The only network requests are the data requests the engine makes (DoH, PLC, PDSes, and the configured CORE+ and EXT services). |
-| SPA-13 | **Worker isolation of parsing.** All parsing of network data (JSON, DAG-CBOR, CAR, markdown, media sniffing) runs in the engine worker. The main thread holds the OAuth client and receives only DTOs and rendered HTML (which still passes `lessdugin-md`). |
+| SPA-13 | **Worker isolation of parsing.** All parsing of network data (JSON, DAG-CBOR, CAR, markdown, media sniffing) runs in the engine worker. The main thread holds the OAuth client and receives only DTOs and rendered HTML (which still passes `pandoras-forum-md`). |
 
 ### 5.4 Poison pills (F8)
 
@@ -206,12 +206,12 @@ Each subsection covers one area of synthesis §5.2. The rule texts are normative
 | INFRA-5 | **Jetstream.** Every message is capped at 1,200,000 bytes: natively through the WebSocket library's message and frame limits; on the v1 wire also through `maxMessageSizeBytes`. A browser cannot cap a WebSocket message before it arrives, so it drops an oversized message on receipt and fails over to the other endpoint. The browser host also buffers at most 256 unread frames or 16 MiB per socket and closes the socket with an error when a Jetstream sends faster than the core reads (`sync.md` §6.2), so memory stays bounded whatever the endpoint sends. `identity` and `account` events for DIDs that are not in the identity cache are dropped before any further processing. A commit's `record` and `cid` are hints that schedule a point fetch. |
 | INFRA-6 | **Blobs stream outside wasm memory.** Blobs are fetched with `Host::fetch_blob(did, cid, max) -> BlobHandle` (§5.6.1). The core handles only handles, so no blob bytes enter wasm linear memory except text bodies ≤ 1,000,000 bytes and media the user is preparing for upload, up to `MEDIA_WASM_WINDOW_BYTES` (`limits.md` §6). |
 | INFRA-7 | **Fan-out limits** (F16).<br>• The closure follows only DIDs referenced by seeds' records in the forum; identities are resolved lazily, only for participants and authors on screen.<br>• Non-participant identities (mentions, profile links) resolve only on hover, focus or click; until then the short DID is shown. At most 16 mention DIDs per body resolve eagerly, and only participants.<br>• Forum-declared endpoints (`discovery.indexers`) need one-time consent per endpoint, `https`, a hostname (no IP literal, no `localhost`) and the default port, and remain hints.<br>• Per-host concurrency, and a per-domain cap for identity requests (`limits.md` §8), bound what any one forum can make clients send to one host. |
-| INFRA-8 | **SSRF guard** for every outbound request of the native host (CLI, TUI, `lessdugin web`) and of the indexer (§5.6.2). |
+| INFRA-8 | **SSRF guard** for every outbound request of the native host (CLI, TUI, `pandoras-forum web`) and of the indexer (§5.6.2). |
 | INFRA-9 | **TLS everywhere.** Release builds connect only over `https:` and `wss:`. `http:` and `ws:` are allowed only in `--dev` builds for the devnet (ADR 0006), never implicitly. |
-| INFRA-10 | **Rate-limit hygiene.** Clients honour 429, `Retry-After` and `RateLimit-*`, keep a budget per host, use full-jitter retries and a per-host circuit breaker (`limits.md` §7, §8). Cross-origin browser GETs carry no custom headers, so they need no CORS preflight. Native requests send `User-Agent: lessdugin/<ver> (+https://lessdugin.7778777.online)`. |
+| INFRA-10 | **Rate-limit hygiene.** Clients honour 429, `Retry-After` and `RateLimit-*`, keep a budget per host, use full-jitter retries and a per-host circuit breaker (`limits.md` §7, §8). Cross-origin browser GETs carry no custom headers, so they need no CORS preflight. Native requests send `User-Agent: pandoras-forum/<ver> (+https://pandoras.forum)`. |
 | INFRA-11 | **Equivocation recording** (record `(did, rev, commit cid)` and compare with Jetstream commits; warn on forks) is Reserved (deferred); fork evidence attached to a hide is Reserved (P2). Meanwhile, moderators MAY sync through an indexer or another network path to defeat IP-targeted cloaking. |
 | INFRA-12 | **Indexer obligations** (server side, F17):<br>• full-text search: every user token is quoted, at most 16 terms, prefix terms need ≥ 3 characters (when `searchPosts` ships);<br>• snippets are plain text with highlight ranges, never HTML;<br>• a takedown blocklist of `(did, uri, cid, host)` entries is applied at query time; relay takedowns and account deactivations are honoured on receipt of the event and at the latest at the next reconcile;<br>• no response containing record values or blocks is cacheable as `immutable`; lists are `max-age=5`;<br>• no blob storage;<br>• only forum declarations and forum participants are indexed, with quotas per DID and per PDS host;<br>• per-IP request limits, and per-actor limits on `getActivity` (when it ships);<br>• the status page publishes a legal contact and the source link;<br>• the SSRF guard (INFRA-8) applies to every outbound fetch. |
-| INFRA-13 | **Indexer use by clients.** Clients use only indexers from user configuration or, after one-time consent, from `forum.discovery.indexers`. `lessdugin … --audit` cross-checks indexer heads, changes and `inputDigest` against PDSes and local recomputation. The 1 %-per-hour automatic audit and automatic demotion are Reserved (deferred). |
+| INFRA-13 | **Indexer use by clients.** Clients use only indexers from user configuration or, after one-time consent, from `forum.discovery.indexers`. `pandoras-forum … --audit` cross-checks indexer heads, changes and `inputDigest` against PDSes and local recomputation. The 1 %-per-hour automatic audit and automatic demotion are Reserved (deferred). |
 
 #### 5.6.1 `Host::fetch_blob`
 
@@ -285,11 +285,11 @@ The rules live in `social.md`; this table lists what they defend against.
 |---|---|
 | AUTH-1 | **No `transition:generic`**, ever. The default scope is `atproto include:NS.authFull` plus enumerated blob scopes; the fallback, chosen at PAR time on `invalid_scope` before the browser opens, is the enumerated `repo?collection=…` form (`data-model.md` §10.3). If both fail, login fails. |
 | AUTH-2 | **Enumerated blob scopes:** `blob:image/* blob:video/* blob:audio/* blob:text/* blob:application/pdf`, never `blob:*/*`. Declared upload MIME types are normalised from the sniffed type (`data-model.md` §8.8) so that `.ogg` and `.m4a` uploads fall inside these scopes. |
-| AUTH-3 | **No main passwords.** Password login accepts only the app-password shape `^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$`; anything else is refused before any network call, and `authFactorToken` is never sent. App passwords are read from an interactive prompt (no echo), stdin, or the `LESSDUGIN_APP_PASSWORD` environment variable, never from argv, and are never persisted (only the resulting session is). |
+| AUTH-3 | **No main passwords.** Password login accepts only the app-password shape `^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$`; anything else is refused before any network call, and `authFactorToken` is never sent. App passwords are read from an interactive prompt (no echo), stdin, or the `PANDORAS_FORUM_APP_PASSWORD` environment variable, never from argv, and are never persisted (only the resulting session is). |
 | AUTH-4 | **Write allowlist (AuthBridge).** Every authenticated request from the SPA, in both hosted and `web` modes, passes a main-thread allowlist: `com.atproto.repo.{createRecord, putRecord, deleteRecord, applyWrites, uploadBlob}`, where every `repo` is the session DID and every `collection` (each op of an `applyWrites`) is one of the 10 `NS` record collections, plus `com.atproto.server.getSession`. Anything else is refused locally. The native CLI applies the same allowlist to its own writes. |
 | AUTH-5 | **OAuth flows.** Clients send `response_mode=query`; callback handlers accept `?query` and `#fragment` responses; the SPA handles the callback before the hash router mounts and removes the parameters with `history.replaceState`. PKCE and `state` are always checked, including on the `--no-browser` paste-back path. |
 | AUTH-6 | **Browser keys.** DPoP keys are non-extractable WebCrypto `CryptoKeyPair`s stored in IndexedDB (structured clone preserves non-extractability; spike S2 confirms the library does this). Refresh runs under a Web Lock per account, because refresh tokens are single-use across tabs: the OAuth library's own `@atproto-oauth-client-<did>` (`@atproto/oauth-client` 0.8 takes it in every tab of the origin and does not let the name be configured), which keeps one tab refreshing at a time just as well. An XSS can then act only while a tab is open, and cannot take a usable credential off the device: the refresh token is DPoP-bound to a key it cannot export. |
-| AUTH-7 | **Native sessions** live in the OS keyring (`keyring` crate). The file fallback: a 0700 directory and a 0600 file written with `O_NOFOLLOW` and `O_EXCL` to a temp name, then renamed atomically; lessdugin refuses to read it if it is a symlink or if its mode grants any group or world permission. Refresh runs under an exclusive `fd-lock`, because the CLI, TUI and `web` may run at once. |
+| AUTH-7 | **Native sessions** live in the OS keyring (`keyring` crate). The file fallback: a 0700 directory and a 0600 file written with `O_NOFOLLOW` and `O_EXCL` to a temp name, then renamed atomically; Pandora's Forum refuses to read it if it is a symlink or if its mode grants any group or world permission. Refresh runs under an exclusive `fd-lock`, because the CLI, TUI and `web` may run at once. |
 | AUTH-8 | **PDS binding of writes.** `Target::UserPds` requests go only to the PDS bound at login and never follow redirects. A DID-document change of the PDS triggers a re-login, never silent re-targeting. Each `PendingWrite` is stamped with its account DID, and the outbox pump refuses to send it with any other account's session (`data-model.md` W9). |
 | AUTH-9 | **Write path integrity.** The outbox is serialised per account with one write in flight, and every `swapCommit` comes from a fresh `getLatestCommit` (`data-model.md` §8.2). Blob refs are embedded verbatim from `uploadBlob`; a local CID that differs from the returned `ref.$link` fails the write. |
 | AUTH-10 | **Secret hygiene.** `authorization`, `dpop`, `cookie`, `refresh*`, `password`, `code`, `code_verifier`, bridge capabilities and bridge tokens are redacted in every log and error. Sessions are capped by the server (about 14 days for public clients); users are warned 3 days ahead and can re-login inline in the TUI. |
@@ -329,11 +329,11 @@ The output keeps only what the table allows, in the original order; everything e
 
 | ID | Measure |
 |---|---|
-| SUP-1 | **Domain hardening** for `7778777.online`: registrar lock, multi-year auto-renew, DNSSEC and CAA. |
-| SUP-2 | **Publisher account**: a did:plc account (`lessdugin.7778777.online`) with an offline rotation key. Lexicons are published only at M7, after `goat lex lint`, `goat lex breaking` and `goat lex check-dns`. |
+| SUP-1 | **Domain hardening** for `pandoras.forum`: registrar lock, multi-year auto-renew, DNSSEC and CAA. |
+| SUP-2 | **Publisher account**: a did:plc account (`pandoras.forum`) with an offline rotation key. Lexicons are published only at M7, after `goat lex lint`, `goat lex breaking` and `goat lex check-dns`. |
 | SUP-3 | **Lexicons are compiled in** and never fetched at runtime. |
-| SUP-4 | **Reproducible builds.** The SPA dist and the wasm are reproducible; each release publishes their SHA-256 (in `SHA256SUMS` and the release notes) with a build-provenance attestation. Settings → About shows the running build's hash. Release binaries embed the same SPA dist. `lessdugin verify-site <url>` is Reserved (deferred). |
-| SUP-5 | **`lessdugin web` is the recommended path** for users who do not want to trust the hosted site (L5). |
+| SUP-4 | **Reproducible builds.** The SPA dist and the wasm are reproducible; each release publishes their SHA-256 (in `SHA256SUMS` and the release notes) with a build-provenance attestation. Settings → About shows the running build's hash. Release binaries embed the same SPA dist. `pandoras-forum verify-site <url>` is Reserved (deferred). |
+| SUP-5 | **`pandoras-forum web` is the recommended path** for users who do not want to trust the hosted site (L5). |
 | SUP-6 | **npm/pnpm.** `minimumReleaseAge` ≥ 7 days (10,080 minutes); `onlyBuiltDependencies` is an explicit allowlist that MUST NOT contain any package bundled into the SPA or the engine (today it holds only the devnet's `better-sqlite3`); exclusions from `minimumReleaseAge` MUST NOT cover bundled packages; `--frozen-lockfile`, lockfile-lint and osv-scanner in CI. Dependencies on the XSS-to-token path (React, TanStack, Radix, CodeMirror, Comlink, idb, DOMPurify, the OAuth client) are kept to the listed set. |
 | SUP-7 | **Cargo.** `cargo deny` (licences and advisories) and `cargo vet`. Exact `=` pins for the parsing and crypto crates: `k256`, `p256`, `ecdsa`, `cid`, `serde_ipld_dagcbor`, `pulldown-cmark`, `math-core`, `img-parts`, `imagesize`, `ammonia`, `wasm-bindgen`, `jacquard-oauth`. Release binaries are built with `cargo auditable`. |
 | SUP-8 | **GitHub Actions** pinned by commit SHA; default `permissions: contents: read`; protected `release` and Pages environments; no `pull_request_target`. |
@@ -346,13 +346,13 @@ The output keeps only what the table allows, in the original order; everything e
 
 ### 6.1 Production policy
 
-Sent as a `Content-Security-Policy` response header by `lessdugin web` and by the hosted site (Cloudflare Pages or Netlify `_headers`, `deploy/site/_headers`), on every response including the worker script:
+Sent as a `Content-Security-Policy` response header by `pandoras-forum web` and by the hosted site (Cloudflare Pages or Netlify `_headers`, `deploy/site/_headers`), on every response including the worker script:
 
 ```
 default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; font-src 'self';
 img-src 'self' blob:; media-src blob:; connect-src 'self' https: wss:; object-src 'none'; base-uri 'none';
 form-action 'none'; frame-ancestors 'none'; require-trusted-types-for 'script';
-trusted-types lessdugin-md lessdugin-worker dompurify
+trusted-types pandoras-forum-md pandoras-forum-worker dompurify
 ```
 
 The header value is this text on one line, with each line break above replaced by a single space. There are no reporting directives: there is no server to receive reports.
@@ -379,17 +379,17 @@ The header value is this text on one line, with each line break above replaced b
 | `X-Content-Type-Options` | `nosniff` | every response |
 | `Cross-Origin-Opener-Policy` | `same-origin` | every response |
 | `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=()` | every response |
-| `Cache-Control` | `no-cache` | `index.html`, `lessdugin-config.json`, `oauth/*.json` (so that security fixes propagate) |
+| `Cache-Control` | `no-cache` | `index.html`, `pandoras-forum-config.json`, `oauth/*.json` (so that security fixes propagate) |
 | `Content-Type`, `Access-Control-Allow-Origin` | `application/json`, `*` | `oauth/*.json` (hosted site only) |
-| `Cache-Control` | `no-store` | every `lessdugin web` bridge response (§7.3) |
+| `Cache-Control` | `no-store` | every `pandoras-forum web` bridge response (§7.3) |
 
 **GitHub Pages fallback.** Pages cannot send headers, so the policy is delivered as the first element of `<head>`: `<meta http-equiv="Content-Security-Policy" content="…">` with the §6.1 text minus `frame-ancestors 'none'` (which a `<meta>` policy ignores). This loses, compared with the header: `frame-ancestors` (SPA-10 compensates), the policy on the worker script (a worker created from a URL takes its policy from its own response headers), and every header in the table above except the referrer policy (SPA-9's `<meta>` covers it). Pages is therefore a fallback only; the default host is Cloudflare Pages or Netlify.
 
 ---
 
-## 7. `lessdugin web` (the zero-trust path)
+## 7. `pandoras-forum web` (the zero-trust path)
 
-`lessdugin web` serves the embedded SPA from the local machine, and the CLI keeps the session. The browser holds no long-lived secret: no OAuth tokens, no DPoP keys, no app passwords, and no drafts (they stay in native `state.sqlite`).
+`pandoras-forum web` serves the embedded SPA from the local machine, and the CLI keeps the session. The browser holds no long-lived secret: no OAuth tokens, no DPoP keys, no app passwords, and no drafts (they stay in native `state.sqlite`).
 
 ### 7.1 Listener
 
@@ -399,7 +399,7 @@ The header value is this text on one line, with each line break above replaced b
 | WEB-2 | `<port>` defaults to 47778 and is persisted in the config (`web.port`); `--port` overrides it. If the port is busy, `web` exits with an error. It never picks another port, because the port is part of the origin. |
 | WEB-3 | Every request (static or bridge) whose `Host` header is not exactly `127.0.0.1:<port>` is answered `403` with an empty body, before routing. This defeats DNS rebinding. (`[::1]:<port>` is refused too: the listener is on 127.0.0.1 only, WEB-1, so no browser reaches it under that name.) |
 | WEB-4 | Every response carries the §6.1 CSP (the §6.2 policy under `--dev`) and the §6.3 headers. No response carries any `Access-Control-*` header, and `OPTIONS` is answered `405`, so cross-origin preflights fail. The one exception is a request the HTTP library rejects before any handler runs (a malformed request line or header): it is answered `400` (or `431`) with an empty body and no headers of ours. Such a response has no body to protect, and no browser renders it as a page of the origin. |
-| WEB-5 | `build.rs` embeds `web/dist`; if it is missing, it embeds a placeholder page that explains how to build it. Release binaries MUST embed the real SPA, whose hash equals the published SPA hash (SUP-4). `lessdugin-config.json` is served as `{"oauth": "bridge"}`. |
+| WEB-5 | `build.rs` embeds `web/dist`; if it is missing, it embeds a placeholder page that explains how to build it. Release binaries MUST embed the real SPA, whose hash equals the published SPA hash (SUP-4). `pandoras-forum-config.json` is served as `{"oauth": "bridge"}`. |
 
 ### 7.2 Capability and session
 
@@ -407,7 +407,7 @@ The header value is this text on one line, with each line break above replaced b
 on launch, and for every further link the process opens or prints:
   cap = base64url_nopad(32 random bytes from the OS CSPRNG)          // 256 bits, 43 characters
   unused += cap
-  url = "http://127.0.0.1:" + port + "/#lessdugin-cap=" + cap
+  url = "http://127.0.0.1:" + port + "/#pandoras-forum-cap=" + cap
   open url in the browser (unless --no-open) and print it to the terminal
 
 POST /bridge/session  {"cap": c}
@@ -415,13 +415,13 @@ POST /bridge/session  {"cap": c}
   if c ∈ unused:  unused −= c; used[c] = token = base64url_nopad(32 random bytes)
                   sessions += token; return 200 {"token": token}
   if c ∈ used:    sessions −= used[c]                                // revoke: the link was used twice
-                  warn on the terminal: "a lessdugin web link was used twice; its session was revoked"
+                  warn on the terminal: "a pandoras-forum web link was used twice; its session was revoked"
                   return 403
   otherwise:      return 403
 
 SPA startup in bridge mode, before the router mounts:
-  read lessdugin-cap from location.hash; history.replaceState to "#/"
-  POST /bridge/session; keep the token in sessionStorage under "lessdugin-bridge-token"
+  read pandoras-forum-cap from location.hash; history.replaceState to "#/"
+  POST /bridge/session; keep the token in sessionStorage under "pandoras-forum-bridge-token"
   on 403: show "this link was already used or has expired; open a fresh link from the terminal"
 ```
 
@@ -454,7 +454,7 @@ Every bridge response carries `Cache-Control: no-store`. Capabilities and tokens
 | `POST /bridge/login` | `{"actor": <handle or DID>}`. Starts native loopback OAuth with the redirect URI `http://127.0.0.1:<port>/callback` (this same server), and returns `{"url": <authorization URL>}` for the tab to navigate to. At most one login is pending, and it expires after 10 minutes. The pending login is bound to the bridge session that started it: when that session is revoked (§7.2) the login is cancelled, and the callback never finishes a login whose session is gone (F27: whoever raced the link cannot finish a sign-in as their own account). |
 | `GET /callback` | The OAuth redirect. Valid only for the pending login: `state` and PKCE are checked, and the code is exchanged. Before the session is stored or the account becomes active, the `web` terminal names the account and its authorization server and asks `Accept this sign-in? [y/N]`; anything but `y`/`yes` typed there within `BRIDGE_LOGIN_CONFIRM_MS`, or a closed stdin, refuses it. Then the login binding (ID-11) runs, the session goes to the keyring, and the response is a `303` to `/#/` (a refusal: `/#/login?error=auth_required`). The tab keeps its `sessionStorage`, because the origin is unchanged. |
 | `POST /bridge/kv` | `get_many`, `scan` and `write` on the native `state` store, limited to keys whose first tuple element (`sync.md` §10.3–§10.4) is `out`, `out.budget`, `out.meta`, `out.blob`, `loc`, `notif` or `meta`. Sessions are never stored in `state`, so they are unreachable here. Read-only here, because only the native client writes them: `("loc", "as_pin", …)` (a script cannot clear a pin), `("loc", "account", …)` and `("loc", "active_account")` (it cannot switch the account the CLI writes as, forge or delete account rows, or purge an outbox through `removeAccount`), and `("meta", …)`. |
-| `POST /bridge/lock` | `{"name": "outbox:<did>", "wait": bool}`: takes the native `outbox:<did>` lock (`sync.md` §7.1, §10.6) for the tab, so that the tab's outbox, whose rows live in the native `state` (above), and native clients pumping the same account never send the same write. Only `outbox:<valid DID>` names (400 otherwise). Held: `200`, `application/x-ndjson`, a body that starts with `{"held":true}` and then sends a newline every `BRIDGE_LOCK_HEARTBEAT_MS` without ending; the lock is held exactly while the body is open, so the tab releases it by aborting the request and a closed tab releases it with its connection. Not available (busy, or the wait of at most `BRIDGE_LOCK_WAIT_MS` ran out): `200 {"held":false}`. The body also ends, releasing the lock, when the tab's session is revoked or the server stops. A tab in bridge mode takes its Web Lock `lessdugin-outbox-<did>` first, then this lock, for every outbox step. |
+| `POST /bridge/lock` | `{"name": "outbox:<did>", "wait": bool}`: takes the native `outbox:<did>` lock (`sync.md` §7.1, §10.6) for the tab, so that the tab's outbox, whose rows live in the native `state` (above), and native clients pumping the same account never send the same write. Only `outbox:<valid DID>` names (400 otherwise). Held: `200`, `application/x-ndjson`, a body that starts with `{"held":true}` and then sends a newline every `BRIDGE_LOCK_HEARTBEAT_MS` without ending; the lock is held exactly while the body is open, so the tab releases it by aborting the request and a closed tab releases it with its connection. Not available (busy, or the wait of at most `BRIDGE_LOCK_WAIT_MS` ran out): `200 {"held":false}`. The body also ends, releasing the lock, when the tab's session is revoked or the server stops. A tab in bridge mode takes its Web Lock `pandoras-forum-outbox-<did>` first, then this lock, for every outbox step. |
 | `POST /bridge/fetch` | Reserved (deferred): an anonymous read proxy for PDSes without CORS, limited to allowlisted `com.atproto.{repo,sync}` GETs behind the SSRF guard. In v1 the route does not exist (404). |
 
 **Residual risk.** In `web` mode the browser keeps the `cache` store (public records the user has read) in IndexedDB on the bridge's origin. A local user who later squats the port can read it, and so learn reading history, but nothing secret (§9).
@@ -465,11 +465,11 @@ Every bridge response carries `Cache-Control: no-store`. Capabilities and tokens
 
 | ID | Rule |
 |---|---|
-| SITE-1 | The canonical site is `https://lessdugin.7778777.online/`, hosted by default on Cloudflare Pages or Netlify, so that §6 is sent as headers. GitHub Pages is a fallback (§6.3). |
-| SITE-2 | It ships `lessdugin-config.json` `{"oauth": "hosted"}`, the web and native OAuth client metadata under `/oauth/` (`data-model.md` §10.4), a visible link to the source and licence (AGPL-3.0 §13), and source maps. |
+| SITE-1 | The canonical site is `https://pandoras.forum/`, hosted by default on Cloudflare Pages or Netlify, so that §6 is sent as headers. GitHub Pages is a fallback (§6.3). |
+| SITE-2 | It ships `pandoras-forum-config.json` `{"oauth": "hosted"}`, the web and native OAuth client metadata under `/oauth/` (`data-model.md` §10.4), a visible link to the source and licence (AGPL-3.0 §13), and source maps. |
 | SITE-3 | Each release's dist is reproducible, and its hash is published (SUP-4). |
 | SITE-4 | Self-hosted copies are generated with `xtask site --origin <url>`, which rewrites the client metadata for that origin. They are trusted exactly like the canonical site. |
-| SITE-5 | The site runs the same engine, policies and allowlists as `lessdugin web`, differing only in where the session lives: the hosted OAuth client keeps non-extractable keys in IndexedDB (AUTH-6). |
+| SITE-5 | The site runs the same engine, policies and allowlists as `pandoras-forum web`, differing only in where the session lives: the hosted OAuth client keeps non-extractable keys in IndexedDB (AUTH-6). |
 
 ---
 
@@ -478,7 +478,7 @@ Every bridge response carries `Cache-Control: no-store`. Capabilities and tokens
 | Risk | Status in v1 | Planned |
 |---|---|---|
 | Equivocation and cloaking by self-hosting participants (F15) | not detected (L10); moderators may sync through an indexer | INFRA-11: Reserved (deferred); fork evidence Reserved (P2) |
-| A compromised hosted site serves malicious code (F35) | build hash shown; `lessdugin web` available | `verify-site`: Reserved (deferred) |
+| A compromised hosted site serves malicious code (F35) | build hash shown; `pandoras-forum web` available | `verify-site`: Reserved (deferred) |
 | Raids that outpace moderators' write budget (F22) | per-item and per-user actions; `degraded` view when authorities are missing | bulk actions `#banList`, `#raid`, `#banHost`: Reserved (P2) |
 | Rate limiting of abusive posters (F21) | advisory only (L4) | `ratelimit/1`: Reserved (P2) |
 | Reporter exposure (F32) | `reportContact` only | sealed reports: Reserved (P2) |
@@ -501,7 +501,7 @@ Every bridge response carries `Cache-Control: no-store`. Capabilities and tokens
 | Editor templates | template tests with modeline and `Local Variables:` payloads in the quoted parent; YAML frontmatter with aliases, depth 33 and 65,537 bytes | TERM-8 to TERM-10 |
 | Local files | `assert_cmd` cases: absolute, `~`, `..`, symlink escaping the draft directory, FIFO, key file with a non-image type, foreign draft with `--yes` | FILE-1 to FILE-5 |
 | XSS and mXSS | `testdata/vectors/{xss,mathml}/`; DOMPurify and ammonia equality over every LFM vector; property test that both sanitisers leave renderer output unchanged | SPA-3, SPA-6 |
-| CSP and Trusted Types | Playwright runs every e2e scenario against the built SPA with the §6 headers; any `securitypolicyviolation` event fails the test; a test asserts the exact header text in `deploy/site/_headers` and in `lessdugin web` responses | SPA-1, SPA-2, §6 |
+| CSP and Trusted Types | Playwright runs every e2e scenario against the built SPA with the §6 headers; any `securitypolicyviolation` event fails the test; a test asserts the exact header text in `deploy/site/_headers` and in `pandoras-forum web` responses | SPA-1, SPA-2, §6 |
 | Raw `href` | CI check that fails on a JSX `href` outside `SafeLink` | SPA-4 |
 | Poison pills | the PILL-6 fuzz targets; depth 33/37 JSON and CBOR vectors in `testdata/vectors/limits/`; a crash-loop test that injects a panicking record and checks that exactly that record is quarantined | PILL-1 to PILL-6 |
 | Identity | vectors for DoH answers, unidirectional handles, `xn--`, confusables against moderators, did:web with a port, proof with an old document, rev > now + 5 min, stale proof below the PDS head | ID-\* |
@@ -565,16 +565,16 @@ Every bridge response carries `Cache-Control: no-store`. Capabilities and tokens
 
 These fill gaps in the sources or resolve ambiguities. Each takes the simplest safe option, and all are open to review before M7.
 
-1. **A third Trusted Types policy, `lessdugin-worker`** (SPA-2, §6.1). Under `require-trusted-types-for 'script'`, the `Worker` constructor is a Trusted Types sink, so the synthesis policy list (`lessdugin-md dompurify`) would make `new Worker(new URL(…))` in `packages/engine/src/client.ts` throw. The policy accepts only the build's own worker URLs. This is the only change to the synthesis CSP, and `deploy/site/_headers` must be updated to match.
+1. **A third Trusted Types policy, `pandoras-forum-worker`** (SPA-2, §6.1). Under `require-trusted-types-for 'script'`, the `Worker` constructor is a Trusted Types sink, so the synthesis policy list (`pandoras-forum-md dompurify`) would make `new Worker(new URL(…))` in `packages/engine/src/client.ts` throw. The policy accepts only the build's own worker URLs. This is the only change to the synthesis CSP, and `deploy/site/_headers` must be updated to match.
 2. **The development CSP adds `ws:` as well as `http:`**, because the devnet's mini-Jetstream is a plain `ws://` endpoint.
 3. **The other response headers** (`X-Content-Type-Options`, `Cross-Origin-Opener-Policy`, `Permissions-Policy`) are taken from `deploy/site/_headers` and made normative, with `no-cache` on the entry files and `no-store` on bridge responses. No reporting directive is used, because there is no server to receive reports.
 4. **Deferred items without a phase** (equivocation recording, `verify-site`, background `--verify proof`, `/bridge/fetch`, UTS #39 beyond owner and moderators, automatic Jetstream DID-filter switching, automatic indexer audit and demotion) are marked "Reserved (deferred)" and listed in §9.
-5. **Bridge details the synthesis left open:** the fragment parameter name `lessdugin-cap`; the capability is single-use and is exchanged for a separate per-tab bearer token; reusing a capability revokes the session minted from it; further links are minted only by the serving process on a local action; `GET /callback` is the one non-POST route and is exempt from the Origin and bearer checks; failure status codes; `/bridge/xrpc` carries the NSID in the path and the account in the query, and re-applies the AuthBridge checks server-side; `/bridge/kv` is limited to the `state` prefixes; one pending login, expiring after 10 minutes.
+5. **Bridge details the synthesis left open:** the fragment parameter name `pandoras-forum-cap`; the capability is single-use and is exchanged for a separate per-tab bearer token; reusing a capability revokes the session minted from it; further links are minted only by the serving process on a local action; `GET /callback` is the one non-POST route and is exempt from the Origin and bearer checks; failure status codes; `/bridge/xrpc` carries the NSID in the path and the account in the query, and re-applies the AuthBridge checks server-side; `/bridge/kv` is limited to the `state` prefixes; one pending login, expiring after 10 minutes.
 6. **SSRF guard.** BLOCKED is the IANA "not globally reachable" set plus every IPv4-embedding IPv6 form; any blocked address rejects the whole name; at most 5 redirects for anonymous requests. Forum endpoints need the default port, PDS endpoints may use any port. The browser applies a hostname-only subset.
 7. **Metadata stripping.** JPEG keeps APP14 `Adobe` (needed to decode Adobe CMYK and YCCK images correctly) and drops APP0 (JFIF may carry a thumbnail) and anything after EOI (motion-photo video, MPF images). PNG, WebP and GIF use explicit allowlists. MP4 neutralises only `udta` and `meta`, as in the synthesis. Other uploadable types are not stripped in v1 and carry a warning (PRIV-7).
 8. **Autoload labels.** A comment inherits the self-labels of its root post, because comments have no `labels` field.
 9. **TOFU pin.** The pin is the authorization server issuer per account DID; a different issuer at a later login needs an explicit confirmation rather than a hard failure, because PDS migration is legitimate.
-10. **Names the synthesis left open:** the app-password shape `[A-Za-z0-9]{4}` × 4 joined by `-`; the environment variable `LESSDUGIN_APP_PASSWORD`; the refresh Web Lock, which is the OAuth library's `@atproto-oauth-client-<did>` (AUTH-6).
+10. **Names the synthesis left open:** the app-password shape `[A-Za-z0-9]{4}` × 4 joined by `-`; the environment variable `PANDORAS_FORUM_APP_PASSWORD`; the refresh Web Lock, which is the OAuth library's `@atproto-oauth-client-<did>` (AUTH-6).
 11. **Jetstream oversize in the browser:** drop the message and fail over to the other endpoint, since a browser cannot cap a WebSocket message before receipt.
 12. **Poison-pill quarantine** retries suspects one at a time before quarantining, so a crash in a large batch quarantines only the culprit.
 13. **Supply chain.** `onlyBuiltDependencies` is an explicit allowlist, not an empty list, because the devnet needs `better-sqlite3` (ADR 0006). Neither it nor the `minimumReleaseAge` exclusions may cover bundled packages.
@@ -585,5 +585,5 @@ These fill gaps in the sources or resolve ambiguities. Each takes the simplest s
 **Open questions**
 - **`pnpm-workspace.yaml`** excludes `@atproto/*` from `minimumReleaseAge`. That pattern also matches `@atproto/oauth-client-browser`, which is bundled into the SPA and sits on the token path, so it conflicts with SUP-6. The exclusion should be narrowed to the devnet packages (`@atproto/dev-env` and its dependencies).
 - **Worker Trusted Types sink.** Decision 1 should be confirmed by the M2 Playwright run (Chromium enforces Trusted Types; Firefox and WebKit may not yet, and then the policy is unused there).
-- **PWA manifest.** If the Safari mitigation (S11) ships a web app manifest, the CSP needs `manifest-src 'self'`, added in the same change to `_headers` and `lessdugin web`.
+- **PWA manifest.** If the Safari mitigation (S11) ships a web app manifest, the CSP needs `manifest-src 'self'`, added in the same change to `_headers` and `pandoras-forum web`.
 - *(Resolved in the consistency review: a record value deeper than 32 that can still be decoded is invalid under `data-model.md` G10 and is stored as an invalid version; a response deeper than 36 is rejected whole and changes nothing, `sync.md` §5.5.)*

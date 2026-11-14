@@ -6,17 +6,17 @@
 mod common;
 
 use common::*;
-use lessdugin_core::dto::HandleState;
-use lessdugin_core::engine::{Engine, EngineConfig, ErrorCode};
-use lessdugin_core::host::{HostError, Redirects};
-use lessdugin_core::identity::{
+use pandoras_forum_core::dto::HandleState;
+use pandoras_forum_core::engine::{Engine, EngineConfig, ErrorCode};
+use pandoras_forum_core::host::{HostError, Redirects};
+use pandoras_forum_core::identity::{
     DID_DOC_TTL_MS, DnsMode, DocSource, HANDLE_TTL_MS, HandleResolution, IdentityLevel,
     ResolutionMethod,
 };
-use lessdugin_testkit::identity::{
+use pandoras_forum_testkit::identity::{
     DOH, DOH2, PLC, did_doc, install_doc, install_nxdomain, install_txt, install_wellknown,
 };
-use lessdugin_testkit::{FakeIdentity, FakePds, MemHost, resp};
+use pandoras_forum_testkit::{FakeIdentity, FakePds, MemHost, resp};
 use serde_json::json;
 
 #[test]
@@ -370,20 +370,20 @@ fn cache_ttls_and_invalidation() {
     assert_eq!(a.handle.as_deref(), Some("alice.example.org"));
 
     // The cache lives in the cache store, keyed ("id", "did"|"handle", …).
-    let rows = block_on(lessdugin_core::host::KvStore::scan(
+    let rows = block_on(pandoras_forum_core::host::KvStore::scan(
         host.cache_kv(),
-        lessdugin_core::host::KeyRange::prefix(&lessdugin_core::key!("id")),
-        lessdugin_core::host::Dir::Forward,
+        pandoras_forum_core::host::KeyRange::prefix(&pandoras_forum_core::key!("id")),
+        pandoras_forum_core::host::Dir::Forward,
         100,
     ))
     .unwrap();
     assert!(
         rows.iter()
-            .any(|(k, _)| *k == lessdugin_core::key!("id", "did", alice.did.as_str()))
+            .any(|(k, _)| *k == pandoras_forum_core::key!("id", "did", alice.did.as_str()))
     );
     assert!(
         rows.iter()
-            .any(|(k, _)| *k == lessdugin_core::key!("id", "handle", "alice.example.org"))
+            .any(|(k, _)| *k == pandoras_forum_core::key!("id", "handle", "alice.example.org"))
     );
 }
 
@@ -744,7 +744,7 @@ fn a_hint_identity_is_retried_after_an_hour() {
     assert_eq!(r.identity.level, IdentityLevel::Hint);
     // Reused for a while…
     host.clear_requests();
-    host.advance_ms(lessdugin_core::identity::HINT_DOC_TTL_MS - 1);
+    host.advance_ms(pandoras_forum_core::identity::HINT_DOC_TTL_MS - 1);
     block_on(e.resolve_identity("did:web:example.com")).unwrap();
     assert!(host.requests_to("https://example.com/").is_empty());
     // …then the real document is tried again (and now it works).

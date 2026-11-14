@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! CAR reader (`lessdugin_atp::car`) and everything that takes a CAR from the network: the
+//! CAR reader (`pandoras_forum_atp::car`) and everything that takes a CAR from the network: the
 //! `proofs/1` pipeline (`proof::verify_proof`), indexer proof bundles (`proof::ProofBundle`) and
 //! the MST listing of a CAR's root.
 //!
@@ -12,14 +12,14 @@
 
 #![no_main]
 
-use lessdugin_atp::car::{Car, CarLimits, read_car, write_car};
-use lessdugin_atp::commit::Commit;
-use lessdugin_atp::crypto::PublicKey;
-use lessdugin_atp::proof::{BundleCaps, ProofBundle, ProofCaps, verify_proof};
-use lessdugin_atp::syntax::{Did, Nsid, RecordKey};
-use lessdugin_atp::{cid, dagcbor, mst};
-use lessdugin_fuzz::common::{COLLECTIONS, NOW};
-use lessdugin_fuzz::{FUZZ_DID, FUZZ_KEY, LIVE, fnv};
+use pandoras_forum_atp::car::{Car, CarLimits, read_car, write_car};
+use pandoras_forum_atp::commit::Commit;
+use pandoras_forum_atp::crypto::PublicKey;
+use pandoras_forum_atp::proof::{BundleCaps, ProofBundle, ProofCaps, verify_proof};
+use pandoras_forum_atp::syntax::{Did, Nsid, RecordKey};
+use pandoras_forum_atp::{cid, dagcbor, mst};
+use pandoras_forum_fuzz::common::{COLLECTIONS, NOW};
+use pandoras_forum_fuzz::{FUZZ_DID, FUZZ_KEY, LIVE, fnv};
 use libfuzzer_sys::fuzz_target;
 
 /// Up to 4 `(collection, rkey)` keys of the repo whose commit is the CAR's first root.

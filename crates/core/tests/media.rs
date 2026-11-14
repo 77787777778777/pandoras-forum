@@ -7,7 +7,7 @@
 
 mod common;
 
-use lessdugin_core::media::{
+use pandoras_forum_core::media::{
     Format, apply_orientation, downscale_to_fit, prepare, sniff, strip_metadata,
 };
 
@@ -688,9 +688,11 @@ fn a_real_jpeg_with_orientation_6_comes_out_rotated_and_without_exif() {
     jpeg.extend_from_slice(&plain[2..]);
     assert_eq!(dimensions(&jpeg), (8, 4), "the decoder ignores the tag");
 
-    let e =
-        lessdugin_core::engine::Engine::new(lessdugin_testkit::MemHost::new(), Default::default());
-    let input = lessdugin_core::dto::MediaInput {
+    let e = pandoras_forum_core::engine::Engine::new(
+        pandoras_forum_testkit::MemHost::new(),
+        Default::default(),
+    );
+    let input = pandoras_forum_core::dto::MediaInput {
         declared_mime: Some("image/jpeg".into()),
         alt: Some("a photo".into()),
         name: None,
@@ -915,7 +917,7 @@ fn an_animation_is_never_flattened_to_its_first_frame() {
 fn an_animation_over_5_mib_keeps_its_frames_when_it_is_prepared() {
     // m4-7 put every image above IMAGE_UPLOAD_TARGET_BYTES through the downscale when it is
     // prepared, so a large APNG became a still before the PDS had a say
-    use lessdugin_core::dto::MediaInput;
+    use pandoras_forum_core::dto::MediaInput;
     let noise = |seed: u32| {
         let mut x = seed.wrapping_mul(2_654_435_761).max(1);
         let img = image::RgbImage::from_fn(1_000, 1_000, |_, _| {
@@ -932,8 +934,10 @@ fn an_animation_over_5_mib_keeps_its_frames_when_it_is_prepared() {
     };
     let anim = apng(&[noise(1), noise(2)], &[]);
     assert!(anim.len() > 5 * 1024 * 1024, "{} bytes", anim.len());
-    let e =
-        lessdugin_core::engine::Engine::new(lessdugin_testkit::MemHost::new(), Default::default());
+    let e = pandoras_forum_core::engine::Engine::new(
+        pandoras_forum_testkit::MemHost::new(),
+        Default::default(),
+    );
     let input = MediaInput {
         declared_mime: Some("image/png".into()),
         alt: Some("two frames of noise".into()),
@@ -961,16 +965,21 @@ fn a_heic_is_refused_not_uploaded_as_video_with_its_gps() {
     let mut exif = b"\0\0\0\x06Exif\0\0".to_vec();
     exif.extend_from_slice(&tiff_with(1));
     heic.extend(boxed(b"mdat", &exif));
-    let e =
-        lessdugin_core::engine::Engine::new(lessdugin_testkit::MemHost::new(), Default::default());
-    let input = lessdugin_core::dto::MediaInput {
+    let e = pandoras_forum_core::engine::Engine::new(
+        pandoras_forum_testkit::MemHost::new(),
+        Default::default(),
+    );
+    let input = pandoras_forum_core::dto::MediaInput {
         declared_mime: Some("image/heic".into()),
         alt: None,
         name: None,
         aspect_ratio: None,
     };
     let err = block_on(e.prepare_media(heic, &input)).unwrap_err();
-    assert_eq!(err.code, lessdugin_core::engine::ErrorCode::InvalidInput);
+    assert_eq!(
+        err.code,
+        pandoras_forum_core::engine::ErrorCode::InvalidInput
+    );
     assert_eq!(
         err.detail.as_ref().and_then(|d| d.get("kind")),
         Some(&serde_json::json!("mediaRejected"))
@@ -979,9 +988,9 @@ fn a_heic_is_refused_not_uploaded_as_video_with_its_gps() {
 
 #[test]
 fn prepare_media_strips_and_refuses_what_it_must() {
-    use lessdugin_core::dto::MediaInput;
-    let host = lessdugin_testkit::MemHost::new();
-    let e = lessdugin_core::engine::Engine::new(host, Default::default());
+    use pandoras_forum_core::dto::MediaInput;
+    let host = pandoras_forum_testkit::MemHost::new();
+    let e = pandoras_forum_core::engine::Engine::new(host, Default::default());
 
     // a PNG with a text chunk holding a location
     let png = png_with_metadata();
@@ -1018,7 +1027,10 @@ fn prepare_media_strips_and_refuses_what_it_must() {
         },
     ))
     .unwrap_err();
-    assert_eq!(err.code, lessdugin_core::engine::ErrorCode::InvalidInput);
+    assert_eq!(
+        err.code,
+        pandoras_forum_core::engine::ErrorCode::InvalidInput
+    );
     assert_eq!(
         err.detail.as_ref().and_then(|d| d.get("kind")),
         Some(&serde_json::json!("mediaRejected"))
@@ -1040,7 +1052,7 @@ fn prepare_media_strips_and_refuses_what_it_must() {
 
 #[test]
 fn fit_for_upload_downscales_an_image_and_refuses_the_rest() {
-    use lessdugin_core::media::{UPLOAD_TARGET_BYTES, fit_for_upload};
+    use pandoras_forum_core::media::{UPLOAD_TARGET_BYTES, fit_for_upload};
 
     // a real, fairly incompressible image: 256x256 of noise
     let mut img = image::RgbImage::new(256, 256);
@@ -1074,7 +1086,7 @@ fn fit_for_upload_downscales_an_image_and_refuses_the_rest() {
 
     // a budget nothing can meet: refused, not silently uploaded
     let err = fit_for_upload(png.clone(), 8).unwrap_err();
-    assert_eq!(err.code, lessdugin_core::engine::ErrorCode::TooLarge);
+    assert_eq!(err.code, pandoras_forum_core::engine::ErrorCode::TooLarge);
     assert_eq!(
         err.detail.as_ref().and_then(|d| d.get("limit")),
         Some(&serde_json::json!(8))
@@ -1163,7 +1175,7 @@ fn a_hostile_frame_size_is_never_decoded() {
 
 #[test]
 fn an_mp4_nested_past_the_depth_cap_is_refused_not_stripped() {
-    use lessdugin_core::media::{MEDIA_CONTAINER_MAX_DEPTH, prepare};
+    use pandoras_forum_core::media::{MEDIA_CONTAINER_MAX_DEPTH, prepare};
 
     let boxed = |kind: &[u8; 4], payload: &[u8]| {
         let mut v = ((payload.len() + 8) as u32).to_be_bytes().to_vec();
@@ -1206,7 +1218,10 @@ fn an_mp4_nested_past_the_depth_cap_is_refused_not_stripped() {
     assert!(!out.changed);
     // and the pipeline turns the refusal into a mediaRejected error rather than uploading it
     let err = prepare(too_deep).unwrap_err();
-    assert_eq!(err.code, lessdugin_core::engine::ErrorCode::InvalidInput);
+    assert_eq!(
+        err.code,
+        pandoras_forum_core::engine::ErrorCode::InvalidInput
+    );
     assert_eq!(
         err.detail.as_ref().and_then(|d| d.get("kind")),
         Some(&serde_json::json!("mediaRejected"))
@@ -1218,9 +1233,9 @@ fn prepared_bytes_are_kept_so_a_publish_can_upload_them() {
     // The devnet surfaced this as `BlobNotFound (HTTP 400)`: `prepare_media` returned a
     // reference, the draft carried only the reference, and nothing had kept the bytes. A publish
     // then asked the PDS to accept a blob it had never received.
-    use lessdugin_core::dto::MediaInput;
-    let host = lessdugin_testkit::MemHost::new();
-    let e = lessdugin_core::engine::Engine::new(host, Default::default());
+    use pandoras_forum_core::dto::MediaInput;
+    let host = pandoras_forum_testkit::MemHost::new();
+    let e = pandoras_forum_core::engine::Engine::new(host, Default::default());
     let input = MediaInput {
         declared_mime: None,
         alt: Some("a picture".into()),

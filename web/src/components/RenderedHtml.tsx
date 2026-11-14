@@ -2,7 +2,7 @@
 //
 // RenderedHtml: the ONLY component that puts renderer HTML into the DOM (threat-model SPA-2,
 // SPA-3; lfm-1.md §8.5). It never uses dangerouslySetInnerHTML: the HTML goes through the
-// `lessdugin-md` Trusted Types policy, i.e. DOMPurify with exactly the LFM/1 allowlist, into a
+// `pandoras-forum-md` Trusted Types policy, i.e. DOMPurify with exactly the LFM/1 allowlist, into a
 // ref'd element that React does not otherwise manage. In development it asserts that the
 // sanitiser leaves the renderer's output unchanged (lfm-1.md §8.3).
 //
@@ -24,8 +24,8 @@
 // links keyboard-reachable, names task-list checkboxes, and, when asked, copies footnotes next to
 // their references as sidenotes for wide screens.
 
-import type { EngineApi } from "@lessdugin/engine/api";
-import type { ActorView, LoadedMedia, MediaView } from "@lessdugin/engine/types";
+import type { EngineApi } from "@pandoras-forum/engine/api";
+import type { ActorView, LoadedMedia, MediaView } from "@pandoras-forum/engine/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { type Ref, useEffect, useImperativeHandle, useLayoutEffect, useRef, useState } from "react";
 import { useEngine } from "../engine/context.tsx";

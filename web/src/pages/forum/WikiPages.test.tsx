@@ -3,8 +3,8 @@
 // an edit starts from the canonical revision and names it as `base` (decision O-2), a refusal
 // because the head moved says so, a new page is written without a parent, and the history walks
 // the revisions from the head (social.md §13.2).
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ForumView, RawView, WikiDraft } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ForumView, RawView, WikiDraft } from "@pandoras-forum/engine/types";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../../test/render.tsx";

@@ -9,7 +9,7 @@
 // owner and moderators (authorities) and the authors of items the fold lists (visible or
 // collapsed; non-participants' items are hidden by V2). Without a provider the set is empty.
 
-import type { ActorView, CommentNode, ForumView, ItemState } from "@lessdugin/engine/types";
+import type { ActorView, CommentNode, ForumView, ItemState } from "@pandoras-forum/engine/types";
 import { createContext, type ReactNode, use, useMemo } from "react";
 
 const EMPTY: ReadonlySet<string> = new Set();

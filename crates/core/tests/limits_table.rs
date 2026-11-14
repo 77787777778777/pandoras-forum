@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_core::limits::*;
+use pandoras_forum_core::limits::*;
 
 const LIMITS_MD: &str = include_str!("../../../docs/spec/limits.md");
 const LIMITS_RS: &str = include_str!("../src/limits.rs");

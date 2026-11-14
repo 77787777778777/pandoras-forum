@@ -9,15 +9,15 @@
 mod common;
 
 use common::block_on;
-use lessdugin_core::dto::{MediaView, PostView, SyncOpts};
-use lessdugin_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
-use lessdugin_core::host::{Host, KvOp, KvStore};
-use lessdugin_core::media::MediaOwner;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_testkit::fake_pds::{AccountHandle, Fault, tiny_png};
-use lessdugin_testkit::repo::tid_at_ms;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::dto::{MediaView, PostView, SyncOpts};
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineConfig, ErrorCode};
+use pandoras_forum_core::host::{Host, KvOp, KvStore};
+use pandoras_forum_core::media::MediaOwner;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, Fault, tiny_png};
+use pandoras_forum_testkit::repo::tid_at_ms;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 use serde_json::{Value, json};
 
 const MINUTE: i64 = 60_000;
@@ -65,7 +65,7 @@ impl Net {
 }
 
 fn dt(ms: i64) -> String {
-    lessdugin_atp::syntax::Datetime::from_millis(ms)
+    pandoras_forum_atp::syntax::Datetime::from_millis(ms)
         .unwrap()
         .as_str()
         .to_owned()
@@ -104,8 +104,8 @@ fn post(n: &Net, who: &AccountHandle, f: &str, body: Value) -> String {
         nsid::POST,
         keys::post_rkey(f, tid_at_ms(at).as_str()).unwrap()
     );
-    let check = lessdugin_lexicon::validity::check_uri(
-        &lessdugin_atp::syntax::AtUri::parse(&uri).unwrap(),
+    let check = pandoras_forum_lexicon::validity::check_uri(
+        &pandoras_forum_atp::syntax::AtUri::parse(&uri).unwrap(),
         &v,
     );
     assert!(check.valid, "{check:?}");
@@ -239,7 +239,7 @@ fn a_blob_the_pds_does_not_have_is_missing() {
         .add_pds("bob.example.com")
         .add_account("bob.example.com");
     let e = n.device("anon", None);
-    let gone = lessdugin_atp::cid::for_raw(b"never uploaded").to_string();
+    let gone = pandoras_forum_atp::cid::for_raw(b"never uploaded").to_string();
     let err =
         block_on(e.load_media(&gone, Some(MediaOwner::author(bob.did().as_str())))).unwrap_err();
     assert_eq!(err.code, ErrorCode::NotFound);
@@ -330,7 +330,7 @@ fn a_download_card_carries_the_sniffed_type() {
 fn hide_in(n: &Net, owner: &AccountHandle, f: &str, uri: &str) {
     let action = json!({"$type": format!("{}#hide", nsid::MOD_ACTION), "hidden": true});
     let rkey = keys::mod_action_rkey(
-        lessdugin_lexicon::ns::NS,
+        pandoras_forum_lexicon::ns::NS,
         f,
         None,
         uri,
@@ -441,10 +441,10 @@ fn an_image_loaded_for_a_hidden_post_is_deleted_by_the_next_build() {
 fn an_image_an_edit_dropped_is_kept_by_its_revision_until_the_post_is_hidden() {
     // m4-27: a revision's snapshot references the old version's blobs; it counts while its
     // subject is listed (sync.md §11.4)
-    use lessdugin_atp::syntax::{AtUri, Datetime};
-    use lessdugin_core::outbox::records;
-    use lessdugin_lexicon::records::StrongRef;
-    use lessdugin_lexicon::values::RevisionOp;
+    use pandoras_forum_atp::syntax::{AtUri, Datetime};
+    use pandoras_forum_core::outbox::records;
+    use pandoras_forum_lexicon::records::StrongRef;
+    use pandoras_forum_lexicon::values::RevisionOp;
 
     let mut n = Net::new();
     let bob = n
@@ -542,7 +542,7 @@ fn a_spilled_body_is_fetched_from_its_authors_pds_and_rendered() {
     // rendered once: the next view is the cache, with no request
     n.net.clear_requests();
     let again = block_on(e.get_thread(&uri, &Default::default())).unwrap();
-    let lessdugin_core::dto::ThreadRoot::Post(root) = again.post else {
+    let pandoras_forum_core::dto::ThreadRoot::Post(root) = again.post else {
         panic!("the thread has its post");
     };
     assert_eq!(root.body.html, pv.body.html);
@@ -588,7 +588,7 @@ fn another_authors_failing_copy_of_a_text_blob_does_not_change_a_body() {
     let m = read(&e, &mf, &mal_post);
     assert_eq!(
         m.body.notices,
-        [lessdugin_core::model::render::NOTICE_MISSING_BODY]
+        [pandoras_forum_core::model::render::NOTICE_MISSING_BODY]
     );
     let b = read(&e, &f, &bob_post);
     assert!(b.body.notices.is_empty(), "{:?}", b.body.notices);
@@ -628,9 +628,9 @@ fn a_spilled_body_of_a_repo_that_is_not_served_now_stays_pending() {
     let pv = read(&e, &f, &uri);
     assert_eq!(
         pv.body.notices,
-        [lessdugin_core::model::render::NOTICE_SPILLED]
+        [pandoras_forum_core::model::render::NOTICE_SPILLED]
     );
-    n.tick(lessdugin_core::limits::BODY_BLOB_RETRY_MS);
+    n.tick(pandoras_forum_core::limits::BODY_BLOB_RETRY_MS);
     let pv = block_on(e.get_post(&uri)).unwrap();
     assert_eq!(pv.body.text, "The whole body");
 }
@@ -656,9 +656,9 @@ fn a_spilled_body_is_missing_only_when_the_pds_says_the_blob_is_not_found() {
     let pv = read(&e, &f, &uri);
     assert_eq!(
         pv.body.notices,
-        [lessdugin_core::model::render::NOTICE_SPILLED]
+        [pandoras_forum_core::model::render::NOTICE_SPILLED]
     );
-    n.tick(lessdugin_core::limits::BODY_BLOB_RETRY_MS);
+    n.tick(pandoras_forum_core::limits::BODY_BLOB_RETRY_MS);
     let pv = block_on(e.get_post(&uri)).unwrap();
     assert_eq!(pv.body.text, "The whole body");
 }
@@ -677,7 +677,7 @@ fn a_hidden_spilled_post_is_never_fetched() {
     // bob, the forum's owner, hides it (forum scope)
     let action = json!({"$type": format!("{}#hide", nsid::MOD_ACTION), "hidden": true});
     let rkey = keys::mod_action_rkey(
-        lessdugin_lexicon::ns::NS,
+        pandoras_forum_lexicon::ns::NS,
         &f,
         None,
         &uri,
@@ -702,7 +702,7 @@ fn a_hidden_spilled_post_is_never_fetched() {
     assert_eq!((pv.body.text.as_str(), pv.body.html.as_str()), ("", ""));
     let _ = block_on(e.get_thread(&uri, &Default::default()));
     assert!(blob_requests(&n).is_empty(), "{:?}", blob_requests(&n));
-    let blob = lessdugin_atp::cid::for_raw(b"# Spam\n\nBuy now.").to_string();
+    let blob = pandoras_forum_atp::cid::for_raw(b"# Spam\n\nBuy now.").to_string();
     assert_eq!(block_on(e.host().blob_open(&blob)).unwrap(), None);
 }
 
@@ -735,7 +735,7 @@ fn a_spilled_body_the_pds_does_not_have_is_missing_and_not_asked_again() {
     // a record naming a blob bob's PDS never stored
     let at = n.now();
     let missing = json!({
-        "$type": "blob", "ref": {"$link": lessdugin_atp::cid::for_raw(b"gone").to_string()},
+        "$type": "blob", "ref": {"$link": pandoras_forum_atp::cid::for_raw(b"gone").to_string()},
         "mimeType": "text/markdown", "size": 4,
     });
     let v = json!({
@@ -751,12 +751,12 @@ fn a_spilled_body_the_pds_does_not_have_is_missing_and_not_asked_again() {
     let pv = read(&e, &f, &uri);
     assert_eq!(
         pv.body.notices,
-        [lessdugin_core::model::render::NOTICE_MISSING_BODY]
+        [pandoras_forum_core::model::render::NOTICE_MISSING_BODY]
     );
     assert_eq!(pv.body.text, "");
     assert_eq!(blob_requests(&n).len(), 1);
     // not asked again, even once BODY_BLOB_RETRY_MS has passed
-    n.tick(lessdugin_core::limits::BODY_BLOB_RETRY_MS);
+    n.tick(pandoras_forum_core::limits::BODY_BLOB_RETRY_MS);
     n.net.clear_requests();
     let again = block_on(e.get_post(&uri)).unwrap();
     assert_eq!(again.body.notices, pv.body.notices);
@@ -782,7 +782,7 @@ fn a_spilled_body_that_cannot_be_fetched_stays_pending_and_is_asked_again_later(
     let pv = read(&e, &f, &uri);
     assert_eq!(
         pv.body.notices,
-        [lessdugin_core::model::render::NOTICE_SPILLED]
+        [pandoras_forum_core::model::render::NOTICE_SPILLED]
     );
     assert_eq!(pv.body.text, "An excerpt");
     // not asked again on every view
@@ -790,7 +790,7 @@ fn a_spilled_body_that_cannot_be_fetched_stays_pending_and_is_asked_again_later(
     block_on(e.get_post(&uri)).unwrap();
     assert!(blob_requests(&n).is_empty());
     // but once BODY_BLOB_RETRY_MS has passed
-    n.tick(lessdugin_core::limits::BODY_BLOB_RETRY_MS);
+    n.tick(pandoras_forum_core::limits::BODY_BLOB_RETRY_MS);
     let pv = block_on(e.get_post(&uri)).unwrap();
     assert_eq!(blob_requests(&n).len(), 1);
     assert_eq!(pv.body.text, "The whole body");
@@ -802,7 +802,7 @@ fn a_slow_authors_pds_does_not_hold_back_the_thread() {
     // that trickles bytes held back the post and everyone's comments (natively for up to
     // BLOB_TOTAL_TIMEOUT_MS, in the browser without a limit)
     use futures::FutureExt as _;
-    use lessdugin_core::limits::{BODY_BLOB_RETRY_MS, BODY_BLOB_WAIT_MS};
+    use pandoras_forum_core::limits::{BODY_BLOB_RETRY_MS, BODY_BLOB_WAIT_MS};
     let mut n = Net::new();
     let bob = n
         .net
@@ -824,12 +824,12 @@ fn a_slow_authors_pds_does_not_hold_back_the_thread() {
         .expect("a view that waits only BODY_BLOB_WAIT_MS")
         .unwrap()
         .post;
-    let lessdugin_core::dto::ThreadRoot::Post(root) = t else {
+    let pandoras_forum_core::dto::ThreadRoot::Post(root) = t else {
         panic!("the thread has its post");
     };
     assert_eq!(
         root.body.notices,
-        [lessdugin_core::model::render::NOTICE_SPILLED]
+        [pandoras_forum_core::model::render::NOTICE_SPILLED]
     );
     assert_eq!(root.body.text, "An excerpt");
     assert_eq!(e.host().sleeps(), [BODY_BLOB_WAIT_MS]);
@@ -840,7 +840,7 @@ fn a_slow_authors_pds_does_not_hold_back_the_thread() {
         .expect("a view that does not wait");
     assert_eq!(pv.unwrap().body.text, "An excerpt");
     // a copy the host stored meanwhile (the browser's download ran on) is taken, unasked
-    let blob = lessdugin_atp::cid::for_raw(source).to_string();
+    let blob = pandoras_forum_atp::cid::for_raw(source).to_string();
     e.host().put_blob(&blob, source.to_vec());
     n.net.clear_requests();
     let pv = block_on(e.get_post(&uri)).unwrap();
@@ -870,8 +870,8 @@ fn a_pending_spilled_body_that_arrives_is_announced() {
     // m4-5: a body a view left pending showed only once the client asked again, from the retry
     // window on; live_tail now fetches it and emits Changed for its thread and forum
     use futures::FutureExt as _;
-    use lessdugin_core::dto::{Event, Topic};
-    use lessdugin_core::limits::BODY_BLOB_RETRY_MS;
+    use pandoras_forum_core::dto::{Event, Topic};
+    use pandoras_forum_core::limits::BODY_BLOB_RETRY_MS;
     use std::sync::{Arc, Mutex};
     let mut n = Net::new();
     let bob = n
@@ -903,7 +903,7 @@ fn a_pending_spilled_body_that_arrives_is_announced() {
     e.live_step().now_or_never().unwrap().unwrap();
     assert!(!announced(&uri));
     // the host's download ran on and stored it: the next round announces it
-    let blob = lessdugin_atp::cid::for_raw(source).to_string();
+    let blob = pandoras_forum_atp::cid::for_raw(source).to_string();
     e.host().put_blob(&blob, source.to_vec());
     block_on(e.live_step()).unwrap();
     assert!(announced(&uri), "no Changed for the thread");
@@ -935,7 +935,7 @@ fn stalled_pdses_hold_a_live_round_back_by_one_wait() {
     // m4-5: live_step fetched the pending bodies one forum at a time, each waiting up to
     // BODY_BLOB_WAIT_MS, so k forums whose PDSes stall held the round back k times as long
     use futures::FutureExt as _;
-    use lessdugin_core::limits::{BODY_BLOB_RETRY_MS, BODY_BLOB_WAIT_MS};
+    use pandoras_forum_core::limits::{BODY_BLOB_RETRY_MS, BODY_BLOB_WAIT_MS};
     use std::task::{Context, Poll};
     let mut n = Net::new();
     let mut posts = Vec::new();
@@ -1009,7 +1009,7 @@ fn body_source_gives_the_markdown_of_inline_and_spilled_bodies() {
     // composers edit a body from its source; a spilled one (textBlob) could be read only by the
     // CLI and TUI, through the host: body_source reads the stored copy or fetches it as a view
     // does
-    use lessdugin_core::dto::BodySource;
+    use pandoras_forum_core::dto::BodySource;
     let mut n = Net::new();
     let bob = n
         .net
@@ -1053,7 +1053,7 @@ fn body_source_gives_the_markdown_of_inline_and_spilled_bodies() {
     assert_eq!(s.cid, spilled_cid);
     assert_ne!(
         s.cid,
-        lessdugin_atp::cid::for_raw(source.as_bytes()).to_string()
+        pandoras_forum_atp::cid::for_raw(source.as_bytes()).to_string()
     );
     assert!(s.spilled);
     assert_eq!(blob_requests(&n), [(bob.pds_base(), bob.did().to_string())]);
@@ -1061,7 +1061,7 @@ fn body_source_gives_the_markdown_of_inline_and_spilled_bodies() {
     assert_eq!(s.cid, raw.cid.unwrap());
     assert_eq!(
         raw.record.unwrap()["body"]["textBlob"]["ref"]["$link"],
-        json!(lessdugin_atp::cid::for_raw(source.as_bytes()).to_string())
+        json!(pandoras_forum_atp::cid::for_raw(source.as_bytes()).to_string())
     );
     // and the view renders what was fetched, without a second request
     n.net.clear_requests();
@@ -1074,7 +1074,7 @@ fn body_source_gives_the_markdown_of_inline_and_spilled_bodies() {
     let e2 = n.device("anon2", None);
     let r = block_on(e2.sync_forum(&f, &SyncOpts::default())).unwrap();
     assert!(r.errors.is_empty(), "{r:?}");
-    let blob = lessdugin_atp::cid::for_raw(source.as_bytes()).to_string();
+    let blob = pandoras_forum_atp::cid::for_raw(source.as_bytes()).to_string();
     e2.host().put_blob(&blob, source.as_bytes().to_vec());
     n.net.clear_requests();
     let s = block_on(e2.body_source(&spilled)).unwrap();
@@ -1149,7 +1149,7 @@ fn body_source_names_the_current_comments_record_cid() {
         "createdAt": dt(n.now()),
     });
     let rkey = keys::comment_rkey(
-        lessdugin_lexicon::ns::NS,
+        pandoras_forum_lexicon::ns::NS,
         &f,
         &root,
         tid_at_ms(n.now()).as_str(),
@@ -1185,7 +1185,7 @@ fn body_source_names_the_current_comments_record_cid() {
 
 #[test]
 fn body_source_fails_while_the_body_cannot_be_had() {
-    use lessdugin_core::limits::BODY_BLOB_WAIT_MS;
+    use pandoras_forum_core::limits::BODY_BLOB_WAIT_MS;
     let mut n = Net::new();
     let bob = n
         .net
@@ -1195,7 +1195,7 @@ fn body_source_fails_while_the_body_cannot_be_had() {
     // a record naming a blob bob's PDS never stored
     let at = n.now();
     let gone = json!({
-        "$type": "blob", "ref": {"$link": lessdugin_atp::cid::for_raw(b"gone").to_string()},
+        "$type": "blob", "ref": {"$link": pandoras_forum_atp::cid::for_raw(b"gone").to_string()},
         "mimeType": "text/markdown", "size": 4,
     });
     let v = json!({
@@ -1231,7 +1231,7 @@ fn body_source_fails_while_the_body_cannot_be_had() {
     assert_eq!(e.host().sleeps(), [BODY_BLOB_WAIT_MS]);
     assert_eq!(block_on(e.get_post(&slow)).unwrap().body.text, "An excerpt");
     // a copy the host stored meanwhile is taken, unasked
-    let blob = lessdugin_atp::cid::for_raw(source).to_string();
+    let blob = pandoras_forum_atp::cid::for_raw(source).to_string();
     e.host().put_blob(&blob, source.to_vec());
     n.net.clear_requests();
     assert_eq!(
@@ -1263,7 +1263,7 @@ fn views_carry_the_autoload_verdict() {
     assert!(!read(&e, &f, &clip).body.media[0].autoload);
     // nor anything once the device's switch is off
     block_on(e.host().state().write(vec![KvOp::Put(
-        lessdugin_core::key!("loc", "setting", "mediaAutoload"),
+        pandoras_forum_core::key!("loc", "setting", "mediaAutoload"),
         b"off".to_vec(),
     )]))
     .unwrap();

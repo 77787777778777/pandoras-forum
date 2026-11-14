@@ -1,6 +1,6 @@
 [package]
-name = "lessdugin-core"
-description = "lessdugin engine: identity, discovery, sync, outbox, verification and the deterministic social fold"
+name = "pandoras-forum-core"
+description = "Pandora's Forum engine: identity, discovery, sync, outbox, verification and the deterministic social fold"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,17 +14,17 @@ verify = []
 # for wasm32, so this is on by default; `--no-default-features` drops it and the pipeline then
 # only strips metadata (the orientation tag is dropped with the rest of the EXIF).
 orientation = ["dep:image"]
-# This build reads and writes the published namespace (`lessdugin-lexicon/final-ns`); the social
+# This build reads and writes the published namespace (`pandoras-forum-lexicon/final-ns`); the social
 # vector runner then checks record validity exactly.
-final-ns = ["lessdugin-lexicon/final-ns"]
-# Generate TypeScript types for the DTOs (used by lessdugin-wasm). tsify's derives expand to
+final-ns = ["pandoras-forum-lexicon/final-ns"]
+# Generate TypeScript types for the DTOs (used by pandoras-forum-wasm). tsify's derives expand to
 # `wasm_bindgen` items, so the feature brings that crate in too.
 tsify = ["dep:tsify", "dep:wasm-bindgen"]
 
 [dependencies]
-lessdugin-atp.workspace = true
-lessdugin-lexicon.workspace = true
-lessdugin-markdown.workspace = true
+pandoras-forum-atp.workspace = true
+pandoras-forum-lexicon.workspace = true
+pandoras-forum-markdown.workspace = true
 # the link destinations a writer rewrites (handle authorities to DIDs, W7), under lfm/1's options
 pulldown-cmark.workspace = true
 futures.workspace = true
@@ -48,7 +48,7 @@ insta.workspace = true
 # The media test builds a real PNG so the orientation pass decodes it.
 image = { workspace = true }
 # Integration tests (tests/) run the engine over the in-memory host.
-lessdugin-testkit.workspace = true
+pandoras-forum-testkit.workspace = true
 
 # The social fold's parity test (`tests/social_parity.rs`, social.md §6.3 P9) also runs on wasm32
 # under node (wasm-bindgen-test-runner). proptest's default `fork`/`timeout` features spawn

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! [`Bridge`]: jacquard's client traits implemented over [`Net`], so that every request of the
 //! OAuth library (protected-resource and authorization-server metadata, PAR, token, refresh,
-//! revocation) passes the SSRF guard, the byte caps and the lessdugin User-Agent, and follows no
+//! revocation) passes the SSRF guard, the byte caps and the Pandora's Forum User-Agent, and follows no
 //! redirects.
 //!
-//! jacquard's `OAuthResolver` also wants an `IdentityResolver`. lessdugin resolves identities
-//! with `lessdugin-core` (DoH, PLC, devnet rules, caching) and checks the login binding there,
+//! jacquard's `OAuthResolver` also wants an `IdentityResolver`. Pandora's Forum resolves identities
+//! with `pandoras-forum-core` (DoH, PLC, devnet rules, caching) and checks the login binding there,
 //! so the facade never calls jacquard's identity helpers (`resolve_oauth`, `verify_issuer`,
 //! `exchange_code`); the implementation below refuses, so an accidental call fails loudly.
 
@@ -20,8 +20,8 @@ use jacquard_identity::resolver::{
 };
 use jacquard_oauth::dpop::DpopExt;
 use jacquard_oauth::resolver::OAuthResolver;
-use lessdugin_core::host::HostError;
-use lessdugin_core::limits;
+use pandoras_forum_core::host::HostError;
+use pandoras_forum_core::limits;
 
 use crate::host::Net;
 
@@ -72,7 +72,7 @@ impl HttpClient for Bridge {
 }
 
 fn refused() -> IdentityError {
-    IdentityError::xrpc("identity resolution goes through lessdugin-core, not jacquard")
+    IdentityError::xrpc("identity resolution goes through pandoras-forum-core, not jacquard")
 }
 
 impl IdentityResolver for Bridge {

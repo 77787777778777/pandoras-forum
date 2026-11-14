@@ -51,7 +51,7 @@ describe("MockEngine fixture", () => {
       await vi.advanceTimersByTimeAsync(50);
       const all = await e.forumDiscover("");
       expect(all.map((f) => [f.owner.handle, f.name])).toEqual([
-        ["ada.test", "LessDugin Test Forum"],
+        ["ada.test", "Pandora's Test Forum"],
         ["you.test", "Alpha"],
         ["you.test", "zeta"],
       ]);

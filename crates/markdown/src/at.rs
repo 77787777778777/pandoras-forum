@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 //! atproto identifiers as LFM/1 uses them (`docs/spec/lfm-1.md` §5.2), on top of the strict
-//! syntax types of `lessdugin-atp`.
+//! syntax types of `pandoras-forum-atp`.
 
-pub use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_atp::syntax::{Handle, Nsid, RecordKey};
+pub use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_atp::syntax::{Handle, Nsid, RecordKey};
 
 /// A DID accepted in markdown: `^did:plc:[a-z2-7]{24}$` or
-/// `^did:web:<lowercase hostname, no port, no path>$` (the lessdugin DID policy).
+/// `^did:web:<lowercase hostname, no port, no path>$` (the Pandora's Forum DID policy).
 pub(crate) fn lfm_did(s: &str) -> Option<Did> {
     let did = Did::parse(s).ok()?;
-    did.check_lessdugin_policy().ok()?;
+    did.check_pandoras_forum_policy().ok()?;
     Some(did)
 }
 

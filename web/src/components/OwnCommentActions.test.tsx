@@ -4,8 +4,8 @@
 // edit suspends them, with what the engine's editPreflight names (social.md §4.5; review
 // findings sec-7, robustness-6).
 import { EditorView } from "@codemirror/view";
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { CommentNode } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { CommentNode } from "@pandoras-forum/engine/types";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../test/render.tsx";

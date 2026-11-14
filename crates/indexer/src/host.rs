@@ -6,9 +6,9 @@ use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{BlobHandle, Host, HostError, HttpRequest, HttpResponse, Target};
-use lessdugin_native::host::{NativeHost, NativeLock, NativeWs};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{BlobHandle, Host, HostError, HttpRequest, HttpResponse, Target};
+use pandoras_forum_native::host::{NativeHost, NativeLock, NativeWs};
 use tokio::sync::{Mutex, OwnedSemaphorePermit, Semaphore};
 use tokio::time::Instant;
 
@@ -91,7 +91,7 @@ impl PoliteHost {
 }
 
 impl Host for PoliteHost {
-    type Kv = lessdugin_native::kv::SqliteKv;
+    type Kv = pandoras_forum_native::kv::SqliteKv;
     type Ws = NativeWs;
     type Lock = NativeLock;
 

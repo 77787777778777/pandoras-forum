@@ -8,7 +8,7 @@
 //! proofs are not checked). `userpds://` requests are authenticated by the host and need no
 //! token.
 
-use lessdugin_core::host::HttpResponse;
+use pandoras_forum_core::host::HttpResponse;
 use serde_json::{Map, Value, json};
 
 use super::server::Incoming;
@@ -69,7 +69,9 @@ impl NetState {
             })
             .to_string()
             .as_bytes());
-            let sig = b64(&lessdugin_atp::cid::sha256(format!("{h}.{p}").as_bytes()));
+            let sig = b64(&pandoras_forum_atp::cid::sha256(
+                format!("{h}.{p}").as_bytes(),
+            ));
             let tok = format!("{h}.{p}.{sig}");
             (
                 tok,

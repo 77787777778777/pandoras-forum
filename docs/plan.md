@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin implementation plan (first pass, release 0.1)
+# Pandora's Forum implementation plan (first pass, release 0.1)
 
 **Status:** approved; execution started at M0. This is a living document: milestone status and spike results are updated in place, and a change of scope needs an ADR (`docs/adr/0000-template.md`).
 **Sources:** the approved plan, `docs/design/synthesis-v1.md` §8 and §9, every fix and cut from `docs/design/completeness-review.md`, and the accepted spike ADRs 0002–0006. Where the approved plan and the synthesis disagree, the approved plan wins.
@@ -31,13 +31,13 @@ The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used as in RFC 2119
 **Goal.** A ForumMagnum-class forum: posts, threaded comments, karma and agreement voting, reacts, tags and wiki, sequences, and moderation. All content lives in its authors' own atproto PDS repos.
 
 **Constraints**
-- The core works with nothing but PDSes, PLC/did:web and DNS over HTTPS: no lessdugin server, no extra database, no trusted website.
+- The core works with nothing but PDSes, PLC/did:web and DNS over HTTPS: no Pandora's Forum server, no extra database, no trusted website.
 - It is usable from the command line.
 - Optional, verifiable extensions (the indexer, live updates) make the experience richer without changing what anyone sees.
 - Rust and TypeScript. Three clients: CLI, TUI and SPA.
 
 **User decisions**
-- The NSID authority is `lessdugin.7778777.online`, so `NS = online.7778777.lessdugin`.
+- The NSID authority is `pandoras.forum`, so `NS = forum.pandoras`.
 - The Rust core is shared with the SPA through wasm. The SPA uses React and Vite.
 - The first pass is the MVP in all three clients, plus the optional indexer.
 - Licences: applications AGPL-3.0-or-later; lexicons, spec and test vectors CC0-1.0; the `atp` and `lexicon` crates MIT OR Apache-2.0 (the owner still has to confirm this, D21).
@@ -73,7 +73,7 @@ A milestone is done when all of the following hold:
 | M3 | Social core | M2 | `mod/1`, `karma/1`, `magic/1`, `default/1`; engine API v0 frozen | no |
 | M4 | Rich content and media | M3 | full `lfm/1`; media pipeline | no |
 | M5 | Organisation and discovery | M3 | tags, wiki, sequences, search, live updates, open-mode discovery | no ([user] production logins) |
-| M6 | Optional indexer | M3 | `lessdugin-indexer` | no |
+| M6 | Optional indexer | M3 | `pandoras-forum-indexer` | no |
 | M7 | Release 0.1 | M4, M5, M6 | published lexicons, DNS, site, binaries | **yes** |
 
 ---
@@ -86,7 +86,7 @@ A milestone is done when all of the following hold:
 
 **Scope**
 1. Commit the spec in `docs/spec/` (`README.md`, `data-model.md`, `lfm-1.md`, `social.md`, `sync.md`, `engine-api.md`, `threat-model.md`, `limits.md`, `glossary.md`, `reacts-default-1.json`) with every completeness fix applied. Commit this plan, ADR 0000 (template), ADR 0001 (decision log) and one ADR per spike.
-2. Draft the lexicons with their **final** NSIDs in `lexicons/online/7778777/lessdugin/`: the ten records, `defs`, `markdown`, `authFull`, `authInteract` and `index/*`. Every limit is final. `membership` defaults to `approval`. `revision.record` has type `unknown` with a mandatory `$type`. The code maps the prefix to `NS.temp`.
+2. Draft the lexicons with their **final** NSIDs in `lexicons/forum/pandoras/`: the ten records, `defs`, `markdown`, `authFull`, `authInteract` and `index/*`. Every limit is final. `membership` defaults to `approval`. `revision.record` has type `unknown` with a mandatory `$type`. The code maps the prefix to `NS.temp`.
 3. Generate the key vectors `testdata/vectors/keys/*.json` for `fk/1` and `sk/1`. The draft sk/1 vectors are superseded and MUST NOT be used (`data-model.md` §3.4).
 4. Workspace and toolchain: Rust 1.97 with `wasm32-unknown-unknown`; `wasm-bindgen-cli =0.2.129`; binaryen; the pnpm workspace; `[workspace.dependencies]` with exact `=` pins for the parsing and crypto crates and the pins decided in ADR 0002.
 5. CI skeleton: `ci.yml` and `e2e.yml`. `release.yml` and `pages.yml` are prepared but used only at M7. `clippy.toml` bans clocks and sleeps in the wasm-safe crates; `deny.toml` holds the licence allowlist.
@@ -105,8 +105,8 @@ A milestone is done when all of the following hold:
 **Status:** done (2026-10-22). Every [auto] criterion passes: the interop, `keys` and `lexicon` vectors run natively and on wasm32 under node (`cargo xtask test-wasm`, 158 tests with the same per-file counts as native); `verify` proves a live bsky record and rejects the tampered fixtures; devnet login works with app passwords and OAuth; eight parallel CLI processes sharing one expired session refresh it exactly once, offline (`crates/cli/tests/concurrent_refresh.rs`, single-use refresh tokens with replay revocation) and on the devnet for both auth kinds; the entryway login binding is tested. [user] S1 is pending user run (§8).
 
 **Scope**
-- **`lessdugin-atp`:** syntax types (Did, Handle, Nsid, AtUri, Rkey, Tid, Datetime) plus the Jetstream `NsidPattern` type (ADR 0003); JSON ⇄ DAG-CBOR; CID with our own base32-lower code (ADR 0002); a CARv1 reader with caps; the MST proof walk; commit verification (k256 and p256, low-S); did:key; DID documents; XRPC request and response structs.
-- **`lessdugin-lexicon`:** hand-written owned serde structs with flattened unknown fields; a data-driven validator over the embedded lexicon JSON; `fk/1` and `sk/1` derivation and key grammars; the record validity rules of `data-model.md` §7, including the required fields per post kind; the `NS` constant and the `.temp` mapping. There is no lexicon code generation, so module-name mangling for the digit segment is moot.
+- **`pandoras-forum-atp`:** syntax types (Did, Handle, Nsid, AtUri, Rkey, Tid, Datetime) plus the Jetstream `NsidPattern` type (ADR 0003); JSON ⇄ DAG-CBOR; CID with our own base32-lower code (ADR 0002); a CARv1 reader with caps; the MST proof walk; commit verification (k256 and p256, low-S); did:key; DID documents; XRPC request and response structs.
+- **`pandoras-forum-lexicon`:** hand-written owned serde structs with flattened unknown fields; a data-driven validator over the embedded lexicon JSON; `fk/1` and `sk/1` derivation and key grammars; the record validity rules of `data-model.md` §7, including the required fields per post kind; the `NS` constant and the `.temp` mapping. There is no lexicon code generation.
 - **Identity:** DoH (Cloudflare, then Google), the `.well-known` fallback, PLC and did:web documents, Slingshot as a hint, bidirectional handle verification, PLC pacing, account status, devnet mode (ADR 0006).
 - **XRPC subset** (about 16 endpoints).
 - **`NativeHost`:** reqwest (rustls) behind an SSRF guard, `SqliteKv`, WebSocket, keyring sessions, `fd-lock`.
@@ -122,8 +122,8 @@ A milestone is done when all of the following hold:
 - **CLI:** `login`, `logout`, `whoami`, `accounts`, `resolve`, `verify`, `doctor`.
 
 **Acceptance**
-- [auto] Interop vectors pass on native and wasm32. These are the vendored atproto-interop-tests (syntax, including `online.7778777.lessdugin.*` cases and the NSID and pattern vectors of ADR 0003; data model JSON ⇄ CBOR ⇄ CID; MST; signatures, with high-S rejected; did:key), plus the `keys` and `lexicon` vectors.
-- [auto] `lessdugin verify at://<a real public bsky record>` reports `proven`, with the key source. Tampered fixtures fail: a changed block, a wrong DID, a bad or high-S signature, a future rev, unsorted keys, a wrong MST layer, depth overflow. (This needs read-only network access, no account.)
+- [auto] Interop vectors pass on native and wasm32. These are the vendored atproto-interop-tests (syntax, including `forum.pandoras.*` cases and the NSID and pattern vectors of ADR 0003; data model JSON ⇄ CBOR ⇄ CID; MST; signatures, with high-S rejected; did:key), plus the `keys` and `lexicon` vectors.
+- [auto] `pandoras-forum verify at://<a real public bsky record>` reports `proven`, with the key source. Tampered fixtures fail: a changed block, a wrong DID, a bad or high-S signature, a future rev, unsorted keys, a wrong MST layer, depth overflow. (This needs read-only network access, no account.)
 - [auto] Login works on the devnet: app password, and OAuth wherever the devnet's http issuer is accepted.
 - [auto] Concurrent refresh is safe: parallel CLI processes refreshing one session never invalidate it.
 - [auto] The login binding accepts the entryway layout (issuer `bsky.social`, PDS on `*.host.bsky.network`) and rejects an issuer missing from `authorization_servers`. This is a FakePds test.
@@ -150,8 +150,8 @@ A milestone is done when all of the following hold:
 - **CLI:** `read` (anonymous), `ls`, `post`, `comment`, `edit`, `delete`, `sync`, `join`, `forum *`.
 - **TUI:** read, and reply through `$EDITOR`.
 - **Wasm and engine package:** worker, `JsHost`, AuthBridge (the write allowlist), leader election (Web Locks plus BroadcastChannel).
-- **SPA:** anonymous read, login and comment. Login forces `response_mode=query` and handles the callback before the hash router mounts. The CSP is sent as a header (`lessdugin web` and `_headers`).
-- **`lessdugin web`** with the bridge: `/bridge/session`, `/bridge/xrpc`, `/bridge/login`, `/bridge/kv`. `/bridge/fetch` is Reserved (P2).
+- **SPA:** anonymous read, login and comment. Login forces `response_mode=query` and handles the callback before the hash router mounts. The CSP is sent as a header (`pandoras-forum web` and `_headers`).
+- **`pandoras-forum web`** with the bridge: `/bridge/session`, `/bridge/xrpc`, `/bridge/login`, `/bridge/kv`. `/bridge/fetch` is Reserved (P2).
 
 **Acceptance**
 - [auto] The devnet parity scenario, text subset (§4.2), is byte-identical across CLI `--json`, SPA and TUI.
@@ -219,7 +219,7 @@ A milestone is done when all of the following hold:
 - axe scores **100** on all 16 scanned routes, in light and dark mode, with no violation (`web/e2e/a11y.spec.ts`; the criterion is ≥ 90).
 - The full parity scenario (§4.2, steps 1–7, including carol's TUI tag vote) is byte-identical across CLI `--json`, the SPA and the TUI. It passes in approval and open mode with `sources` direct and assisted, and in the assisted variants the indexer-on views match the indexer-off views apart from provenance badges (U-D2).
 
-`CI=1 cargo xtask ci` and `cargo xtask e2e` (the Rust devnet tests and 8 Chromium devnet tests) pass at a9dd934, and GitHub CI passes at the merge 34f52d8 (run 41762728389). The [user] criteria are **pending user run** (§8): login on bsky.social through CLI loopback, CLI hosted-native, the hosted SPA and `lessdugin web` (S1, S2), and S11 on Safari and iOS.
+`CI=1 cargo xtask ci` and `cargo xtask e2e` (the Rust devnet tests and 8 Chromium devnet tests) pass at a9dd934, and GitHub CI passes at the merge 34f52d8 (run 41762728389). The [user] criteria are **pending user run** (§8): login on bsky.social through CLI loopback, CLI hosted-native, the hosted SPA and `pandoras-forum web` (S1, S2), and S11 on Safari and iOS.
 
 **Scope**
 - **Tags:** relevance; the wiki with **linear history** (the page head is the latest revision by an eligible author, or the moderator's `#tag.head`; a deleted parent makes its child a flagged root); the moderator tag actions `#tag{removed, head}`. Forks, merges and `aliasOf` are Reserved (P2); the `parents[]` schema stays.
@@ -238,14 +238,14 @@ A milestone is done when all of the following hold:
 - [auto] A cached forum renders in under 1.5 s.
 - [auto] axe accessibility score ≥ 90.
 - [auto] The full parity scenario (§4.2) is byte-identical, in approval and open mode, with `sources` direct and assisted.
-- [user] Login on bsky.social through CLI loopback, CLI hosted-native, the hosted SPA (a preview deployment on the user's static host) and `lessdugin web`, each with one consent screen (S1, S2).
+- [user] Login on bsky.social through CLI loopback, CLI hosted-native, the hosted SPA (a preview deployment on the user's static host) and `pandoras-forum web`, each with one consent screen (S1, S2).
 - [user] S11: session and draft persistence on Safari and iOS.
 
 ### M6 — Optional indexer
 
 **Status:** done (2026-11-04) for every [auto] criterion. The [target] benchmark (`listPosts` p95 under 50 ms at 200 requests/s on 1M records) is **unmeasured** and not claimed. M7 has not started; it needs the user.
 - **Convergence and restart:** `crates/indexer/tests/service.rs` (`durable_poll_converges_within_five_seconds`, `a_live_restart_resumes_from_the_persisted_cursor`, `native_devnet_all_first_pass_methods_and_restart`).
-- **Identical views with and without the indexer:** the parity scenario's assisted variants read every client again with `lessdugin-indexer --poll` serving the forum. Those views match the indexer-off views apart from provenance badges (U-D2).
+- **Identical views with and without the indexer:** the parity scenario's assisted variants read every client again with `pandoras-forum-indexer --poll` serving the forum. Those views match the indexer-off views apart from provenance badges (U-D2).
 - **Cold paint:** `cargo xtask e2e --cold-start` (`scripts/m6-cold-start.sh`) builds an approval forum with 2,000 signed participants on 40 PDSes, each with a validated membership, and 31 posts. Its first page holds 20 posts by 20 different authors. Three fresh Chromium contexts painted all 20 titles in **1,592, 1,460 and 1,443 ms** (a9dd934, 2026-11-04). Each run used real proof CARs, one PDS head check per author on screen, no post point fetch, and had no CSP or console problem (evidence: `state/m6-cold-start-results-a9dd934.json` in the orchestrator cache).
   - Pre-indexing (415 s) is outside the measurement.
   - The fixture requests the proofs of all 31 posts through the indexer before the browser starts, as a serving indexer holds them after the first request. The browser contexts start empty.
@@ -257,6 +257,7 @@ A milestone is done when all of the following hold:
 - **Image:** `crates/indexer/Dockerfile` builds with podman at a9dd934: a 45 MB distroless image that runs as user 65532, and its binary starts in it. GHCR publication (`.github/workflows/indexer.yml`) has not been run.
 - **wasm module:** the release build is 8,333,791 B raw and 3,034,057 B gzipped. It is built for speed (ADR 0010), and the size is reported, not targeted.
 - **Gate:** `CI=1 cargo xtask ci`, `cargo xtask e2e` and the cold start pass locally at a9dd934. GitHub passes at the merge 34f52d8: `ci.yml` run 41762728389 (all five jobs) and the `indexer` workflow run 41762728448, which builds and smoke-tests the image.
+- **After the rename** (ADR 0011, 2026-11-14): `CI=1 cargo xtask ci`, `cargo xtask e2e` (the Rust devnet tests and the 8 Chromium devnet tests, the full parity scenario among them) and the cold start pass again locally at 920b89d. The cold paint takes 1,572, 1,468 and 1,459 ms, the cached forum render 462 to 474 ms in the four parity variants, and the release wasm module is 8,328,684 B raw and 3,031,826 B gzipped. These runs kept their temporary files on a tmpfs, because a desktop file indexer was saturating the disk at the time.
 
 Known residuals, which do not block M6:
 - The §14 sequence library has no independent oracle. The reference model's `sequences.py` is a stub and the social vectors carry no library projection, so only Rust tests check it.
@@ -281,9 +282,9 @@ Known residuals, which do not block M6:
 
 **Scope**
 - A security review pass: threat model, fuzzing, corpora. A final review of every lexicon limit (limits are frozen at publication).
-- Switch `NS` from `.temp` to `online.7778777.lessdugin`.
-- **Publisher account:** did:plc, handle `lessdugin.7778777.online`, an offline rotation key. It publishes one `com.atproto.lexicon.schema` record per NSID, and the permission sets, after `goat lex lint`, `goat lex breaking` and `goat lex check-dns` pass.
-- **DNS:** TXT `_lexicon.lessdugin.7778777.online` and `_lexicon.index.lessdugin.7778777.online`, both `did=<publisher DID>`. Domain hardening: registrar lock, multi-year auto-renew, DNSSEC, CAA.
+- Switch `NS` from `.temp` to `forum.pandoras`.
+- **Publisher account:** did:plc, handle `pandoras.forum`, an offline rotation key. It publishes one `com.atproto.lexicon.schema` record per NSID, and the permission sets, after `goat lex lint`, `goat lex breaking` and `goat lex check-dns` pass.
+- **DNS:** TXT `_lexicon.pandoras.forum` and `_lexicon.index.pandoras.forum`, both `did=<publisher DID>`. Domain hardening: registrar lock, multi-year auto-renew, DNSSEC, CAA.
 - **Site:** deploy the static site, preferably to Cloudflare Pages or Netlify (which send the CSP as a header), with GitHub Pages as the fallback. Enable `release.yml` and `pages.yml`.
 - **Guides:** user guide; forum-owner guide, including succession (use a dedicated did:plc forum account whose rotation keys are held by at least two admins); indexer self-hosting guide; a Level-0 implementer guide (informative; the normative definition is `docs/spec/README.md` §4).
 - **`.temp` data** is orphaned at 0.1. `xtask migrate-temp` copies a user's own records with the deterministic rewrite of `data-model.md` §1.3: keys and strongRef CIDs change, because fk and h16 hash at-uris that contain the collection NSID.
@@ -291,7 +292,7 @@ Known residuals, which do not block M6:
 **Acceptance (all [user])**
 - `goat lex check-dns` passes.
 - `include:` works on bsky.social (S8).
-- On a fresh machine: install from a release, log in, post. The post appears on the hosted SPA and in `lessdugin web`, with matching build hashes.
+- On a fresh machine: install from a release, log in, post. The post appears on the hosted SPA and in `pandoras-forum web`, with matching build hashes.
 - Every earlier "pending user run" item (§8) is closed, or explicitly waived by the user.
 
 ---
@@ -308,7 +309,7 @@ Known residuals, which do not block M6:
 | Markdown and terminal | ≥ 150 LFM/1 vectors; XSS, mXSS and escape corpora; DOMPurify and ammonia equality | M2 (basic), M4 |
 | Sync and engine | `MemHost` + FakePds scenarios (fault injection, cursor modes, the ADR 0005 behaviours); a 5,000-repo load simulation against the budgets of `sync.md` §14; a synthetic 1k-post / 50k-opinion forum lists in under 300 ms warm | M2, M3 |
 | CLI and TUI | `assert_cmd` + `insta` against FakePds; ratatui `TestBackend` snapshots at 80×24 and 160×48; a resize fuzz test; the plain `--color never` output | M1–M5 |
-| End to end | `packages/e2e/devnet.mjs` (`@atproto/dev-env` `TestNetworkNoAppView`) plus the testkit mini-Jetstream and fake Constellation, or the indexer in poll mode. Rust e2e runs with `LESSDUGIN_E2E=1`. Playwright (Chromium from `/opt/pw-browsers`) does real OAuth against the devnet, or uses an e2e-only app-password build if http issuers are rejected. Any `securitypolicyviolation` fails; axe runs. | M2+ |
+| End to end | `packages/e2e/devnet.mjs` (`@atproto/dev-env` `TestNetworkNoAppView`) plus the testkit mini-Jetstream and fake Constellation, or the indexer in poll mode. Rust e2e runs with `PANDORAS_FORUM_E2E=1`. Playwright (Chromium from `/opt/pw-browsers`) does real OAuth against the devnet, or uses an e2e-only app-password build if http issuers are rejected. Any `securitypolicyviolation` fails; axe runs. | M2+ |
 | Production smoke | Throwaway bsky.social accounts with `.temp` NSIDs, and optionally one self-hosted PDS. [user] only. | M2+, M7 |
 
 ### 4.2 Parity scenario
@@ -345,7 +346,7 @@ Every GitHub Action is pinned by SHA, workflows run with `permissions: contents:
 | ID | Question | Real accounts or devices? | Status | Consumer |
 |---|---|---|---|---|
 | S1 | `jacquard-oauth` loopback, hosted-native metadata and `--no-browser` against bsky.social; signed XRPC through the facade | **yes**: a bsky.social account. The devnet part (http issuer) runs in M1. | **pending user run** (ADR to be written). Fallback if it fails: our own PAR, PKCE and DPoP client (about 1.5k lines). | M1 |
-| S2 | The browser OAuth library: non-extractable IndexedDB keys; `signIn(did)`; query and fragment callbacks (`response_mode=query` forced); OAuth against an http devnet PDS; loopback fallback for `lessdugin web` | **yes** for production authorization servers; the devnet part runs in M2 | Devnet part **passed** in M2: OAuth with `@atproto/oauth-client-browser` 0.5.9 against the http devnet PDS, `response_mode=query`, non-extractable DPoP keys (`web/e2e/devnet/hosted.spec.ts`), and the `lessdugin web` sign-in through the CLI (`bridge.spec.ts`). **Pending user run** against production authorization servers (ADR to be written with it). Fallback: `@atcute/oauth-browser-client` with a store that keeps keys non-extractable. | M2, M5 |
+| S2 | The browser OAuth library: non-extractable IndexedDB keys; `signIn(did)`; query and fragment callbacks (`response_mode=query` forced); OAuth against an http devnet PDS; loopback fallback for `pandoras-forum web` | **yes** for production authorization servers; the devnet part runs in M2 | Devnet part **passed** in M2: OAuth with `@atproto/oauth-client-browser` 0.5.9 against the http devnet PDS, `response_mode=query`, non-extractable DPoP keys (`web/e2e/devnet/hosted.spec.ts`), and the `pandoras-forum web` sign-in through the CLI (`bridge.spec.ts`). **Pending user run** against production authorization servers (ADR to be written with it). Fallback: `@atcute/oauth-browser-client` with a store that keeps keys non-extractable. | M2, M5 |
 | S3 | Wasm size with and without math-core and k256/p256 | no | **done**, ADR 0002 (the budget is realistic; do not split `verify.wasm` yet) | M2 |
 | S4 | The digit NSID through goat, `@atproto/lexicon`, the Jetstream wildcard, relay `listReposByCollection` and Constellation `source=`; `validate`-unset writes containing union-like values and nested blob refs; blobs referenced only by a revision surviving GC | no (read-only public services, and the devnet) | **done**, ADR 0003 (tooling, discovery) and ADR 0005 (writes, blobs). Remaining: `goat lex lint` of the full lexicon set with `revision.record: unknown` (M0 CI); audio MIME acceptance on a production PDS ([user], M4). | M0, M2 |
 | S5 | The devnet in GitHub Actions | no | **done**, ADR 0006 | M0 |
@@ -452,7 +453,7 @@ S3 and S10 were run together. ADR numbers: 0000 template, 0001 decision log, 000
 | Abuse and legal exposure for indexer operators (CSAM, takedowns) | – | No blob storage, blocklist, documented contact, upstream takedowns honoured | M6 docs |
 | Safari storage eviction | S11 | PWA install, `navigator.storage.persist()`, draft download, re-login prompt | pending user run |
 | PLC throughput for cold starts | S9 | Pacing, caching, badged Slingshot hints, indexer | target pending |
-| Single-maintainer domain or publisher compromise | – | Domain hardening, offline rotation key, reproducible builds, `lessdugin web` as the zero-trust path | M7 |
+| Single-maintainer domain or publisher compromise | – | Domain hardening, offline rotation key, reproducible builds, `pandoras-forum web` as the zero-trust path | M7 |
 
 ---
 
@@ -460,9 +461,9 @@ S3 and S10 were run together. ADR numbers: 0000 template, 0001 decision log, 000
 
 | # | Item | Needed for | State |
 |---|---|---|---|
-| U1 | DNS for `lessdugin.7778777.online`: the two `_lexicon` TXT records, site hosting records, DNSSEC, CAA, registrar lock, multi-year auto-renew | M7 | pending |
-| U2 | Publisher account (did:plc, handle `lessdugin.7778777.online`) with an offline rotation key | M7 | pending |
-| U3 | Static host account: Cloudflare Pages or Netlify preferred, GitHub Pages as the fallback | M5 preview, M7 | provided for the preview (2026-10-27): Cloudflare, origin `https://lessdugin-dev.7778777.online` (decision U-D4); the production site is M7 |
+| U1 | DNS for `pandoras.forum`: the two `_lexicon` TXT records, site hosting records, DNSSEC, CAA, registrar lock, multi-year auto-renew | M7 | pending |
+| U2 | Publisher account (did:plc, handle `pandoras.forum`) with an offline rotation key | M7 | pending |
+| U3 | Static host account: Cloudflare Pages or Netlify preferred, GitHub Pages as the fallback | M5 preview, M7 | provided for the preview (2026-10-27): Cloudflare (decision U-D4). The preview origin is `https://dev.pandoras.forum` since 2026-11-14 (ADR 0011); before that it was a name under the owner's personal domain; the production site is M7 |
 | U4 | Throwaway bsky.social test accounts (and optionally one self-hosted PDS) | S1, S2, S8, M2 smoke test, M5 logins, M7 | partly (2026-10-27): two `.temp`-only test accounts on the user's self-hosted PDS `veles.7778777.online`, a jazware vlpds 1.2.2 (decision U-D3); bsky.social accounts pending |
 | U5 | An Apple device with Safari and iOS | S11 | pending |
 | U6 | Confirmation of MIT OR Apache-2.0 for the `atp` and `lexicon` crates | M7 (D21) | pending |
@@ -490,6 +491,7 @@ S3 and S10 were run together. ADR numbers: 0000 template, 0001 decision log, 000
 13. **No PWA manifest in M5 and no CLI `sync --follow`** (decision O-5): S11 decides on installability later, and following a forum continuously is the TUI's and the SPA's job; neither is in the plan's scope.
 14. **`e2e.yml` and `fuzz.yml` run locally until the workflows reach the default branch.** GitHub runs scheduled and dispatched workflows only from the default branch, and `main` holds only the initial commit, so on the development branch only `ci.yml` (which runs on pushes to `claude/**`) can be green on GitHub. Until the first merge to `main`, §2.2's "`e2e.yml` is green" is met by `cargo xtask e2e` (the same Rust e2e and Playwright suites) and the fuzz runs by `cargo xtask fuzz`, both on the integrated tree and recorded in the milestone status.
 15. **Other decisions taken during M3–M6** are recorded where they apply, each flagged for the U7 review: U-D1 (the browser's Jetstream DID filter, ADR 0009), U-D3 and U-D4 (§8 U4 and U3), U-D5 (a DID filter in the user's own Jetstream relay, a side task outside this repository), and O-1 to O-15 in the specs' open-question sections and `engine-api.md`'s "After the freeze" paragraph.
+16. **The project is Pandora's Forum and its namespace is `forum.pandoras`** (user decision U-D6, 2026-11-14, ADR 0011). It was built under a working name, with NSIDs under the owner's personal domain. Nothing was published, so the rename is complete and keeps no compatibility: the code name is `pandoras-forum`, the release origin is `https://pandoras.forum`, the preview is `https://dev.pandoras.forum`, and every key and fold vector was regenerated.
 
 **Open questions**
 - Confirm the phases in item 3, especially recommendations (P8+) and the nofollow gate (Never).

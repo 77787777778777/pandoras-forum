@@ -12,8 +12,8 @@
 // is not a tag, views.rs `tag_summary`), so such a page cannot be loaded here: the editor says
 // so for a new address, and before a page stops being a tag.
 
-import type { MediaRef, WikiDraft } from "@lessdugin/engine/types";
-import { isEngineError } from "@lessdugin/engine/types";
+import type { MediaRef, WikiDraft } from "@pandoras-forum/engine/types";
+import { isEngineError } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useId, useState } from "react";

@@ -12,12 +12,18 @@
 //
 // Drafts are kept by a `DraftBackend` the host chooses, so that composer text survives a
 // reload, a failed send and a reply box scrolled out of a long thread (robustness review H3):
-// `localStorage` on the hosted site, this tab's memory under `lessdugin web` (whose browser
+// `localStorage` on the hosted site, this tab's memory under `pandoras-forum web` (whose browser
 // keeps no drafts, threat-model §7; they belong in the native `state.sqlite`).
 
-import type { EngineApi } from "@lessdugin/engine/api";
-import type { Draft, DraftEntry, EngineError, SettingKey, Settings } from "@lessdugin/engine/types";
-import { isEngineError } from "@lessdugin/engine/types";
+import type { EngineApi } from "@pandoras-forum/engine/api";
+import type {
+  Draft,
+  DraftEntry,
+  EngineError,
+  SettingKey,
+  Settings,
+} from "@pandoras-forum/engine/types";
+import { isEngineError } from "@pandoras-forum/engine/types";
 
 /** Where the stand-in drafts live. */
 export interface DraftBackend {
@@ -57,7 +63,7 @@ export function memoryDrafts(): DraftBackend {
 }
 
 /** Drafts in `storage` (`localStorage`) under `key`; unreadable content counts as none. */
-export function storageDrafts(storage: Storage, key = "lessdugin-drafts-v1"): DraftBackend {
+export function storageDrafts(storage: Storage, key = "pandoras-forum-drafts-v1"): DraftBackend {
   return {
     load() {
       try {

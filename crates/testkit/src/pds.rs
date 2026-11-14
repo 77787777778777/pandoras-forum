@@ -10,8 +10,8 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard};
 
-use lessdugin_atp::syntax::{Did, Tid};
-use lessdugin_core::host::{HostError, HttpRequest, HttpResponse};
+use pandoras_forum_atp::syntax::{Did, Tid};
+use pandoras_forum_core::host::{HostError, HttpRequest, HttpResponse};
 use serde_json::json;
 
 use crate::memhost::{MemHost, target_url};

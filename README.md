@@ -1,4 +1,4 @@
-# lessdugin
+# Pandora's Forum
 
 A rich-text (markdown) and media forum on the [AT Protocol](https://atproto.com), modelled on
 [ForumMagnum](https://github.com/ForumMagnum/ForumMagnum) (LessWrong, EA Forum), that needs **no
@@ -16,15 +16,15 @@ forum server, no extra database and no trusted website**.
   changing what anyone sees.
 
 > Status: **pre-release, under active construction.** Data written by development builds goes to the
-> unpublished `online.7778777.lessdugin.temp.*` namespace.
+> unpublished `forum.pandoras.temp.*` namespace.
 
 ## Clients
 
 | Client | How |
 |---|---|
-| CLI | `lessdugin ls`, `lessdugin read 3`, `lessdugin comment 3 -m "…"`, `lessdugin post draft.md` |
-| TUI | `lessdugin` (or `lessdugin tui`) |
-| Web | the hosted static site, or `lessdugin web` — the same app served from `127.0.0.1`, with your login kept by the CLI, so you don't have to trust any website |
+| CLI | `pandoras-forum ls`, `pandoras-forum read 3`, `pandoras-forum comment 3 -m "…"`, `pandoras-forum post draft.md` |
+| TUI | `pandoras-forum` (or `pandoras-forum tui`) |
+| Web | the hosted static site, or `pandoras-forum web` — the same app served from `127.0.0.1`, with your login kept by the CLI, so you don't have to trust any website |
 
 ## Documentation
 
@@ -36,7 +36,7 @@ forum server, no extra database and no trusted website**.
 ## Repository layout
 
 ```
-lexicons/            Lexicon schemas (online.7778777.lessdugin.*)           CC0-1.0
+lexicons/            Lexicon schemas (forum.pandoras.*)                     CC0-1.0
 docs/spec/           Normative specification                                CC0-1.0
 testdata/vectors/    Shared test vectors (Rust + TypeScript/wasm)            CC0-1.0
 crates/atp           atproto primitives (DAG-CBOR, CID, CAR, MST, commits)  MIT OR Apache-2.0
@@ -44,7 +44,7 @@ crates/lexicon       record types, validator, record keys                   MIT 
 crates/markdown      LFM/1 renderer (HTML+MathML, terminal, plain text)     AGPL-3.0-or-later
 crates/core          engine: identity, sync, outbox, verification, fold     AGPL-3.0-or-later
 crates/native        native host (HTTP, SQLite, keyring, OAuth)             AGPL-3.0-or-later
-crates/cli, tui      the `lessdugin` binary                                 AGPL-3.0-or-later
+crates/cli, tui      the `pandoras-forum` binary                            AGPL-3.0-or-later
 crates/wasm          wasm bindings used by the SPA                          AGPL-3.0-or-later
 crates/indexer       optional indexer                                       AGPL-3.0-or-later
 web/, packages/      React SPA, engine worker, e2e devnet                    AGPL-3.0-or-later
@@ -57,8 +57,8 @@ Requirements: Rust (stable, with `wasm32-unknown-unknown`), Node 22 + pnpm, `was
 ```sh
 pnpm install
 cargo xtask wasm          # build the engine for the browser
-pnpm --filter @lessdugin/web dev
-cargo run -p lessdugin -- --help
+pnpm --filter @pandoras-forum/web dev
+cargo run -p pandoras-forum -- --help
 cargo xtask ci            # everything CI runs
 node packages/e2e/devnet.mjs   # local PLC + PDS with test accounts
 ```
@@ -67,5 +67,5 @@ node packages/e2e/devnet.mjs   # local PLC + PDS with test accounts
 
 Applications are licensed under the **GNU AGPL v3.0 or later** (see `LICENSE`). The lexicons,
 specification and test vectors are dedicated to the public domain under **CC0-1.0**, and the
-`lessdugin-atp` and `lessdugin-lexicon` crates are **MIT OR Apache-2.0**, so that anyone can build
+`pandoras-forum-atp` and `pandoras-forum-lexicon` crates are **MIT OR Apache-2.0**, so that anyone can build
 a compatible client. License texts are in `LICENSES/`.

@@ -4,17 +4,17 @@
 // browser stores, through the same `JsKv` adapter the engine uses (sync.md §12.4).
 //
 // The module is the test build `cargo xtask wasm --kv-test` writes to pkg/kvtest. Without it the
-// test is skipped locally and fails under CI (or with LESSDUGIN_KV_TEST=1).
+// test is skipped locally and fails under CI (or with PANDORAS_FORUM_KV_TEST=1).
 import { existsSync, readFileSync } from "node:fs";
 import { IDBFactory, IDBKeyRange } from "fake-indexeddb";
 import { describe, expect, it } from "vitest";
 import { IdbKv, type KvBackend, MemKv } from "./idb.ts";
 
 const DIR = new URL("../pkg/kvtest/", import.meta.url);
-const WASM = new URL("lessdugin_engine_bg.wasm", DIR);
-const GLUE = new URL("lessdugin_engine.js", DIR).href;
+const WASM = new URL("pandoras_forum_engine_bg.wasm", DIR);
+const GLUE = new URL("pandoras_forum_engine.js", DIR).href;
 const present = existsSync(WASM);
-const required = process.env.CI !== undefined || process.env.LESSDUGIN_KV_TEST === "1";
+const required = process.env.CI !== undefined || process.env.PANDORAS_FORUM_KV_TEST === "1";
 
 interface KvTestModule {
   initSync(input: { module: BufferSource }): unknown;

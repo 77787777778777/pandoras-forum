@@ -11,7 +11,7 @@ mod common;
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_test::wasm_bindgen_test as test;
 
-use lessdugin_lexicon::keys::{self, Derivation, KeyError, RkeyInput};
+use pandoras_forum_lexicon::keys::{self, Derivation, KeyError, RkeyInput};
 use serde_json::{Map, Value, json};
 
 fn load(name: &str) -> Value {
@@ -101,7 +101,7 @@ fn sk_vectors() {
                 match keys::preimage(s(i, "tag"), &refs) {
                     Ok(pre) => {
                         let d = keys::hash(s(i, "tag"), &refs).unwrap();
-                        assert_eq!(hex(&d), hex(&lessdugin_atp::cid::sha256(&pre)));
+                        assert_eq!(hex(&d), hex(&pandoras_forum_atp::cid::sha256(&pre)));
                         json!({"preimage": hex(&pre), "digest": hex(&d)})
                     }
                     Err(e) => err(e),
@@ -261,22 +261,22 @@ fn rkey_vectors() {
     }
     // the file exercises both prefixes and every collection whose key is derived (a forum's
     // key is its slug)
-    assert!(namespaces.contains(lessdugin_lexicon::ns::NS_FINAL));
-    assert!(namespaces.contains(lessdugin_lexicon::ns::NS_TEMP));
-    for c in lessdugin_lexicon::Collection::ALL {
-        if c != lessdugin_lexicon::Collection::Forum {
+    assert!(namespaces.contains(pandoras_forum_lexicon::ns::NS_FINAL));
+    assert!(namespaces.contains(pandoras_forum_lexicon::ns::NS_TEMP));
+    for c in pandoras_forum_lexicon::Collection::ALL {
+        if c != pandoras_forum_lexicon::Collection::Forum {
             assert!(collections.contains(c.short_name()), "{c}");
         }
     }
     assert_eq!(
-        keys::derive(lessdugin_lexicon::ns::NS, &RkeyInput::Forum),
+        keys::derive(pandoras_forum_lexicon::ns::NS, &RkeyInput::Forum),
         Err(KeyError::Undefined)
     );
 }
 
 #[test]
 fn grammar_of_every_derived_rkey() {
-    use lessdugin_lexicon::Collection;
+    use pandoras_forum_lexicon::Collection;
     // every successfully derived non-raw key matches its collection's grammar
     let doc = load("rkeys.json");
     for v in vectors(&doc) {

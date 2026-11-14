@@ -18,7 +18,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crossterm::event::KeyEvent;
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     AccessLevel, AccountView, ActionNotice, ActionTicket, AgreementValue, Capability, CommentDraft,
     CommentSort, DiscussionList, Event, ForumSummary, ForumView, HistoryView, KarmaValue,
     ModActionIntent, ModActionValue, ModLog, ModQueue, ModScope, ModsChange, NotificationList,
@@ -26,12 +26,12 @@ use lessdugin_core::dto::{
     ReactTally, Stance, SyncReport, ThreadOpts, ThreadRoot, ThreadView, Tier, Topic, UnreadCounts,
     ViewerCaps, WriteState, WriteTicket,
 };
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     Draft, ForumDraft, ForumRole, KarmaCadence, MemberView, MembershipMode, PostKind, PostSummary,
     RawView, Ref, SearchQuery, SearchResults, SequenceDraft, SequencePosition, SequenceSummary,
     SequenceView, Settings, Subscription, TagSummary, TagView, TextQuote, UserView, WikiDraft,
 };
-use lessdugin_core::engine::EngineError;
+use pandoras_forum_core::engine::EngineError;
 
 use crate::body::Body;
 use crate::command::{AccessOp, ForumChanges, RestrictDim};
@@ -646,7 +646,7 @@ pub enum Effect {
     /// the host), then its bytes for the decoder.
     FetchMedia {
         /// The image as the item's body lists it (its CID, author, declared type and size).
-        media: Box<lessdugin_core::dto::MediaView>,
+        media: Box<pandoras_forum_core::dto::MediaView>,
     },
     /// Decodes a fetched image off the UI thread: the runtime's [`crate::image::Images`].
     DecodeMedia {
@@ -1209,7 +1209,7 @@ impl ForumScreen {
     }
 
     /// The posts the current tab lists.
-    pub fn selected(&self) -> Option<&lessdugin_core::dto::PostSummary> {
+    pub fn selected(&self) -> Option<&pandoras_forum_core::dto::PostSummary> {
         let i = self.cursor().cursor;
         match self.tab {
             ForumTab::Posts => self.data.as_ref()?.list.items.get(i),
@@ -1297,7 +1297,7 @@ impl ThreadScreen {
     }
 
     /// The root post's uri and its forum, when the post is available.
-    pub fn post(&self) -> Option<&lessdugin_core::dto::PostView> {
+    pub fn post(&self) -> Option<&pandoras_forum_core::dto::PostView> {
         match &self.data.as_ref()?.view.post {
             ThreadRoot::Post(p) => Some(p),
             ThreadRoot::Missing { .. } => None,
@@ -1962,7 +1962,7 @@ pub struct State {
     pub sync: BTreeMap<String, SyncStatus>,
     /// Outbox writes not finished yet, by id.
     pub writes: BTreeMap<String, WriteState>,
-    /// Outbox writes that failed (sent again only by `lessdugin outbox retry`), by id.
+    /// Outbox writes that failed (sent again only by `pandoras-forum outbox retry`), by id.
     pub failed: BTreeSet<String>,
     /// The writes queued from this TUI.
     own: BTreeMap<String, OwnWrite>,
@@ -1997,7 +1997,7 @@ pub fn status_text(s: &Status) -> TermText {
 /// `wiki_edit`'s refusal of an edit made against a head that is no longer the page's
 /// (`conflict`, `detail.kind = "wikiHeadMoved"`, decision O-2).
 fn wiki_head_moved(e: &EngineError) -> bool {
-    e.code == lessdugin_core::engine::ErrorCode::Conflict
+    e.code == pandoras_forum_core::engine::ErrorCode::Conflict
         && e.detail
             .as_ref()
             .and_then(|d| d.get("kind"))
@@ -2494,7 +2494,7 @@ impl State {
             );
             return;
         }
-        let media: Vec<lessdugin_core::dto::MediaView> = t
+        let media: Vec<pandoras_forum_core::dto::MediaView> = t
             .data
             .as_ref()
             .map(|d| item_media(d, &uri, false))
@@ -2518,7 +2518,7 @@ impl State {
     /// is marked so, never fetched); returns how many were asked for.
     fn request_media(
         &mut self,
-        media: Vec<lessdugin_core::dto::MediaView>,
+        media: Vec<pandoras_forum_core::dto::MediaView>,
         fx: &mut Vec<Effect>,
     ) -> u32 {
         let (w, h) = (self.width, self.content_height());
@@ -2558,12 +2558,12 @@ impl State {
         let Some(d) = &t.data else {
             return;
         };
-        let wanted: Vec<lessdugin_core::dto::MediaView> = thread::item_uris(d)
+        let wanted: Vec<pandoras_forum_core::dto::MediaView> = thread::item_uris(d)
             .iter()
             .flat_map(|uri| item_media(d, uri, true))
             .filter(|m| {
                 m.autoload
-                    && m.size_bytes <= lessdugin_core::media::policy::AUTOLOAD_MAX_BYTES
+                    && m.size_bytes <= pandoras_forum_core::media::policy::AUTOLOAD_MAX_BYTES
                     && !t.media.contains_key(&m.cid)
             })
             .collect();
@@ -3365,7 +3365,7 @@ impl State {
         if self.account.is_none() {
             self.say(
                 Tone::Error,
-                lit("Log in to write: run `lessdugin login`, then start the TUI again."),
+                lit("Log in to write: run `pandoras-forum login`, then start the TUI again."),
             );
             return false;
         }
@@ -3585,7 +3585,7 @@ impl State {
                 let mut draft = (**draft).clone();
                 // the text replaces the loaded page's markdown; its media stay
                 let media = draft.body.take().map(|b| b.media).unwrap_or_default();
-                draft.body = Some(lessdugin_core::dto::BodyDraft {
+                draft.body = Some(pandoras_forum_core::dto::BodyDraft {
                     markdown: text.clone(),
                     media,
                 });
@@ -3617,7 +3617,7 @@ impl State {
                     Tone::Error,
                     tt(&format!(
                         "Your {noun} could not be sent. Press {again} to edit the text and send \
-                         it again, or run `lessdugin outbox retry {}`.",
+                         it again, or run `pandoras-forum outbox retry {}`.",
                         t.id
                     )),
                 );
@@ -4015,7 +4015,7 @@ impl State {
 
     /// A key while the react palette is open.
     fn react_key(&mut self, cmd: Cmd, fx: &mut Vec<Effect>) {
-        let palette = lessdugin_core::model::palette::default_1();
+        let palette = pandoras_forum_core::model::palette::default_1();
         let n = palette.len();
         match cmd {
             Cmd::Down => self.react_move(1, n),
@@ -4064,7 +4064,7 @@ impl State {
     /// The palette rows that fit on the screen.
     fn react_rows(&self) -> usize {
         let h = usize::from(self.height.saturating_sub(4));
-        let n = lessdugin_core::model::palette::default_1().len();
+        let n = pandoras_forum_core::model::palette::default_1().len();
         h.min(n)
     }
 
@@ -4074,7 +4074,7 @@ impl State {
         let Some(o) = self.react.clone() else {
             return;
         };
-        let palette = lessdugin_core::model::palette::default_1();
+        let palette = pandoras_forum_core::model::palette::default_1();
         let Some(info) = palette.get(o.cursor) else {
             return;
         };
@@ -4696,7 +4696,7 @@ impl State {
         if self.account.is_none() {
             self.say(
                 Tone::Info,
-                lit("Notifications need an account: run `lessdugin login`."),
+                lit("Notifications need an account: run `pandoras-forum login`."),
             );
             return;
         }
@@ -6166,7 +6166,7 @@ impl State {
                             Tone::Error,
                             tt(&format!(
                                 "Could not send your {noun}: {}. Press {again} to edit the text \
-                                 and send it again, or run `lessdugin outbox retry {id}`.",
+                                 and send it again, or run `pandoras-forum outbox retry {id}`.",
                                 error.message
                             )),
                         );
@@ -6182,10 +6182,10 @@ impl State {
                 }
             },
             Event::Auth { state, .. } => {
-                if matches!(state, lessdugin_core::dto::AuthState::Expired) {
+                if matches!(state, pandoras_forum_core::dto::AuthState::Expired) {
                     self.say(
                         Tone::Error,
-                        lit("Your session expired: run `lessdugin login` to keep writing."),
+                        lit("Your session expired: run `pandoras-forum login` to keep writing."),
                     );
                 }
             }
@@ -6202,8 +6202,8 @@ fn item_media(
     d: &ThreadData,
     uri: &str,
     visible_only: bool,
-) -> Vec<lessdugin_core::dto::MediaView> {
-    use lessdugin_core::dto::ItemState;
+) -> Vec<pandoras_forum_core::dto::MediaView> {
+    use pandoras_forum_core::dto::ItemState;
     let shown = |st: &ItemState| match st {
         ItemState::Visible => true,
         ItemState::Collapsed { .. } => !visible_only,
@@ -6255,7 +6255,7 @@ fn backlink_lines(posts: &[PostSummary]) -> Vec<TermText> {
 }
 
 /// Appends a rendered cached body's plain text. `TermText` sanitises remote control characters.
-fn rendered_lines(out: &mut Vec<TermText>, body: &lessdugin_core::dto::RenderedBody) {
+fn rendered_lines(out: &mut Vec<TermText>, body: &pandoras_forum_core::dto::RenderedBody) {
     if body.text.trim().is_empty() {
         return;
     }
@@ -6295,10 +6295,10 @@ fn search_lines(results: &SearchResults) -> (Vec<TermText>, Vec<PanelItem>) {
     for (i, hit) in results.hits.iter().enumerate() {
         let line = lines.len();
         let (kind, title, uri) = match &hit.item {
-            lessdugin_core::dto::SearchItem::Post(post) => {
+            pandoras_forum_core::dto::SearchItem::Post(post) => {
                 ("post", post_title(post), post.uri.as_str())
             }
-            lessdugin_core::dto::SearchItem::Comment(comment) => (
+            pandoras_forum_core::dto::SearchItem::Comment(comment) => (
                 "comment",
                 cat([lit("comment by "), actor(&comment.author)]),
                 comment.uri.as_str(),
@@ -6726,7 +6726,7 @@ mod tests {
         assert_eq!(st.prefill(&compose), "my reply");
         let msg = st.status.as_ref().unwrap().text.to_plain_string();
         assert!(
-            msg.contains("`lessdugin outbox retry did:plc:x/42`"),
+            msg.contains("`pandoras-forum outbox retry did:plc:x/42`"),
             "{msg}"
         );
         assert!(msg.contains("Press c"), "{msg}");
@@ -6894,7 +6894,7 @@ mod tests {
             did: "did:plc:me".into(),
             handle: None,
             pds: "https://pds.example".into(),
-            auth_kind: lessdugin_core::dto::AuthKind::AppPassword,
+            auth_kind: pandoras_forum_core::dto::AuthKind::AppPassword,
             active: true,
         }
     }

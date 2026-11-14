@@ -2,7 +2,7 @@
 // @vitest-environment jsdom
 // DOMPurify needs a spec-compliant HTML parser (namespaces, raw-text elements): jsdom, not
 // happy-dom, whose parser loses elements and MathML namespaces.
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { describe, expect, it } from "vitest";
 import { attributeAllowed, linkShapeValid, sanitizeLfm, sanitizerMismatch } from "./sanitize.ts";
 
@@ -29,7 +29,7 @@ describe("LFM sanitiser (DOMPurify with exactly the lfm-1.md §8.2 allowlist)", 
         '<h2 id="md-h-intro" dir="auto">Intro</h2>\n',
         '<p dir="auto">A <strong>b</strong> <em>c</em> <del>d</del> <code>e</code><sup id="md-fnref-1-1"><a data-anchor="md-fn-1">1</a></sup></p>\n',
         '<p dir="auto"><a href="https://example.com/x" rel="nofollow ugc noopener noreferrer">x<span class="link-host">example.com</span></a> ',
-        '<a href="#/at/did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.post/k" data-at-uri="at://did:plc:abcdefghijklmnopqrstuvwx/online.7778777.lessdugin.temp.post/k" class="at-link">r</a> ',
+        '<a href="#/at/did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.post/k" data-at-uri="at://did:plc:abcdefghijklmnopqrstuvwx/forum.pandoras.temp.post/k" class="at-link">r</a> ',
         '<a href="#/u/did:plc:abcdefghijklmnopqrstuvwx" data-did="did:plc:abcdefghijklmnopqrstuvwx" class="mention">@did:plc:abcdefgh…</a></p>\n',
         '<div class="alert-note">\n<p dir="auto">n</p>\n</div>\n',
         '<details class="spoiler">\n<summary dir="auto">Spoiler</summary>\n<p dir="auto">s</p>\n</details>\n',
@@ -140,7 +140,7 @@ describe("LFM sanitiser (DOMPurify with exactly the lfm-1.md §8.2 allowlist)", 
   // Whole-element shapes (lfm-1.md §8.1): attributes that each pass their own grammar can still
   // combine into something the renderer never emits.
   const DID = "did:plc:abcdefghijklmnopqrstuvwx";
-  const URI = `at://${DID}/online.7778777.lessdugin.temp.post/3kabc`;
+  const URI = `at://${DID}/forum.pandoras.temp.post/3kabc`;
   it.each([
     [
       "external href on a mention",
@@ -154,7 +154,7 @@ describe("LFM sanitiser (DOMPurify with exactly the lfm-1.md §8.2 allowlist)", 
     ],
     [
       "record href that disagrees with data-at-uri",
-      `<a href="#/at/${DID}/online.7778777.lessdugin.temp.post/other" data-at-uri="${URI}" class="at-link">r</a>`,
+      `<a href="#/at/${DID}/forum.pandoras.temp.post/other" data-at-uri="${URI}" class="at-link">r</a>`,
       `<a>r</a>`,
     ],
     [
@@ -196,12 +196,12 @@ describe("LFM sanitiser (DOMPurify with exactly the lfm-1.md §8.2 allowlist)", 
     ],
     [
       "data-at-uri with an invalid rkey",
-      `<a href="#/at/${DID}/online.7778777.lessdugin.temp.post/.." data-at-uri="at://${DID}/online.7778777.lessdugin.temp.post/.." class="at-link">r</a>`,
+      `<a href="#/at/${DID}/forum.pandoras.temp.post/.." data-at-uri="at://${DID}/forum.pandoras.temp.post/.." class="at-link">r</a>`,
       `<a>r</a>`,
     ],
     [
       "data-at-uri with an uppercase did:web",
-      `<a href="#/at/did:web:Evil.example/online.7778777.lessdugin.temp.post/k" data-at-uri="at://did:web:Evil.example/online.7778777.lessdugin.temp.post/k" class="at-link">r</a>`,
+      `<a href="#/at/did:web:Evil.example/forum.pandoras.temp.post/k" data-at-uri="at://did:web:Evil.example/forum.pandoras.temp.post/k" class="at-link">r</a>`,
       `<a>r</a>`,
     ],
   ])("rejects the element shape: %s", (_name, dirty, expected) => {

@@ -2,10 +2,10 @@
 source: crates/tui/tests/resize.rs
 expression: t.render()
 ---
- lessdugin › Welcome @carol.example.com
+ Pandora's Forum › … @carol.example.com
  Meta · synced
 
-  lessdugin tui
+  pandoras-forum tui
 
   1 comment
 

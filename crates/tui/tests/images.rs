@@ -12,8 +12,8 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use common::{block_on, scenario};
-use lessdugin_tui::image::{Images, MediaBytes, Placeholder, decode, limits};
-use lessdugin_tui::thread::MediaState;
+use pandoras_forum_tui::image::{Images, MediaBytes, Placeholder, decode, limits};
+use pandoras_forum_tui::thread::MediaState;
 
 /// A PNG whose IHDR declares `w` x `h` and whose body is a single IDAT chunk. The pixels are not
 /// valid zlib, which is the point: the caps must bite before any decoder reads them.
@@ -265,7 +265,7 @@ fn the_oldest_image_is_dropped_past_the_cap() {
 /// off-thread and draws it.
 #[test]
 fn i_loads_the_selected_items_image() {
-    use lessdugin_core::dto::{MediaInput, PostDraft};
+    use pandoras_forum_core::dto::{MediaInput, PostDraft};
     let s = scenario();
     let (bob, carol) = (&s.w.bob, &s.w.carol);
     let prepared = block_on(bob.engine.prepare_media(
@@ -286,19 +286,19 @@ fn i_loads_the_selected_items_image() {
     let post = bob.done(&t);
     carol.sync(&s.forum);
 
-    let mut t = block_on(lessdugin_tui::Headless::new(
+    let mut t = block_on(pandoras_forum_tui::Headless::new(
         carol.engine.clone(),
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 80,
             height: 40,
             images: true,
-            ..lessdugin_tui::HeadlessOpts::default()
+            ..pandoras_forum_tui::HeadlessOpts::default()
         },
     ))
     .unwrap();
     block_on(t.start(None));
     block_on(t.open_thread(&post));
-    let media = |t: &lessdugin_tui::Headless<lessdugin_testkit::MemHost>| {
+    let media = |t: &pandoras_forum_tui::Headless<pandoras_forum_testkit::MemHost>| {
         t.state.top_thread().unwrap().media.get(&cid).cloned()
     };
     // not loaded by itself: it says where it would load from
@@ -336,11 +336,11 @@ fn i_loads_the_selected_items_image() {
 /// expanded, nor a larger one.
 #[test]
 fn the_autoload_verdict_loads_only_visible_small_images() {
-    use lessdugin_core::dto::{
+    use pandoras_forum_core::dto::{
         CollapseReason, ItemState, MediaInput, PostDraft, ThreadOpts, ThreadRoot,
     };
-    use lessdugin_tui::app::ThreadData;
-    use lessdugin_tui::{Action, Effect};
+    use pandoras_forum_tui::app::ThreadData;
+    use pandoras_forum_tui::{Action, Effect};
     let s = scenario();
     let (bob, carol) = (&s.w.bob, &s.w.carol);
     let prepared = block_on(bob.engine.prepare_media(
@@ -364,9 +364,9 @@ fn the_autoload_verdict_loads_only_visible_small_images() {
     block_on(t.open_thread(&post));
     let screen = t.state.top().unwrap().id;
     let view = block_on(carol.engine.get_thread(&post, &ThreadOpts::default())).unwrap();
-    let loaded = |view: &lessdugin_core::dto::ThreadView| Action::ThreadLoaded {
+    let loaded = |view: &pandoras_forum_core::dto::ThreadView| Action::ThreadLoaded {
         screen,
-        origin: lessdugin_tui::app::Origin::Live,
+        origin: pandoras_forum_tui::app::Origin::Live,
         result: Ok(Box::new(ThreadData {
             view: view.clone(),
             bodies: Default::default(),
@@ -379,7 +379,7 @@ fn the_autoload_verdict_loads_only_visible_small_images() {
     };
     // the engine's verdict today: click to load
     assert_eq!(fetches(&t.state.update(loaded(&view))), 0);
-    let with = |f: &dyn Fn(&mut lessdugin_core::dto::PostView)| {
+    let with = |f: &dyn Fn(&mut pandoras_forum_core::dto::PostView)| {
         let mut v = view.clone();
         let ThreadRoot::Post(p) = &mut v.post else {
             panic!("no post")
@@ -412,12 +412,12 @@ fn the_autoload_verdict_loads_only_visible_small_images() {
 /// them; then `i` loads.
 #[test]
 fn i_on_a_folded_comment_loads_nothing_until_it_is_expanded() {
-    use lessdugin_core::dto::{
+    use pandoras_forum_core::dto::{
         CollapseReason, ItemState, MediaInput, PostDraft, ThreadOpts, ThreadRoot,
     };
-    use lessdugin_tui::app::ThreadData;
-    use lessdugin_tui::keys::parse_key;
-    use lessdugin_tui::{Action, Effect};
+    use pandoras_forum_tui::app::ThreadData;
+    use pandoras_forum_tui::keys::parse_key;
+    use pandoras_forum_tui::{Action, Effect};
     let s = scenario();
     let (bob, carol) = (&s.w.bob, &s.w.carol);
     // an image of bob's, on his PDS (a post uploads it)
@@ -471,7 +471,7 @@ fn i_on_a_folded_comment_loads_nothing_until_it_is_expanded() {
         .clone();
     let _ = t.state.update(Action::ThreadLoaded {
         screen,
-        origin: lessdugin_tui::app::Origin::Live,
+        origin: pandoras_forum_tui::app::Origin::Live,
         result: Ok(Box::new(ThreadData { view, bodies })),
     });
     let fetches = |fx: &[Effect]| {
@@ -479,7 +479,7 @@ fn i_on_a_folded_comment_loads_nothing_until_it_is_expanded() {
             .filter(|e| matches!(e, Effect::FetchMedia { .. }))
             .count()
     };
-    let key = |t: &mut lessdugin_tui::Headless<lessdugin_testkit::MemHost>, k: &str| {
+    let key = |t: &mut pandoras_forum_tui::Headless<pandoras_forum_testkit::MemHost>, k: &str| {
         t.state.update(Action::Key(parse_key(k).unwrap()))
     };
     // select bob's comment
@@ -503,7 +503,7 @@ fn i_on_a_folded_comment_loads_nothing_until_it_is_expanded() {
 
 /// bob's post with one small PNG, as carol has synced it: `(post uri, image cid)`.
 fn bobs_picture(s: &common::Scenario) -> (String, String) {
-    use lessdugin_core::dto::{MediaInput, PostDraft};
+    use pandoras_forum_core::dto::{MediaInput, PostDraft};
     let (bob, carol) = (&s.w.bob, &s.w.carol);
     let prepared = block_on(bob.engine.prepare_media(
         png(8, 8),
@@ -534,13 +534,13 @@ fn the_engines_autoload_verdict_loads_an_image_by_itself() {
     let (post, cid) = bobs_picture(&s);
     let carol = &s.w.carol;
     let open = || {
-        let mut t = block_on(lessdugin_tui::Headless::new(
+        let mut t = block_on(pandoras_forum_tui::Headless::new(
             carol.engine.clone(),
-            lessdugin_tui::HeadlessOpts {
+            pandoras_forum_tui::HeadlessOpts {
                 width: 80,
                 height: 40,
                 images: true,
-                ..lessdugin_tui::HeadlessOpts::default()
+                ..pandoras_forum_tui::HeadlessOpts::default()
             },
         ))
         .unwrap();
@@ -552,7 +552,7 @@ fn the_engines_autoload_verdict_loads_an_image_by_itself() {
     assert_eq!(t.state.top_thread().unwrap().media.get(&cid), None);
     assert!(t.render().contains("i loads it from"), "{}", t.render());
 
-    let host = lessdugin_core::media::host_of(&s.w.bob.acct.pds_base());
+    let host = pandoras_forum_core::media::host_of(&s.w.bob.acct.pds_base());
     block_on(
         carol
             .engine
@@ -560,7 +560,7 @@ fn the_engines_autoload_verdict_loads_an_image_by_itself() {
     )
     .unwrap();
     let pv = block_on(carol.engine.get_thread(&post, &Default::default())).unwrap();
-    let lessdugin_core::dto::ThreadRoot::Post(p) = pv.post else {
+    let pandoras_forum_core::dto::ThreadRoot::Post(p) = pv.post else {
         panic!("no post")
     };
     assert!(p.body.media[0].autoload, "{:?}", p.body.media[0]);
@@ -578,18 +578,18 @@ fn the_engines_autoload_verdict_loads_an_image_by_itself() {
 /// `sync.md` §11.1), not from wherever a view says.
 #[test]
 fn i_loads_from_the_authors_pds_whatever_the_view_says() {
-    use lessdugin_core::dto::{ThreadOpts, ThreadRoot};
-    use lessdugin_tui::Action;
-    use lessdugin_tui::app::{Origin, ThreadData};
+    use pandoras_forum_core::dto::{ThreadOpts, ThreadRoot};
+    use pandoras_forum_tui::Action;
+    use pandoras_forum_tui::app::{Origin, ThreadData};
     let s = scenario();
     let (post, cid) = bobs_picture(&s);
-    let mut t = block_on(lessdugin_tui::Headless::new(
+    let mut t = block_on(pandoras_forum_tui::Headless::new(
         s.w.carol.engine.clone(),
-        lessdugin_tui::HeadlessOpts {
+        pandoras_forum_tui::HeadlessOpts {
             width: 80,
             height: 40,
             images: true,
-            ..lessdugin_tui::HeadlessOpts::default()
+            ..pandoras_forum_tui::HeadlessOpts::default()
         },
     ))
     .unwrap();
@@ -640,7 +640,7 @@ fn env(vars: &[(&str, &str)]) -> impl Fn(&str) -> Option<String> {
 /// terminal that never answers would swallow the next keystroke. The setting forces either way.
 #[test]
 fn only_a_terminal_the_environment_names_is_asked() {
-    use lessdugin_tui::image::{Detection, Setting, detection};
+    use pandoras_forum_tui::image::{Detection, Setting, detection};
     let xterm = ("TERM", "xterm-256color");
     // a bare pty (`script`, a CI shell): the TERM of every emulator, nothing else
     assert_eq!(
@@ -734,7 +734,7 @@ fn only_a_terminal_the_environment_names_is_asked() {
 #[test]
 fn the_terminals_answer_is_parsed_and_the_keys_around_it_kept() {
     use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
-    use lessdugin_tui::image::{QueryAnswer, keys_of, query_string};
+    use pandoras_forum_tui::image::{QueryAnswer, keys_of, query_string};
     use ratatui_image::picker::ProtocolType;
     let none = env(&[]);
     // a key before the answer; Kitty, DA1 with Sixel, the cell size, the DSR; keys after it
@@ -801,7 +801,7 @@ fn the_terminals_answer_is_parsed_and_the_keys_around_it_kept() {
     assert!(keys_of(b"").is_empty());
 }
 
-/// `LESSDUGIN_TUI_IMAGES=off`: nothing is decoded, and the cell says why.
+/// `PANDORAS_FORUM_TUI_IMAGES=off`: nothing is decoded, and the cell says why.
 #[test]
 fn images_off_decode_nothing_and_say_so() {
     let mut img = Images::off();

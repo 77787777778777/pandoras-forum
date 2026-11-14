@@ -22,14 +22,14 @@ vector's input with the model and compares each listed `expected` field with the
 projection. A disagreement fails the run; a field or input the model does not model is reported
 and skipped. The model's own cases for those directories are built (and self-checked) on every
 run but written only with --emit-shared DIR. Python 3 standard library only; the model lives in
-lessdugin_ref/ (see NOTES.md).
+pandoras_forum_ref/ (see NOTES.md).
 """
 
 from __future__ import annotations
 
 import sys
 
-sys.dont_write_bytecode = True           # before any local import (lessdugin_ref/__init__.py)
+sys.dont_write_bytecode = True           # before any local import (pandoras_forum_ref/__init__.py)
 
 import importlib  # noqa: E402
 import json  # noqa: E402
@@ -78,7 +78,7 @@ def case_modules() -> list:
 
 
 def selftest() -> None:
-    from lessdugin_ref import cids, dagcbor
+    from pandoras_forum_ref import cids, dagcbor
     dagcbor.selftest(VECTORS.parent / "interop" / "data-model" / "data-model-fixtures.json")
     cids.selftest()
 
@@ -89,9 +89,9 @@ def cross_check(path: Path) -> tuple:
     Returns (disagreements, skipped, checked): lists of messages, and the number of fields
     compared. Only kinds the model projects are evaluated.
     """
-    from lessdugin_ref.common import NS, InputError, NotModelled
-    from lessdugin_ref.fold import fold_vector_input
-    from lessdugin_ref.projections import DEFAULT_FIELDS, FIELD_KINDS, project
+    from pandoras_forum_ref.common import NS, InputError, NotModelled
+    from pandoras_forum_ref.fold import fold_vector_input
+    from pandoras_forum_ref.projections import DEFAULT_FIELDS, FIELD_KINDS, project
 
     rel = path.relative_to(VECTORS).as_posix() if path.is_relative_to(VECTORS) else str(path)
     bad, skipped, checked = [], [], 0

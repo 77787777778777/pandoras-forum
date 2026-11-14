@@ -365,8 +365,8 @@ impl<H: Host> Engine<H> {
     pub async fn mark_read(&self, uri: &str) -> Result<(), EngineError> {
         let u = records::at_uri(uri)?;
         let coll = u.collection().as_str();
-        let forum_coll = lessdugin_lexicon::collection::nsid::FORUM;
-        let post_coll = lessdugin_lexicon::collection::nsid::POST;
+        let forum_coll = pandoras_forum_lexicon::collection::nsid::FORUM;
+        let post_coll = pandoras_forum_lexicon::collection::nsid::POST;
         if coll == forum_coll {
             let key = self.forum_key(uri).await?;
             let l = self.loaded(&key).await?;

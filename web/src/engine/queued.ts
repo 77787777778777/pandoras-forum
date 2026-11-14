@@ -4,7 +4,7 @@
 // `QUEUED_AFTER_MS`, clear their text (it is safe in the outbox) and say so, with a way to the
 // outbox page, which shows every unfinished write with retry and undo.
 
-import type { WriteState, WriteTicket } from "@lessdugin/engine/types";
+import type { WriteState, WriteTicket } from "@pandoras-forum/engine/types";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback } from "react";
 import { toasts } from "../components/Toast.tsx";

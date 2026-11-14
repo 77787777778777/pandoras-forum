@@ -4,35 +4,35 @@
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use lessdugin_native::config::{Config, Paths};
+//! use pandoras_forum_native::config::{Config, Paths};
 //! let paths = Paths::resolve(None)?;
 //! let config = Config::load(&paths.config_file)?;
 //! // a devnet profile keeps its data in its own directories (`Paths::for_devnet`)
-//! let engine = lessdugin_native::engine::open_engine(&paths, &config)?;
+//! let engine = pandoras_forum_native::engine::open_engine(&paths, &config)?;
 //! # let _ = engine;
 //! # Ok(())
 //! # }
 //! ```
 
-use lessdugin_core::engine::{
+use pandoras_forum_core::engine::{
     Engine, EngineConfig, EngineError, IndexerMode as EngineIndexerMode, Sources as EngineSources,
     VerifyMode as EngineVerifyMode,
 };
-use lessdugin_core::identity::DnsMode as EngineDns;
+use pandoras_forum_core::identity::DnsMode as EngineDns;
 
 use crate::config::{
     Config, IndexerSetting, NetworkProfile, Paths, Sources, VerifyMode, parity_now_ms,
 };
 use crate::host::NativeHost;
 
-fn indexers(cfg: &Config) -> Vec<lessdugin_core::engine::IndexerConsent> {
+fn indexers(cfg: &Config) -> Vec<pandoras_forum_core::engine::IndexerConsent> {
     match &cfg.indexer {
         // Explicit URLs in the local configuration are the user's consent. Forum discovery and
         // "none" add no implicit consent; forum-scoped consent comes from the state store.
         IndexerSetting::Urls(urls) => urls
             .iter()
             .cloned()
-            .map(|url| lessdugin_core::engine::IndexerConsent { url })
+            .map(|url| pandoras_forum_core::engine::IndexerConsent { url })
             .collect(),
         IndexerSetting::Mode(_) => Vec::new(),
     }
@@ -82,7 +82,7 @@ pub fn engine_config(cfg: &Config) -> EngineConfig {
     };
     match &cfg.network {
         NetworkProfile::Devnet(d) => EngineConfig {
-            network: lessdugin_core::engine::Network::Devnet {
+            network: pandoras_forum_core::engine::Network::Devnet {
                 plc: d.plc.clone(),
                 pds: d.pds.clone(),
             },
@@ -97,7 +97,7 @@ pub fn engine_config(cfg: &Config) -> EngineConfig {
 
 /// Opens the stores under `paths` (which must already be the devnet's own paths in devnet
 /// mode, [`Paths::for_devnet`]) and returns the engine for `config`, with the test-only parity
-/// time of `LESSDUGIN_PARITY_NOW_MS` (`engine-api.md` §2.1; refused outside devnet mode).
+/// time of `PANDORAS_FORUM_PARITY_NOW_MS` (`engine-api.md` §2.1; refused outside devnet mode).
 pub fn open_engine(paths: &Paths, config: &Config) -> Result<Engine<NativeHost>, EngineError> {
     let parity = parity_now_ms(config).map_err(|e| EngineError::invalid_input(e.to_string()))?;
     let host = NativeHost::open(paths, config).map_err(EngineError::from)?;
@@ -153,7 +153,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             engine.settings().await.unwrap().sources,
-            lessdugin_core::dto::Sources::Direct
+            pandoras_forum_core::dto::Sources::Direct
         );
         let mut stated = cfg.clone();
         stated.sources = Some(Sources::Assisted);
@@ -229,7 +229,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             engine.settings().await.unwrap().sources,
-            lessdugin_core::dto::Sources::Direct
+            pandoras_forum_core::dto::Sources::Direct
         );
         drop(engine);
         // the same stored setting, with a file that does not state `sources`
@@ -238,13 +238,13 @@ mod tests {
         let engine = open_engine(&paths, &free).unwrap();
         assert_eq!(
             engine.settings().await.unwrap().sources,
-            lessdugin_core::dto::Sources::Assisted
+            pandoras_forum_core::dto::Sources::Assisted
         );
         let direct = serde_json::json!("direct");
         engine.set_setting("sources", Some(&direct)).await.unwrap();
         assert_eq!(
             engine.settings().await.unwrap().sources,
-            lessdugin_core::dto::Sources::Direct
+            pandoras_forum_core::dto::Sources::Direct
         );
     }
 }

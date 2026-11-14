@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The outbox page lists the writes queued before the page loaded (from `writes()`), says why
 // each one waits, and retries a failed one (robustness review H3).
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../test/render.tsx";

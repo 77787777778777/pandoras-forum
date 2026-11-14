@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Notifications (social.md §16), computed locally by the engine.
 
-import type { NotificationReason } from "@lessdugin/engine/types";
+import type { NotificationReason } from "@pandoras-forum/engine/types";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ActorName } from "../components/ActorName.tsx";

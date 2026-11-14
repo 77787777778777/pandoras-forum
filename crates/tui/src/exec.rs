@@ -9,21 +9,21 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_atp::syntax::AtUri;
-use lessdugin_core::dto::{
+use pandoras_forum_atp::syntax::AtUri;
+use pandoras_forum_core::dto::{
     ActorView, AspectRatio, BodyDraft, Capability, CommentDraft, DefaultTier, Draft, EditOpts,
     ExternalLinkDraft, ForumDraft, KarmaCadence, ListPostsQuery, MediaRef, MembersQuery,
     MembershipMode, ModActionIntent, ModActionValue, ModScope, NotificationsQuery, PostDraft,
     PostFilter, PostKind, PostSort, Ref, RefContext, SyncOpts, TextQuote, ThreadOpts, ThreadRoot,
     WikiDraft,
 };
-use lessdugin_core::engine::{Engine, EngineError, ErrorCode};
-use lessdugin_core::host::Host;
-use lessdugin_core::outbox::model::OpAction;
-use lessdugin_core::store::records::RecordStore;
+use pandoras_forum_core::engine::{Engine, EngineError, ErrorCode};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::outbox::model::OpAction;
+use pandoras_forum_core::store::records::RecordStore;
 
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::ns::NS;
 
 use crate::app::{
     Action, ActivityData, Compose, EditStart, EditorRequest, Effect, ForumData, HomeData, ItemOp,
@@ -560,9 +560,9 @@ pub async fn run<H: Host>(engine: &Engine<H>, effect: Effect, opts: ExecOpts) ->
 /// display allowlist, §11.2).
 pub async fn fetch_media<H: Host>(
     engine: &Engine<H>,
-    media: &lessdugin_core::dto::MediaView,
+    media: &pandoras_forum_core::dto::MediaView,
 ) -> Result<crate::image::MediaBytes, EngineError> {
-    use lessdugin_core::engine::ErrorCode;
+    use pandoras_forum_core::engine::ErrorCode;
     let max = crate::image::limits::MAX_INPUT_BYTES as u64;
     if media.size_bytes == 0 || media.size_bytes > max {
         return Err(EngineError::new(
@@ -573,7 +573,7 @@ pub async fn fetch_media<H: Host>(
     let loaded = engine
         .load_media(
             &media.cid,
-            Some(lessdugin_core::media::MediaOwner::of_view(media)),
+            Some(pandoras_forum_core::media::MediaOwner::of_view(media)),
         )
         .await?;
     if !loaded
@@ -599,7 +599,7 @@ pub async fn fetch_media<H: Host>(
             .blob_read(
                 &loaded.cid,
                 bytes.len() as u64,
-                lessdugin_core::host::BLOB_READ_MAX_BYTES,
+                pandoras_forum_core::host::BLOB_READ_MAX_BYTES,
             )
             .await
             .map_err(|e| EngineError::internal(format!("reading the image: {e}")))?;
@@ -662,7 +662,7 @@ async fn body_markdown<H: Host>(
         None => {}
     }
     let blob = body
-        .and_then(lessdugin_core::model::render::text_blob_cid)
+        .and_then(pandoras_forum_core::model::render::text_blob_cid)
         .ok_or_else(|| EngineError::invalid_input("this body is not one the TUI can edit"))?;
     if let Some(src) = stored_text_blob(engine, blob).await {
         return Ok(src);
@@ -687,14 +687,13 @@ fn media_of(uri: &str, body: Option<&serde_json::Value>) -> Result<Vec<MediaRef>
     })?;
     let mut out = Vec::with_capacity(items.len());
     for (i, item) in items.iter().enumerate() {
-        let m = serde_json::from_value::<lessdugin_lexicon::records::Media>(item.clone()).map_err(
-            |e| {
+        let m = serde_json::from_value::<pandoras_forum_lexicon::records::Media>(item.clone())
+            .map_err(|e| {
                 EngineError::invalid_input(format!(
                     "{uri}: media item {} cannot be read ({e}); an edit would drop it",
                     i + 1
                 ))
-            },
-        )?;
+            })?;
         let cid = m.blob.r#ref.link.clone();
         out.push(MediaRef {
             id: cid.clone(),
@@ -891,7 +890,7 @@ async fn start_wiki<H: Host>(
                 .and_then(serde_json::Value::as_str)
             {
                 Some(t) => t.to_owned(),
-                None => match body.and_then(lessdugin_core::model::render::text_blob_cid) {
+                None => match body.and_then(pandoras_forum_core::model::render::text_blob_cid) {
                     Some(blob) => stored_text_blob(engine, blob).await.ok_or_else(|| {
                         EngineError::invalid_input(
                             "the page's text is stored as a blob that could not be loaded yet; \
@@ -919,7 +918,7 @@ async fn spilled_about<H: Host>(
     forum: &str,
     md: &serde_json::Value,
 ) -> Result<String, EngineError> {
-    let blob = lessdugin_core::model::render::text_blob_cid(md).ok_or_else(|| {
+    let blob = pandoras_forum_core::model::render::text_blob_cid(md).ok_or_else(|| {
         EngineError::invalid_input("the forum's about text is not one the TUI can edit")
     })?;
     if let Some(src) = stored_text_blob(engine, blob).await {
@@ -1097,7 +1096,7 @@ struct Held {
 /// which a merge keeps (`social.md` §4.2: the one record's expiry belongs to everything it
 /// states); nothing when it has no record, or its `until` has passed. A write of that record
 /// still in the outbox is newer than the cache, which holds confirmed writes only
-/// (`lessdugin_core::outbox::apply`): the latest such write is the state, so two restrictions
+/// (`pandoras_forum_core::outbox::apply`): the latest such write is the state, so two restrictions
 /// in quick succession, or made offline, keep each other.
 async fn held_restriction<H: Host>(
     engine: &Engine<H>,
@@ -1126,7 +1125,7 @@ async fn held_restriction<H: Host>(
         ModScope::Forum => None,
         ModScope::Author => Some("author"),
     };
-    let rkey = lessdugin_lexicon::keys::mod_action_rkey(NS, &forum, scope, &did, &action)
+    let rkey = pandoras_forum_lexicon::keys::mod_action_rkey(NS, &forum, scope, &did, &action)
         .map_err(|e| EngineError::invalid_input(e.to_string()))?;
     let Ok(uri) = AtUri::parse(&format!("at://{me}/{}/{rkey}", nsid::MOD_ACTION)) else {
         return Ok(Held::default());
@@ -1157,7 +1156,7 @@ async fn held_restriction<H: Host>(
         .as_ref()
         .and_then(|v| v.get("until"))
         .and_then(serde_json::Value::as_str)
-        .and_then(|u| lessdugin_atp::syntax::Datetime::parse(u).ok());
+        .and_then(|u| pandoras_forum_atp::syntax::Datetime::parse(u).ok());
     if until
         .as_ref()
         .is_some_and(|u| u.timestamp_micros() <= engine.host().now_ms().saturating_mul(1000))
@@ -1285,7 +1284,7 @@ pub async fn load_thread<H: Host>(
     opts: ExecOpts,
 ) -> Result<ThreadData, EngineError> {
     let mut view = engine.get_thread(uri, thread_opts).await?;
-    let actors = |v: &lessdugin_core::dto::ThreadView| -> Vec<ActorView> {
+    let actors = |v: &pandoras_forum_core::dto::ThreadView| -> Vec<ActorView> {
         let mut a: Vec<ActorView> = v.comments.iter().map(|c| c.author.clone()).collect();
         if let ThreadRoot::Post(p) = &v.post {
             a.push(p.post.author.clone());
@@ -1324,7 +1323,7 @@ async fn body<H: Host>(
     engine: &Engine<H>,
     uri: &str,
     cid: &str,
-    view: &lessdugin_core::dto::RenderedBody,
+    view: &pandoras_forum_core::dto::RenderedBody,
 ) -> Body {
     let record = match AtUri::parse(uri) {
         Ok(u) => match RecordStore::new(engine.host().cache()).get(&u).await {
@@ -1349,9 +1348,9 @@ async fn body<H: Host>(
 async fn spilled_source<H: Host>(
     engine: &Engine<H>,
     md: &serde_json::Value,
-    view: &lessdugin_core::dto::RenderedBody,
+    view: &pandoras_forum_core::dto::RenderedBody,
 ) -> Option<String> {
-    use lessdugin_core::model::render::{
+    use pandoras_forum_core::model::render::{
         NOTICE_MISSING_BODY, NOTICE_SPILLED, NOTICE_UNVERIFIED_BODY, text_blob_cid,
     };
     if md.get("text").is_some() {
@@ -1371,7 +1370,7 @@ async fn spilled_source<H: Host>(
 /// leading U+FEFF stripped); `None` when the host does not hold it or it is not a body.
 async fn stored_text_blob<H: Host>(engine: &Engine<H>, blob: &str) -> Option<String> {
     let h = engine.host().blob_open(blob).await.ok()??;
-    let max = lessdugin_core::limits::BLOB_TEXT_MAX_BYTES;
+    let max = pandoras_forum_core::limits::BLOB_TEXT_MAX_BYTES;
     if h.cid != blob || h.size > max {
         return None;
     }
@@ -1382,7 +1381,7 @@ async fn stored_text_blob<H: Host>(engine: &Engine<H>, blob: &str) -> Option<Str
             .blob_read(
                 blob,
                 bytes.len() as u64,
-                lessdugin_core::host::BLOB_READ_MAX_BYTES,
+                pandoras_forum_core::host::BLOB_READ_MAX_BYTES,
             )
             .await
             .ok()?;
@@ -1392,7 +1391,7 @@ async fn stored_text_blob<H: Host>(engine: &Engine<H>, blob: &str) -> Option<Str
         bytes.extend_from_slice(&w);
     }
     bytes.truncate(usize::try_from(h.size).unwrap_or(usize::MAX));
-    lessdugin_markdown::decode_text_blob(&bytes).ok()
+    pandoras_forum_markdown::decode_text_blob(&bytes).ok()
 }
 
 /// Runs a sync; the outcome per forum (or per item when its forum is not known).
@@ -1400,7 +1399,10 @@ pub async fn sync<H: Host>(
     engine: &Engine<H>,
     target: &SyncTarget,
     user: bool,
-) -> Vec<(String, Result<lessdugin_core::dto::SyncReport, EngineError>)> {
+) -> Vec<(
+    String,
+    Result<pandoras_forum_core::dto::SyncReport, EngineError>,
+)> {
     let opts = SyncOpts {
         budget_ms: (!user).then_some(IMPLICIT_SYNC_MS),
         max_requests: None,

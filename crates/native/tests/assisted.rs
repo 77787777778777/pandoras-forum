@@ -6,26 +6,26 @@
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use lessdugin_atp::syntax::{Datetime, Tid};
-use lessdugin_core::discovery::state::{DiscState, disc_rows};
-use lessdugin_core::discovery::{ForumKey, SyncOpts};
-use lessdugin_core::dto::{ListPostsQuery, PostFilter, PostSort};
-use lessdugin_core::engine::{Engine, Platform};
-use lessdugin_core::host::{Host, KvOp, KvStore};
-use lessdugin_core::live::SourceStatus;
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_core::store::schema;
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::records::{Forum, Membership, Post};
-use lessdugin_lexicon::values::MembershipMode;
-use lessdugin_native::config::{Config, NetworkProfile, Sources};
-use lessdugin_native::engine::engine_config;
-use lessdugin_native::host::{NativeHost, Net};
-use lessdugin_testkit::FakeNet;
-use lessdugin_testkit::constellation::Constellation;
-use lessdugin_testkit::fake_pds::{AccountHandle, SystemClock};
-use lessdugin_testkit::jetstream::{Jetstream, Wire};
+use pandoras_forum_atp::syntax::{Datetime, Tid};
+use pandoras_forum_core::discovery::state::{DiscState, disc_rows};
+use pandoras_forum_core::discovery::{ForumKey, SyncOpts};
+use pandoras_forum_core::dto::{ListPostsQuery, PostFilter, PostSort};
+use pandoras_forum_core::engine::{Engine, Platform};
+use pandoras_forum_core::host::{Host, KvOp, KvStore};
+use pandoras_forum_core::live::SourceStatus;
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_core::store::schema;
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::records::{Forum, Membership, Post};
+use pandoras_forum_lexicon::values::MembershipMode;
+use pandoras_forum_native::config::{Config, NetworkProfile, Sources};
+use pandoras_forum_native::engine::engine_config;
+use pandoras_forum_native::host::{NativeHost, Net};
+use pandoras_forum_testkit::FakeNet;
+use pandoras_forum_testkit::constellation::Constellation;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, SystemClock};
+use pandoras_forum_testkit::jetstream::{Jetstream, Wire};
 use url::Url;
 
 fn put_membership(account: &AccountHandle, forum: &ForumKey, now: Datetime) {
@@ -167,11 +167,11 @@ async fn open_mode_scenario(wire: Wire) {
     };
     // Wait until the source has subscribed (v1: its options_update; v1 also opens the v2
     // membership side connection), so what follows is streamed live.
-    let main = |r: &lessdugin_testkit::jetstream::RequestLog| match wire {
+    let main = |r: &pandoras_forum_testkit::jetstream::RequestLog| match wire {
         Wire::V1 => r.options.is_some(),
         Wire::V2 => r.url.contains("subscribeEvents") && !r.url.contains("kinds=commit"),
     };
-    let side = |r: &lessdugin_testkit::jetstream::RequestLog| r.url.contains("kinds=commit");
+    let side = |r: &pandoras_forum_testkit::jetstream::RequestLog| r.url.contains("kinds=commit");
     let deadline = Instant::now() + Duration::from_secs(10);
     let server = if wire == Wire::V1 { &v1 } else { &v2 };
     while !(server.requests().iter().any(main)
@@ -236,9 +236,9 @@ async fn open_mode_scenario(wire: Wire) {
             break;
         }
         if Instant::now() >= deadline {
-            let store = lessdugin_core::store::records::RecordStore::new(host.cache());
+            let store = pandoras_forum_core::store::records::RecordStore::new(host.cache());
             let cached = store
-                .get(&lessdugin_atp::syntax::AtUri::parse(&post_uri).unwrap())
+                .get(&pandoras_forum_atp::syntax::AtUri::parse(&post_uri).unwrap())
                 .await
                 .unwrap()
                 .is_some();
@@ -355,17 +355,20 @@ async fn native_host_consumes_the_v1_options_update_wire() {
         tmp.path(),
         Net::new(config.net_policy()).unwrap(),
     ));
-    let mut source = lessdugin_core::live::LiveSource::new(
+    let mut source = pandoras_forum_core::live::LiveSource::new(
         Arc::clone(&host),
-        lessdugin_core::live::LiveConfig::new(vec![Url::parse(service.base_url()).unwrap()], true),
+        pandoras_forum_core::live::LiveConfig::new(
+            vec![Url::parse(service.base_url()).unwrap()],
+            true,
+        ),
     );
     let did = author.did().to_string();
     let mut filter_dids = vec![did.clone(); 151];
     filter_dids.extend((0..150).map(|n| format!("did:plc:participant{n:024}")));
     host.cache()
         .write(vec![KvOp::Put(
-            schema::cur_key(lessdugin_core::live::CURSOR_KEY),
-            lessdugin_core::store::row::encode(&serde_json::json!({
+            schema::cur_key(pandoras_forum_core::live::CURSOR_KEY),
+            pandoras_forum_core::store::row::encode(&serde_json::json!({
                 "v": 1,
                 "wire": "v1",
                 "instance": service.base_url(),
@@ -375,14 +378,14 @@ async fn native_host_consumes_the_v1_options_update_wire() {
         )])
         .await
         .unwrap();
-    let context = lessdugin_core::live::Context {
+    let context = pandoras_forum_core::live::Context {
         known_dids: [did.clone()].into(),
         filter_dids,
         own_dids: [did].into(),
         forums: [forum.fk.clone()].into(),
         declarations: [(author.did().to_string(), "main".into())].into(),
         participants_known: true,
-        ..lessdugin_core::live::Context::default()
+        ..pandoras_forum_core::live::Context::default()
     };
     let mut found = false;
     let deadline = Instant::now() + Duration::from_secs(8);
@@ -393,7 +396,7 @@ async fn native_host_consumes_the_v1_options_update_wire() {
             continue;
         };
         found |= actions.iter().any(|action| match action {
-            lessdugin_core::live::Action::PointFetch { uri: found, .. } => found == &uri,
+            pandoras_forum_core::live::Action::PointFetch { uri: found, .. } => found == &uri,
             _ => false,
         });
         source.acknowledge().await.unwrap();

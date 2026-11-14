@@ -30,8 +30,8 @@ import {
   TokenRefreshError,
   TokenRevokedError,
 } from "@atproto/oauth-client-browser";
-import type { PdsSession, SessionProvider } from "@lessdugin/engine/client";
-import { NS } from "@lessdugin/engine/client";
+import type { PdsSession, SessionProvider } from "@pandoras-forum/engine/client";
+import { NS } from "@pandoras-forum/engine/client";
 import { scopeCandidates, supersetScope } from "./scopes.ts";
 import { endAwareSession } from "./sessionEnd.ts";
 

@@ -5,9 +5,9 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use k256::ecdsa::SigningKey;
-use lessdugin_atp::Cid;
-use lessdugin_atp::crypto::PublicKey;
-use lessdugin_atp::syntax::{Did, Tid};
+use pandoras_forum_atp::Cid;
+use pandoras_forum_atp::crypto::PublicKey;
+use pandoras_forum_atp::syntax::{Did, Tid};
 use serde_json::{Value, json};
 
 use super::faults::{CursorMode, FaultId, FaultRule, ForkSelector, RateState};
@@ -143,7 +143,7 @@ impl PdsHandle {
             n += 1;
         };
         let key = fake_key(did.as_str());
-        let digest = lessdugin_atp::cid::sha256(did.as_str().as_bytes());
+        let digest = pandoras_forum_atp::cid::sha256(did.as_str().as_bytes());
         let clock_id = u16::from_be_bytes([digest[0], digest[1]]) % 1024;
         let now_us = u64::try_from(now.saturating_mul(1000)).unwrap_or(0);
         let rev = Tid::from_parts(now_us, clock_id).expect("TID time in range");
@@ -205,7 +205,7 @@ impl PdsHandle {
 }
 
 fn app_password(did: &Did, n: u32) -> String {
-    let digest = lessdugin_atp::cid::sha256(format!("fake-app-password:{did}:{n}").as_bytes());
+    let digest = pandoras_forum_atp::cid::sha256(format!("fake-app-password:{did}:{n}").as_bytes());
     let s = data_encoding::BASE32_NOPAD
         .encode(&digest)
         .to_ascii_lowercase();
@@ -221,7 +221,7 @@ pub struct RepoWriter<'a> {
 impl RepoWriter<'_> {
     /// Creates or replaces a record from atproto JSON; returns its CID.
     pub fn put(&mut self, collection: &str, rkey: &str, value: &Value) -> Cid {
-        let cbor = lessdugin_atp::datamodel::record_to_cbor(value).expect("valid record JSON");
+        let cbor = pandoras_forum_atp::datamodel::record_to_cbor(value).expect("valid record JSON");
         self.put_cbor(collection, rkey, cbor)
     }
 
@@ -468,7 +468,7 @@ impl AccountHandle {
     /// it); returns the blob object to embed.
     pub fn upload_blob(&self, bytes: Vec<u8>, declared_mime: &str) -> Value {
         let mime = sniff_mime(&bytes, declared_mime);
-        let cid = lessdugin_atp::cid::for_raw(&bytes);
+        let cid = pandoras_forum_atp::cid::for_raw(&bytes);
         let size = bytes.len();
         let mime = self.with(|a| {
             a.blobs

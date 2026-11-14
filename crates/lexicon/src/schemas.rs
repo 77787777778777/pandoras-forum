@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Embedded lexicon JSON documents and the compiled schema [`Registry`].
 //!
-//! Every lexicon of `lexicons/online/7778777/lessdugin/` is compiled into the binary
-//! ([`LESSDUGIN`]; `data-model.md` §1.4: lexicons are never fetched at runtime), together with the
+//! Every lexicon of `lexicons/forum/pandoras/` is compiled into the binary
+//! ([`PANDORAS_FORUM`]; `data-model.md` §1.4: lexicons are never fetched at runtime), together with the
 //! two atproto lexicons they reference ([`EXTERNAL`]: `com.atproto.repo.strongRef` and
-//! `com.atproto.label.defs`). A test compares [`LESSDUGIN`] with the directory, so the list stays
+//! `com.atproto.label.defs`). A test compares [`PANDORAS_FORUM`] with the directory, so the list stays
 //! complete.
 //!
 //! **Namespace mapping (§1.3).** Lexicon files use the final prefix
-//! (`online.7778777.lessdugin`). [`Registry::embedded`] rewrites every lessdugin NSID with
+//! (`forum.pandoras`). [`Registry::embedded`] rewrites every Pandora's Forum NSID with
 //! [`crate::ns::to_build_nsid`] (document ids, `ref`s and union `refs`), so the registry is keyed
 //! by **build** NSIDs and a `.temp` build validates `.temp` records (`$type` values included).
 //!
@@ -20,7 +20,7 @@
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
 
-use lessdugin_atp::syntax::{Nsid, RecordKeyType};
+use pandoras_forum_atp::syntax::{Nsid, RecordKeyType};
 use serde_json::{Map, Value};
 
 use crate::ns::to_build_nsid;
@@ -28,13 +28,13 @@ use crate::ns::to_build_nsid;
 /// One embedded lexicon file.
 #[derive(Debug, Clone, Copy)]
 pub struct Embedded {
-    /// Path relative to its lexicon root (for lessdugin files, the repository's `lexicons/`).
+    /// Path relative to its lexicon root (for Pandora's Forum files, the repository's `lexicons/`).
     pub path: &'static str,
     /// The file contents.
     pub json: &'static str,
 }
 
-macro_rules! lessdugin {
+macro_rules! pandoras_forum {
     ($($p:literal),* $(,)?) => {
         &[$(Embedded { path: $p, json: include_str!(concat!("../../../lexicons/", $p)) }),*]
     };
@@ -46,41 +46,41 @@ macro_rules! external {
     };
 }
 
-/// Every lessdugin lexicon file (`lexicons/online/7778777/lessdugin/**.json`), with final NSIDs.
-pub const LESSDUGIN: &[Embedded] = lessdugin![
-    "online/7778777/lessdugin/authFull.json",
-    "online/7778777/lessdugin/authInteract.json",
-    "online/7778777/lessdugin/comment.json",
-    "online/7778777/lessdugin/defs.json",
-    "online/7778777/lessdugin/forum.json",
-    "online/7778777/lessdugin/markdown.json",
-    "online/7778777/lessdugin/membership.json",
-    "online/7778777/lessdugin/modAction.json",
-    "online/7778777/lessdugin/opinion.json",
-    "online/7778777/lessdugin/post.json",
-    "online/7778777/lessdugin/profile.json",
-    "online/7778777/lessdugin/revision.json",
-    "online/7778777/lessdugin/sequence.json",
-    "online/7778777/lessdugin/wikiRevision.json",
-    "online/7778777/lessdugin/index/defs.json",
-    "online/7778777/lessdugin/index/describeIndexer.json",
-    "online/7778777/lessdugin/index/getActivity.json",
-    "online/7778777/lessdugin/index/getChanges.json",
-    "online/7778777/lessdugin/index/getKarma.json",
-    "online/7778777/lessdugin/index/getRecordProofs.json",
-    "online/7778777/lessdugin/index/getRecords.json",
-    "online/7778777/lessdugin/index/getRepoHeads.json",
-    "online/7778777/lessdugin/index/getTallies.json",
-    "online/7778777/lessdugin/index/getThread.json",
-    "online/7778777/lessdugin/index/listBacklinks.json",
-    "online/7778777/lessdugin/index/listForums.json",
-    "online/7778777/lessdugin/index/listParticipants.json",
-    "online/7778777/lessdugin/index/listPosts.json",
-    "online/7778777/lessdugin/index/listRecentDiscussion.json",
-    "online/7778777/lessdugin/index/searchPosts.json",
+/// Every Pandora's Forum lexicon file (`lexicons/forum/pandoras/**.json`), with final NSIDs.
+pub const PANDORAS_FORUM: &[Embedded] = pandoras_forum![
+    "forum/pandoras/authFull.json",
+    "forum/pandoras/authInteract.json",
+    "forum/pandoras/comment.json",
+    "forum/pandoras/defs.json",
+    "forum/pandoras/forum.json",
+    "forum/pandoras/markdown.json",
+    "forum/pandoras/membership.json",
+    "forum/pandoras/modAction.json",
+    "forum/pandoras/opinion.json",
+    "forum/pandoras/post.json",
+    "forum/pandoras/profile.json",
+    "forum/pandoras/revision.json",
+    "forum/pandoras/sequence.json",
+    "forum/pandoras/wikiRevision.json",
+    "forum/pandoras/index/defs.json",
+    "forum/pandoras/index/describeIndexer.json",
+    "forum/pandoras/index/getActivity.json",
+    "forum/pandoras/index/getChanges.json",
+    "forum/pandoras/index/getKarma.json",
+    "forum/pandoras/index/getRecordProofs.json",
+    "forum/pandoras/index/getRecords.json",
+    "forum/pandoras/index/getRepoHeads.json",
+    "forum/pandoras/index/getTallies.json",
+    "forum/pandoras/index/getThread.json",
+    "forum/pandoras/index/listBacklinks.json",
+    "forum/pandoras/index/listForums.json",
+    "forum/pandoras/index/listParticipants.json",
+    "forum/pandoras/index/listPosts.json",
+    "forum/pandoras/index/listRecentDiscussion.json",
+    "forum/pandoras/index/searchPosts.json",
 ];
 
-/// The atproto lexicons the lessdugin lexicons reference (vendored in `crates/lexicon/lexicons/`).
+/// The atproto lexicons the Pandora's Forum lexicons reference (vendored in `crates/lexicon/lexicons/`).
 pub const EXTERNAL: &[Embedded] = external![
     "com/atproto/repo/strongRef.json",
     "com/atproto/label/defs.json",
@@ -210,7 +210,7 @@ pub struct IntegerDef {
 pub enum StringFormat {
     /// `at-identifier`: a DID or a handle.
     AtIdentifier,
-    /// `at-uri` (Lexicon syntax; lessdugin's canonical form is a separate rule, G4).
+    /// `at-uri` (Lexicon syntax; the Pandora's Forum canonical form is a separate rule, G4).
     AtUri,
     /// `cid` (string CID, loose syntax).
     Cid,
@@ -385,11 +385,11 @@ impl Registry {
         Self::default()
     }
 
-    /// Compiles [`LESSDUGIN`] and [`EXTERNAL`]. Never panics: documents that fail to compile are
+    /// Compiles [`PANDORAS_FORUM`] and [`EXTERNAL`]. Never panics: documents that fail to compile are
     /// left out and their errors are kept in [`Registry::errors`] (a test asserts there are none).
     pub fn embedded() -> Self {
         let mut r = Self::new();
-        for e in LESSDUGIN.iter().chain(EXTERNAL) {
+        for e in PANDORAS_FORUM.iter().chain(EXTERNAL) {
             if let Err(err) = r.add_json(e.json) {
                 r.errors.push(SchemaError {
                     doc: if err.doc.is_empty() {
@@ -1142,7 +1142,7 @@ mod tests {
     fn embedded_compiles() {
         let r = registry();
         assert!(r.errors().is_empty(), "{:?}", r.errors());
-        assert_eq!(r.docs().count(), LESSDUGIN.len() + EXTERNAL.len());
+        assert_eq!(r.docs().count(), PANDORAS_FORUM.len() + EXTERNAL.len());
         assert!(r.unresolved_refs().is_empty(), "{:?}", r.unresolved_refs());
     }
 
@@ -1154,7 +1154,7 @@ mod tests {
         assert!(r.doc(&format!("{NS}.index.listPosts")).is_some());
         assert!(r.doc("com.atproto.repo.strongRef").is_some());
         if NS != crate::ns::NS_FINAL {
-            assert!(r.doc("online.7778777.lessdugin.post").is_none());
+            assert!(r.doc("forum.pandoras.post").is_none());
         }
         let Some(TypeDef::Union(u)) = r
             .record(&format!("{NS}.post"))

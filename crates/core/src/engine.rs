@@ -33,7 +33,7 @@ mod writes;
 
 use std::sync::Arc;
 
-use lessdugin_atp::syntax::{AtIdentifier, Did, LooseAtUri};
+use pandoras_forum_atp::syntax::{AtIdentifier, Did, LooseAtUri};
 
 pub use accounts::{AccountInfo, LoginBinding, PinStatus, is_app_password_shape};
 pub use config::{
@@ -177,7 +177,7 @@ impl<H: Host> Engine<H> {
     }
 
     /// Like [`Engine::resolve_actor`], with the full identity (PDS, key, resolution method,
-    /// `dns-unauthenticated` flag) for `lessdugin resolve`, `doctor` and login code.
+    /// `dns-unauthenticated` flag) for `pandoras-forum resolve`, `doctor` and login code.
     pub async fn resolve_identity(&self, input: &str) -> Result<ResolvedActor, EngineError> {
         Ok(self.resolver.resolve_actor(input).await?)
     }

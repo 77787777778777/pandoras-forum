@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! The LFM/1 renderer (`lessdugin_markdown`, `docs/spec/lfm-1.md`) on raw body bytes (a fetched
+//! The LFM/1 renderer (`pandoras_forum_markdown`, `docs/spec/lfm-1.md`) on raw body bytes (a fetched
 //! `textBlob`): HTML+MathML (both math modes), the terminal `StyledDoc` and its printer, `TermText`
 //! sanitising, the plain-text projection P, the excerpt, derived metadata, URL policy and quote
 //! anchors. Body media are a fixed pair plus one item for each `cid:` reference in the input, so
@@ -19,13 +19,13 @@
 
 use std::sync::LazyLock;
 
-use lessdugin_fuzz::{fnv, is_terminal_forbidden, on_small_stack};
-use lessdugin_markdown::allowlist::check_html;
-use lessdugin_markdown::printer::{
+use pandoras_forum_fuzz::{fnv, is_terminal_forbidden, on_small_stack};
+use pandoras_forum_markdown::allowlist::check_html;
+use pandoras_forum_markdown::printer::{
     PrintOpts, check_printer_output, osc8_uri, print_doc, print_doc_with,
 };
-use lessdugin_markdown::quote::{MAX_OCCURRENCES, find_first};
-use lessdugin_markdown::{
+use pandoras_forum_markdown::quote::{MAX_OCCURRENCES, find_first};
+use pandoras_forum_markdown::{
     BodyError, HrefCtx, MathMode, MediaItem, QuoteResolution, QuoteTarget, RenderOpts, Rendered,
     StyledDoc, TermCtx, TextQuote, build_quote, decode_text_blob, derive_metadata,
     plain_projection, qkey, render, render_error, render_with_math_mode, resolve_quote, safe_href,
@@ -110,7 +110,7 @@ fn check_rendered(r: &Rendered) {
     }
     #[cfg(feature = "ammonia")]
     assert_eq!(
-        lessdugin_markdown::allowlist::ammonia_clean(&r.html),
+        pandoras_forum_markdown::allowlist::ammonia_clean(&r.html),
         r.html,
         "ammonia changed the HTML"
     );

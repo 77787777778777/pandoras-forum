@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! Runs several `lessdugin` processes at once against one data directory (M1 acceptance,
+//! Runs several `pandoras-forum` processes at once against one data directory (M1 acceptance,
 //! `docs/plan.md` §3: "parallel CLI processes refreshing one session never invalidate it") and
 //! reads what each one did from its debug log: the HTTP requests it sent
-//! (`lessdugin_native::host::net`) and whether it adopted a session another process had
-//! refreshed (`lessdugin_native::auth`).
+//! (`pandoras_forum_native::host::net`) and whether it adopted a session another process had
+//! refreshed (`pandoras_forum_native::auth`).
 //!
 //! Shared by `concurrent_refresh.rs` (offline) and `e2e_devnet.rs` (devnet) with `#[path]`.
 #![allow(dead_code)] // each includer uses a part
@@ -13,7 +13,8 @@ use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
 /// The log filter given to every racing process.
-pub const RACE_LOG: &str = "warn,lessdugin_native::host::net=debug,lessdugin_native::auth=debug";
+pub const RACE_LOG: &str =
+    "warn,pandoras_forum_native::host::net=debug,pandoras_forum_native::auth=debug";
 
 /// What a process logs when it adopts the session another process refreshed meanwhile.
 pub const ADOPTED: &str = "a session refreshed by another process";
@@ -40,12 +41,12 @@ pub fn race_with(cmds: Vec<Command>, during: impl FnOnce()) -> Race {
                 .stdin(Stdio::null())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped());
-            c.spawn().expect("spawn lessdugin")
+            c.spawn().expect("spawn pandoras-forum")
         })
         .collect();
     let waiters: Vec<_> = children
         .into_iter()
-        .map(|c| std::thread::spawn(move || c.wait_with_output().expect("wait for lessdugin")))
+        .map(|c| std::thread::spawn(move || c.wait_with_output().expect("wait for pandoras-forum")))
         .collect();
     during();
     Race {

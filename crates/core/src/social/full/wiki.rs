@@ -28,9 +28,9 @@
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet};
 
-use lessdugin_atp::tid::Tid;
-use lessdugin_lexicon::Collection;
-use lessdugin_lexicon::values::{Capability, TagCreation, VoteValue};
+use pandoras_forum_atp::tid::Tid;
+use pandoras_forum_lexicon::Collection;
+use pandoras_forum_lexicon::values::{Capability, TagCreation, VoteValue};
 use serde_json::Value;
 
 use crate::social::full::cids;

@@ -2,11 +2,11 @@
 source: crates/tui/tests/social.rs
 expression: t.render()
 ---
- lessdugin › Meta › moderation                                                   @alice.example.com
+ Pandora's Forum › Meta › moderation                                             @alice.example.com
   queue  log   Tab switch Meta
   i Applicants are found only through Constellation, Jetstream, a relay or an indexer, so some may
     be missing. Applicants can also reach you out of band.
-▌ applicant  did:plc:sys3r3do… (claims @dave.example.com, unverified)  applied to join  (let me in)
+▌ applicant  did:plc:xqdoeajd… (claims @dave.example.com, unverified)  applied to join  (let me in)
 
 
 

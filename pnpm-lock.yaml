@@ -75,7 +75,7 @@ importers:
       '@codemirror/view':
         specifier: ^6.0.0
         version: 6.43.14
-      '@lessdugin/engine':
+      '@pandoras-forum/engine':
         specifier: workspace:*
         version: link:../packages/engine
       '@tanstack/history':

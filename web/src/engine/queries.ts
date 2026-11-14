@@ -4,7 +4,7 @@
 // Query invalidations"). Keys are prefixed by what a topic invalidates: everything under
 // ["forum", uri] for Forum(uri), ["post", uri] for Thread(uri), and so on.
 
-import type { CommentSort, HrefContext, ListPostsQuery, Topic } from "@lessdugin/engine/types";
+import type { CommentSort, HrefContext, ListPostsQuery, Topic } from "@pandoras-forum/engine/types";
 import { type QueryClient, useQuery } from "@tanstack/react-query";
 import { useEngine } from "./context.tsx";
 

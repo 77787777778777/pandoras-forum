@@ -20,7 +20,7 @@
 // Sessions are pluggable (`SessionProvider`); the SPA plugs in one of:
 // - hosted mode: `oauthSession(did, oauthSession.fetchHandler)` (the OAuth client's DPoP-bound
 //   fetch, which resolves paths against the PDS bound at login);
-// - `lessdugin web` mode: `bridgeSession({ did, token })`, which forwards to
+// - `pandoras-forum web` mode: `bridgeSession({ did, token })`, which forwards to
 //   `POST /bridge/xrpc/<nsid>?account=<did>` with the tab's bearer token (threat-model §7.4).
 //
 // Public records, an account's own included, are read anonymously (`Target::Anon`, the
@@ -37,9 +37,9 @@ import {
 } from "./protocol.ts";
 import type { Did } from "./types.ts";
 
-/** The NSID prefix of this build (crates/lexicon `ns::NS`; `online.7778777.lessdugin` with the
+/** The NSID prefix of this build (crates/lexicon `ns::NS`; `forum.pandoras` with the
  * final namespace, release 0.1). The worker refuses to start when the wasm's differs. */
-export const NS = "online.7778777.lessdugin.temp";
+export const NS = "forum.pandoras.temp";
 
 /** The 10 record collections of `NS.authFull` (data-model.md §10.1), without the prefix. */
 export const RECORD_COLLECTIONS = [
@@ -185,7 +185,7 @@ export interface SessionFetchInit {
   signal: AbortSignal;
 }
 
-/** An account's authenticated session (OAuth or the `lessdugin web` bridge). */
+/** An account's authenticated session (OAuth or the `pandoras-forum web` bridge). */
 export interface PdsSession {
   /** The account it is bound to. */
   readonly did: Did;
@@ -223,16 +223,16 @@ export function oauthSession(
 
 export interface BridgeSessionOptions {
   did: Did;
-  /** The tab's bridge bearer token (`sessionStorage["lessdugin-bridge-token"]`). */
+  /** The tab's bridge bearer token (`sessionStorage["pandoras-forum-bridge-token"]`). */
   token: string;
   /** Default `/bridge/xrpc` (same origin). */
   base?: string;
   fetch?: typeof fetch;
 }
 
-/** The header the `lessdugin web` bridge puts on answers it forwards from the PDS; an answer
+/** The header the `pandoras-forum web` bridge puts on answers it forwards from the PDS; an answer
  * without it is the bridge's own (crates/cli/src/web/server.rs). */
-export const BRIDGE_UPSTREAM_HEADER = "x-lessdugin-upstream";
+export const BRIDGE_UPSTREAM_HEADER = "x-pandoras-forum-upstream";
 
 /** The host error of a bridge's own error answer `{"error": <engine error code>, "message"}`
  * (never a forwarded PDS answer): a 401 means the tab's bridge session is gone. */
@@ -246,7 +246,7 @@ export async function bridgeError(resp: Response): Promise<HostErrorValue> {
   } catch {
     // not JSON: the status decides
   }
-  const what = `lessdugin web bridge: ${message || `HTTP ${resp.status}`}`;
+  const what = `pandoras-forum web bridge: ${message || `HTTP ${resp.status}`}`;
   if (resp.status === 401) return hostError("authRequired", `${what} (the bridge session ended)`);
   switch (code) {
     case "auth_required":
@@ -269,10 +269,10 @@ export async function bridgeError(resp: Response): Promise<HostErrorValue> {
   return hostError("other", what);
 }
 
-/** `lessdugin web` mode: `POST /bridge/xrpc/<nsid>?account=<did>` with the bearer token; the
+/** `pandoras-forum web` mode: `POST /bridge/xrpc/<nsid>?account=<did>` with the bearer token; the
  * CLI's keyring session signs it, after the bridge re-applies these checks (§7.4). The bridge
  * takes POST only, so `getSession` is sent as a POST too. Answers forwarded from the PDS
- * (`X-Lessdugin-Upstream: pds`) are returned as they are; the bridge's own error answers reject
+ * (`X-Pandoras-Forum-Upstream: pds`) are returned as they are; the bridge's own error answers reject
  * with the matching host error, so a bridge 401 never reads as a PDS 401. */
 export function bridgeSession(opts: BridgeSessionOptions): PdsSession {
   const base = opts.base ?? "/bridge/xrpc";

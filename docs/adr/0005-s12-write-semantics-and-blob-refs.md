@@ -31,7 +31,7 @@ The outbox (synthesis §3.5) depends on specific PDS behaviour:
   causes of 500s show up in its log.
 - **Requests.** Plain `fetch` XRPC calls, authenticated with
   `com.atproto.server.createSession{identifier: "<name>.test", password: <app password>}`.
-- **Collections.** `online.7778777.lessdugin.temp.{opinion,post,membership,revision}`. These are
+- **Collections.** `forum.pandoras.temp.{opinion,post,membership,revision}`. These are
   unknown to the PDS.
 - **The four probes:**
   - **(a)** `createRecord` with an explicit rkey, twice.
@@ -59,10 +59,10 @@ The outbox (synthesis §3.5) depends on specific PDS behaviour:
   The post in (d) also contained:
 
   ```json
-  "body": {"$type":"online.7778777.lessdugin.temp.markdown","text":"…","media":[{"blob":<A>,"alt":"red"}]},
+  "body": {"$type":"forum.pandoras.temp.markdown","text":"…","media":[{"blob":<A>,"alt":"red"}]},
   "embed": {"$type":"com.example.unknown.embed#thing","nested":{"$type":"com.example.other","deep":[1,2,{"$type":"x.y.z"}]}},
-  "unionish": [{"$type":"online.7778777.lessdugin.temp.defs#link","uri":"https://example.com"},
-               {"$type":"online.7778777.lessdugin.temp.defs#textQuote","exact":"q"}],
+  "unionish": [{"$type":"forum.pandoras.temp.defs#link","uri":"https://example.com"},
+               {"$type":"forum.pandoras.temp.defs#textQuote","exact":"q"}],
   "knownTypeButInvalid": {"$type":"app.bsky.feed.post","text":12345}
   ```
 - **(e)** The `validate` matrix: unset / `false` / `true`, against an unknown collection
@@ -75,7 +75,7 @@ The outbox (synthesis §3.5) depends on specific PDS behaviour:
 | Step | Response |
 |---|---|
 | create `aaaaaaaaaaaa-3mxygf7onkd2b-aaaaaaaaaaaaaaaa` | 200 `{uri, cid:"bafyreienhjeo…", commit:{cid, rev:"3mxygibnwnk2f"}, validationStatus:"unknown"}` |
-| create the same rkey again (×2) | **500** `{"error":"InternalServerError","message":"Internal Server Error"}`. The server log says `"err":{"message":"There is already a value at key: online.7778777.lessdugin.temp.opinion/aaaaaaaaaaaa-…"}` |
+| create the same rkey again (×2) | **500** `{"error":"InternalServerError","message":"Internal Server Error"}`. The server log says `"err":{"message":"There is already a value at key: forum.pandoras.temp.opinion/aaaaaaaaaaaa-…"}` |
 | `getRecord` afterwards | unchanged (`v: 1`, same CID) |
 
 ### (b) `putRecord` and `deleteRecord` with `swapRecord`
@@ -102,7 +102,7 @@ The outbox (synthesis §3.5) depends on specific PDS behaviour:
 | `putRecord` with stale `swapCommit` | **400** `InvalidSwap` "Commit was at …" |
 | `[create existing membership, create new post]` | **500** `InternalServerError`. Log: "There is already a value at key …". **Atomic**: the new post was not written |
 | `[create]` on an existing key | 500 (same log) |
-| `[update]` on an **absent** key | **500**. Log: `Could not find a record with key: online.7778777.lessdugin.temp.opinion/zzzzzzzzzzzz-absent` |
+| `[update]` on an **absent** key | **500**. Log: `Could not find a record with key: forum.pandoras.temp.opinion/zzzzzzzzzzzz-absent` |
 | `[delete]` on an **absent** key | **500** (same log) |
 | `[update]` with an identical value | 200 with a **new commit** (`rev 3mxygibspxs2f`), unlike `putRecord` |
 | `[update, delete]` of the same key in one batch | 200; results `#updateResult` (with cid) then `#deleteResult` (empty) |
@@ -111,8 +111,8 @@ The outbox (synthesis §3.5) depends on specific PDS behaviour:
 
 | Write | Response |
 |---|---|
-| record `$type` ≠ collection | 400 `{"error":"InvalidRequest","message":"Invalid $type: expected online.7778777.lessdugin.temp.post, got online.7778777.lessdugin.temp.comment"}` |
-| record **without** `$type` | 200. `getRecord` shows that the PDS **injected** `"$type":"online.7778777.lessdugin.temp.post"` |
+| record `$type` ≠ collection | 400 `{"error":"InvalidRequest","message":"Invalid $type: expected forum.pandoras.temp.post, got forum.pandoras.temp.comment"}` |
+| record **without** `$type` | 200. `getRecord` shows that the PDS **injected** `"$type":"forum.pandoras.temp.post"` |
 | a float | 400 `"Expected one of null, boolean, integer, string, cid, bytes, array or object value type (got 1.5) at $.record.score"` |
 | rkey `bad/rkey` | 400 `"Invalid record key (got \"bad/rkey\") at $.rkey"` |
 
@@ -154,7 +154,7 @@ nested objects in an unknown collection, but it does find blob refs at any depth
 |---|---|---|
 | unset | unknown (`…temp.post`) | 200, `"validationStatus":"unknown"` |
 | `false` | unknown | 200, **no** `validationStatus` field |
-| `true` | unknown | **400** `{"error":"InvalidRequest","message":"Unknown lexicon type: online.7778777.lessdugin.temp.post"}` |
+| `true` | unknown | **400** `{"error":"InvalidRequest","message":"Unknown lexicon type: forum.pandoras.temp.post"}` |
 | unset | known, valid `app.bsky.feed.like` | 200, `"valid"` |
 | `false` | known, valid | 200, no field |
 | `true` | known, valid | 200, `"valid"` |
@@ -256,7 +256,7 @@ nested objects in an unknown collection, but it does find blob refs at any depth
 - **§3.5 edits** follow decisions 1 and 3; this ADR is the source.
 - **Still open:**
   - Behaviour on non-reference PDSes (rsky, Go implementations) for `swapRecord: null` and for
-    `applyWrites` errors. It is checked by the per-host compatibility probe in `lessdugin doctor`,
+    `applyWrites` errors. It is checked by the per-host compatibility probe in `pandoras-forum doctor`,
     against devnet-like test accounts only, because we never write to production PDSes we do not
     own.
   - The lifetime of temporary (unreferenced) blobs.

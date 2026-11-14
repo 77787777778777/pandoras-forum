@@ -12,9 +12,9 @@
 //!
 //! [`AuthSession`]: crate::host::AuthSession
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::host::{HostError, HttpRequest, Target};
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::host::{HostError, HttpRequest, Target};
+use pandoras_forum_lexicon::ns::NS;
 use serde_json::Value;
 
 /// The 10 record collections of `NS.authFull` (`data-model.md` §10.1), without the prefix.

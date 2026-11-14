@@ -3,8 +3,8 @@
 // (which would make the user a seed, social.md §4.6), and can reject an applicant (review
 // findings m3-9, m3-11). Every action but the local reject passes the moderation interstitial
 // first (social.md §17; m3-4, sec-4).
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ForumView, MemberView } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ForumView, MemberView } from "@pandoras-forum/engine/types";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { renderWithApp } from "../../test/render.tsx";

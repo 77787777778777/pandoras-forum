@@ -13,8 +13,8 @@ import type {
   OpinionIntent,
   ScoreView,
   ViewerCaps,
-} from "@lessdugin/engine/types";
-import { OPINION_UNDO_WINDOW_MS } from "@lessdugin/engine/types";
+} from "@pandoras-forum/engine/types";
+import { OPINION_UNDO_WINDOW_MS } from "@pandoras-forum/engine/types";
 import { useNavigate } from "@tanstack/react-router";
 import { type MouseEvent, type PointerEvent, useEffect, useId, useRef, useState } from "react";
 import { useEngine } from "../engine/context.tsx";

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { isEngineError } from "@lessdugin/engine/types";
+import { isEngineError } from "@pandoras-forum/engine/types";
 import ui from "../styles/ui.module.css";
 
 export function Loading({ label = "Loading…" }: { label?: string | undefined }) {

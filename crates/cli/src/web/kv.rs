@@ -38,8 +38,8 @@ use axum::http::StatusCode;
 use axum::response::Response;
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use lessdugin_core::host::{Dir, Host as _, KeyRange, KvOp, KvStore as _, prefix_successor};
-use lessdugin_core::store::key::{Part, encode};
+use pandoras_forum_core::host::{Dir, Host as _, KeyRange, KvOp, KvStore as _, prefix_successor};
+use pandoras_forum_core::store::key::{Part, encode};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -355,7 +355,7 @@ mod tests {
     /// without them every write from a tab fails.
     #[test]
     fn outbox_rows_are_writable() {
-        use lessdugin_core::outbox::model;
+        use pandoras_forum_core::outbox::model;
         let did = "did:plc:x";
         for key in [
             model::write_key(did, 7),

@@ -11,13 +11,13 @@ use std::io::{IsTerminal, Write as _};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     BodyDraft, DTO_VERSION, DefaultTier, Event, ForumDraft, ForumRole, ForumSummary, MemberView,
     MembersQuery, MembershipMode, PublicActionKind, SyncOpts, SyncReport, WriteTicket,
 };
-use lessdugin_core::engine::{Engine, EngineError};
-use lessdugin_core::indexer::AuditReport;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineError};
+use pandoras_forum_core::indexer::AuditReport;
+use pandoras_forum_native::host::NativeHost;
 use serde::Serialize;
 
 use crate::args::{
@@ -104,7 +104,7 @@ fn forum_name(f: &ForumSummary) -> TermText {
     name(&f.name)
 }
 
-/// `lessdugin forum …`.
+/// `pandoras-forum forum …`.
 pub async fn forum(ctx: &Ctx, args: ForumArgs) -> Result<(), CliError> {
     match args.action {
         ForumAction::Ls => ls(ctx).await,
@@ -197,7 +197,7 @@ pub async fn forum(ctx: &Ctx, args: ForumArgs) -> Result<(), CliError> {
             let uri = format!(
                 "at://{}/{}/{}",
                 w.account.did,
-                lessdugin_lexicon::collection::nsid::FORUM,
+                pandoras_forum_lexicon::collection::nsid::FORUM,
                 slug
             );
             let _ = ctx.state.set_current_forum(Some(&uri));
@@ -217,7 +217,7 @@ fn text_option(given: Option<String>, current: Option<String>) -> Option<String>
     }
 }
 
-/// `lessdugin forum edit [forum] …` (`engine-api.md` §3.2 `forum_update`): the owner changes
+/// `pandoras-forum forum edit [forum] …` (`engine-api.md` §3.2 `forum_update`): the owner changes
 /// the declaration through the edit protocol; every field not given keeps its current value
 /// (read from the cached declaration). Another account is refused before anything is read:
 /// the declaration lives in the owner's repository, and a spilled about is fetched only by its
@@ -234,7 +234,7 @@ async fn edit(ctx: &Ctx, a: ForumEditArgs) -> Result<(), CliError> {
     // loads (and caches) the declaration
     w.engine.forum_open(&uri).await?;
     let (_, decl) = write::cached(&w.engine, &uri).await?;
-    let current: lessdugin_lexicon::records::Forum = serde_json::from_value(decl.clone())
+    let current: pandoras_forum_lexicon::records::Forum = serde_json::from_value(decl.clone())
         .map_err(|e| EngineError::internal(format!("{uri}: {e}")))?;
     let about = match a.about {
         Some(t) if t.trim().is_empty() => None,
@@ -258,15 +258,15 @@ async fn edit(ctx: &Ctx, a: ForumEditArgs) -> Result<(), CliError> {
     d.membership = match a.mode {
         Some(m) => m.into(),
         None => match current.membership_mode().value {
-            lessdugin_lexicon::values::MembershipMode::Open => MembershipMode::Open,
-            lessdugin_lexicon::values::MembershipMode::Approval => MembershipMode::Approval,
+            pandoras_forum_lexicon::values::MembershipMode::Open => MembershipMode::Open,
+            pandoras_forum_lexicon::values::MembershipMode::Approval => MembershipMode::Approval,
         },
     };
     d.default_tier = match a.default_tier {
         Some(t) => t.into(),
         None => match current.default_tier().value {
-            lessdugin_lexicon::values::DefaultTier::Frontpage => DefaultTier::Frontpage,
-            lessdugin_lexicon::values::DefaultTier::Personal => DefaultTier::Personal,
+            pandoras_forum_lexicon::values::DefaultTier::Frontpage => DefaultTier::Frontpage,
+            pandoras_forum_lexicon::values::DefaultTier::Personal => DefaultTier::Personal,
         },
     };
     d.featured_tags = if a.no_featured_tags {
@@ -291,7 +291,7 @@ async fn ls(ctx: &Ctx) -> Result<(), CliError> {
     print_forums(ctx, list, ctx.state.current_forum(), true)
 }
 
-/// `lessdugin discover [query]`: forums found through the configured discovery sources.
+/// `pandoras-forum discover [query]`: forums found through the configured discovery sources.
 /// The engine reports direct-mode and unsupported-source errors rather than substituting an
 /// empty local list.
 pub async fn discover(ctx: &Ctx, args: DiscoverArgs) -> Result<(), CliError> {
@@ -328,7 +328,7 @@ fn print_forums(
     if list.is_empty() {
         ctx.out.line(&[(
             lit(if followed {
-                "No followed forums. Join one with `lessdugin join <handle>/<slug>`."
+                "No followed forums. Join one with `pandoras-forum join <handle>/<slug>`."
             } else {
                 "No forums found."
             }),
@@ -384,8 +384,9 @@ async fn show(ctx: &Ctx, forum: Option<&str>) -> Result<(), CliError> {
     // one view per process, as `read`: the download of a spilled about the view left pending
     // ends with the process, so it is awaited and the forum opened again (`limits.md`
     // `BODY_BLOB_WAIT_MS`)
-    let about_pending =
-        |v: &lessdugin_core::dto::ForumView| v.about.as_ref().is_some_and(read::spilled_pending);
+    let about_pending = |v: &pandoras_forum_core::dto::ForumView| {
+        v.about.as_ref().is_some_and(read::spilled_pending)
+    };
     if about_pending(&v) {
         let owner = [(v.forum.uri.clone(), v.forum.owner.did.clone())];
         if read::await_spilled(ctx, &engine, "about", &owner).await {
@@ -431,8 +432,8 @@ async fn show(ctx: &Ctx, forum: Option<&str>) -> Result<(), CliError> {
         let mut t = cat([
             render::actor(&m.actor),
             lit(match m.role {
-                lessdugin_core::dto::ModRole::Admin => " (admin)",
-                lessdugin_core::dto::ModRole::Moderator => " (moderator)",
+                pandoras_forum_core::dto::ModRole::Admin => " (admin)",
+                pandoras_forum_core::dto::ModRole::Moderator => " (moderator)",
             }),
         ]);
         if let Some(title) = &m.title {
@@ -480,7 +481,7 @@ async fn show(ctx: &Ctx, forum: Option<&str>) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin join <forum> [--note] [--alias]`.
+/// `pandoras-forum join <forum> [--note] [--alias]`.
 pub async fn join(ctx: &Ctx, args: JoinArgs) -> Result<(), CliError> {
     let w = ctx.writer().await?;
     let uri = refs::forum(ctx, &w.engine, &args.forum).await?;
@@ -507,7 +508,7 @@ pub async fn join(ctx: &Ctx, args: JoinArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin leave [forum]`.
+/// `pandoras-forum leave [forum]`.
 pub async fn leave(ctx: &Ctx, args: LeaveArgs) -> Result<(), CliError> {
     let w = ctx.writer().await?;
     let uri = refs::forum_or_current(ctx, &w.engine, args.forum.as_deref()).await?;
@@ -516,7 +517,7 @@ pub async fn leave(ctx: &Ctx, args: LeaveArgs) -> Result<(), CliError> {
     write::report(ctx, &t, "Left")
 }
 
-/// `lessdugin members [forum] [--pending]`, and `members revoke <actor>...`.
+/// `pandoras-forum members [forum] [--pending]`, and `members revoke <actor>...`.
 pub async fn members(ctx: &Ctx, args: MembersArgs) -> Result<(), CliError> {
     if let Some(MembersAction::Revoke { actors, yes }) = args.action {
         return revoke(ctx, args.forum.as_deref(), &actors, yes).await;
@@ -571,7 +572,7 @@ pub async fn members(ctx: &Ctx, args: MembersArgs) -> Result<(), CliError> {
     Ok(())
 }
 
-/// `lessdugin approve <actor>...`.
+/// `pandoras-forum approve <actor>...`.
 pub async fn approve(ctx: &Ctx, args: ApproveArgs) -> Result<(), CliError> {
     let w = ctx.writer().await?;
     let uri = refs::forum_or_current(ctx, &w.engine, None).await?;
@@ -586,7 +587,7 @@ pub async fn approve(ctx: &Ctx, args: ApproveArgs) -> Result<(), CliError> {
     report_each(ctx, &args.actors, &done, "Approved ", "Queued approval of ")
 }
 
-/// `lessdugin members revoke <actor>...` (`engine-api.md` §3.2 `revoke`): removes the
+/// `pandoras-forum members revoke <actor>...` (`engine-api.md` §3.2 `revoke`): removes the
 /// account's grant of membership (its `#access{member}`) of each actor; the removal is a mod
 /// action (`social.md` §17).
 async fn revoke(
@@ -624,7 +625,7 @@ fn report_each(
     let mut first_error = None;
     for (actor, t) in actors.iter().zip(done) {
         match &t.state {
-            lessdugin_core::dto::WriteState::Failed { error } => {
+            pandoras_forum_core::dto::WriteState::Failed { error } => {
                 if !ctx.out.is_json() {
                     ctx.out.err_line(&[
                         (lit("error: "), Style::Bad),
@@ -636,7 +637,7 @@ fn report_each(
                 first_error.get_or_insert_with(|| error.clone());
             }
             _ if ctx.out.is_json() => {}
-            lessdugin_core::dto::WriteState::Done { .. } => ctx
+            pandoras_forum_core::dto::WriteState::Done { .. } => ctx
                 .out
                 .line(&[(lit(did), Style::Good), (name(actor), Style::Bold)]),
             _ => ctx.out.line(&[
@@ -659,7 +660,7 @@ fn report_each(
     }
 }
 
-/// `lessdugin reject <actor>...` (`engine-api.md` §3.2): dismisses the applicants on this
+/// `pandoras-forum reject <actor>...` (`engine-api.md` §3.2): dismisses the applicants on this
 /// device (nothing public is written for them; they leave `members --pending`), and removes the
 /// account's own grant of an actor, if it made one.
 pub async fn reject(ctx: &Ctx, args: RejectArgs) -> Result<(), CliError> {
@@ -676,7 +677,7 @@ pub async fn reject(ctx: &Ctx, args: RejectArgs) -> Result<(), CliError> {
             writes: &done,
         });
         if let Some(e) = done.iter().find_map(|t| match &t.state {
-            lessdugin_core::dto::WriteState::Failed { error } => Some(error.clone()),
+            pandoras_forum_core::dto::WriteState::Failed { error } => Some(error.clone()),
             _ => None,
         }) {
             return Err(CliError::Engine(e));
@@ -711,7 +712,7 @@ fn progress(ctx: &Ctx, engine: &Engine<NativeHost>) -> Option<(Arc<AtomicBool>, 
     Some((shown, id.0))
 }
 
-/// `lessdugin sync [forum] [--full]`: sends the account's queued writes (when logged in), then
+/// `pandoras-forum sync [forum] [--full]`: sends the account's queued writes (when logged in), then
 /// syncs the forum, or every followed forum. Exit 6 when a sync was partial.
 pub async fn sync(ctx: &Ctx, args: SyncArgs) -> Result<(), CliError> {
     if ctx.offline() {
@@ -781,7 +782,7 @@ pub async fn sync(ctx: &Ctx, args: SyncArgs) -> Result<(), CliError> {
     };
     if forums.is_empty() {
         return Err(CliError::usage(
-            "no forum to sync: name one, or follow one with `lessdugin join` / `forum follow`",
+            "no forum to sync: name one, or follow one with `pandoras-forum join` / `forum follow`",
         ));
     }
     let opts = SyncOpts {
@@ -811,7 +812,7 @@ pub async fn sync(ctx: &Ctx, args: SyncArgs) -> Result<(), CliError> {
         }
     }
     if let Some((shown, id)) = shown {
-        engine.unsubscribe(lessdugin_core::engine::SubscriptionId(id));
+        engine.unsubscribe(pandoras_forum_core::engine::SubscriptionId(id));
         if shown.load(Ordering::SeqCst) {
             let _ = write!(std::io::stderr().lock(), "\r\x1b[2K");
         }
@@ -860,7 +861,7 @@ pub async fn sync(ctx: &Ctx, args: SyncArgs) -> Result<(), CliError> {
             )]);
         }
         return Err(CliError::Reported(
-            lessdugin_core::engine::ErrorCode::Partial.exit_code(),
+            pandoras_forum_core::engine::ErrorCode::Partial.exit_code(),
         ));
     }
     if let Some(e) = first_error {
@@ -900,10 +901,10 @@ fn print_audit(ctx: &Ctx, report: &AuditReport) {
         for finding in &check.findings {
             ctx.out.warn(cat([
                 lit(match finding.kind {
-                    lessdugin_core::indexer::AuditKind::Contradiction => "CONTRADICTION: ",
-                    lessdugin_core::indexer::AuditKind::Omission => "OMISSION: ",
-                    lessdugin_core::indexer::AuditKind::Lag => "LAG: ",
-                    lessdugin_core::indexer::AuditKind::Unchecked => "UNCHECKED: ",
+                    pandoras_forum_core::indexer::AuditKind::Contradiction => "CONTRADICTION: ",
+                    pandoras_forum_core::indexer::AuditKind::Omission => "OMISSION: ",
+                    pandoras_forum_core::indexer::AuditKind::Lag => "LAG: ",
+                    pandoras_forum_core::indexer::AuditKind::Unchecked => "UNCHECKED: ",
                 }),
                 tt(&finding.subject),
                 lit(" — "),

@@ -242,7 +242,7 @@ export function storageError(e: unknown): unknown {
   if (name === "VersionError") {
     return hostError(
       "storage",
-      "a newer version of lessdugin is open in another tab: reload this page (IndexedDB VersionError)",
+      "a newer version of Pandora's Forum is open in another tab: reload this page (IndexedDB VersionError)",
     );
   }
   return hostError("storage", `IndexedDB ${name}: ${message}`);

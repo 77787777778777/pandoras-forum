@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import type { MemberView } from "@lessdugin/engine/types";
+import type { MemberView } from "@pandoras-forum/engine/types";
 import { useQuery } from "@tanstack/react-query";
 import { ActorName } from "../../components/ActorName.tsx";
 import { useSendModAction } from "../../components/ModMenu.tsx";

@@ -21,17 +21,17 @@
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did, Nsid};
-use lessdugin_atp::xrpc::ListRecords;
-use lessdugin_core::dto::{
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did, Nsid};
+use pandoras_forum_atp::xrpc::ListRecords;
+use pandoras_forum_core::dto::{
     CommentSort, DTO_VERSION, ItemState, ListPostsQuery, PostFilter, PostSort, ThreadOpts,
 };
-use lessdugin_core::engine::{Engine, EngineError};
-use lessdugin_core::host::Host;
-use lessdugin_core::limits;
-use lessdugin_core::xrpc::{CallOpts, Service};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_native::host::NativeHost;
+use pandoras_forum_core::engine::{Engine, EngineError};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::limits;
+use pandoras_forum_core::xrpc::{CallOpts, Service};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_native::host::NativeHost;
 use serde::Serialize;
 use serde_json::Value;
 
@@ -81,7 +81,7 @@ struct Item {
     record: Value,
 }
 
-/// `lessdugin export [--mine|<forum>] [--format json|md] [--out dir]`.
+/// `pandoras-forum export [--mine|<forum>] [--format json|md] [--out dir]`.
 pub async fn content(ctx: &Ctx, args: ExportArgs) -> Result<(), CliError> {
     if args.format == ExportFormatArg::Md && args.out.is_none() {
         return Err(CliError::usage(
@@ -348,7 +348,7 @@ async fn item(
     pds_of: &mut std::collections::BTreeMap<String, Option<url::Url>>,
     uri: &str,
     cid: &str,
-    author: &lessdugin_core::dto::ActorView,
+    author: &pandoras_forum_core::dto::ActorView,
 ) -> Item {
     let (cid, record) = match write::cached(engine, uri).await {
         Ok((c, v)) => (c, v),

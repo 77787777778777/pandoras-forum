@@ -43,12 +43,12 @@ export function useLoginNotice(): LoginNotice | null {
   return useSyncExternalStore(loginNotice.subscribe, loginNotice.get, () => null);
 }
 
-/** Messages for the engine error codes the `lessdugin web` callback redirects with
+/** Messages for the engine error codes the `pandoras-forum web` callback redirects with
  * (`#/login?error=<code>`); the terminal shows the details. */
 export function bridgeLoginErrorMessage(code: string): string {
   switch (code) {
     case "conflict":
-      return "The sign-in did not match: the account or its authorization server changed. Run `lessdugin login` in the terminal to confirm it.";
+      return "The sign-in did not match: the account or its authorization server changed. Run `pandoras-forum login` in the terminal to confirm it.";
     case "auth_required":
       return "The sign-in was cancelled or expired. Try again.";
     case "blocked":

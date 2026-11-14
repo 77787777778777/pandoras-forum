@@ -10,9 +10,9 @@
 //! Parsing is pure. A handle owner is resolved to a DID by the caller (§3.1); then
 //! [`ForumKey::new`] gives the canonical uri F and `fk(F)` (`data-model.md` §3.1).
 
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
 
 /// A parsed forum reference: the owner (not yet resolved) and the slug.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -170,7 +170,7 @@ mod tests {
         };
         for s in [
             format!("at://{DID}/{f}/rationality"),
-            format!("https://lessdugin.example/#/f/{DID}/rationality"),
+            format!("https://pandoras-forum.example/#/f/{DID}/rationality"),
             format!(
                 "https://x/#/f/{}/rationality/p/3l2a?sort=new",
                 DID.replace(':', "%3A")

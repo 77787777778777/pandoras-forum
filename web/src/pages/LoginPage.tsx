@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Sign-in: the engine resolves the handle (DoH, both directions), then the host-specific login
-// runs (OAuth in the hosted app, the CLI's OAuth in `lessdugin web`, a placeholder with the mock
+// runs (OAuth in the hosted app, the CLI's OAuth in `pandoras-forum web`, a placeholder with the mock
 // engine) and the account is recorded with `addAccount`. After a redirect back from the
 // authorization server, the outcome that needs the user (an error, or a changed authorization
 // server to confirm, sync.md §3.6) is shown here.
 
-import type { ActorView } from "@lessdugin/engine/types";
+import type { ActorView } from "@pandoras-forum/engine/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, useNavigate } from "@tanstack/react-router";
 import { useId, useState } from "react";
@@ -175,7 +175,7 @@ export function LoginPage() {
       )}
       <p className={ui.small}>
         The hosted app is trusted while you use it. For a zero-trust setup run{" "}
-        <code>lessdugin web</code>, which keeps your login in the command-line client.
+        <code>pandoras-forum web</code>, which keeps your login in the command-line client.
       </p>
     </div>
   );

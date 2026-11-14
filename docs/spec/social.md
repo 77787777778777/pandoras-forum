@@ -1,6 +1,6 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin social semantics (normative)
+# Pandora's Forum social semantics (normative)
 
 **Status:** draft for the `.temp` namespace (M0). Each behaviour ID defined here is frozen when it is first released (M7).
 **Sources:** `docs/design/synthesis-v1.md` §4 (with §1, §3.2 and §10), with every fix from `docs/design/completeness-review.md` applied. Where they differ, the approved plan wins. Critique IDs (F*, H*, X*, C*) refer to `docs/design/archive/critiques.md`.
@@ -15,7 +15,7 @@ MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are used as in RFC 2119 and RFC 8174.
 
 ### 0.2 Scope
 
-This document defines how every lessdugin client, and the optional indexer, turns a forum's records into a forum view. That covers:
+This document defines how every Pandora's Forum client, and the optional indexer, turns a forum's records into a forum view. That covers:
 - authorities, participation and seeds;
 - moderation;
 - opinions, vote power, karma, scores and agreement;
@@ -604,7 +604,7 @@ Each (actor, scope, subject, action key) has exactly one record (`data-model.md`
 - The fold cannot tell a former moderator from a DID that never was one, so every forum-scope assertion by an actor ∉ A is `lapsed` (§4.12).
 
 **Adoption**
-- `lessdugin mod adopt <did>` re-issues a departing moderator's forum-scope assertions that are in effect under the adopting authority, with `adopts` pointing at each original (`data-model.md` §8.6).
+- `pandoras-forum mod adopt <did>` re-issues a departing moderator's forum-scope assertions that are in effect under the adopting authority, with `adopts` pointing at each original (`data-model.md` §8.6).
 - **Only what counted is adopted.** An original is re-issued only if its mod-log status (§4.12) in the adopter's fold is `effective`, with the same CID when the copy is sent, and §4.3 conditions 3 and 4 hold for its own actor. Every other original is reported, not copied: an `unauthorised` record (for example a moderator's ban of the owner) or an `overridden` one (a hide that an admin's keep beats) would otherwise take effect at the adopter's higher rank. A DID already removed from `moderators` has only `lapsed` records (§4.12), so nothing of theirs is adopted.
 - `adopts` is informational. A copy counts only on its own merits: the adopter's rank and role, its own `until`, and its own `subjectCid`.
 

@@ -8,7 +8,7 @@
 use std::ffi::CString;
 use std::io;
 
-use lessdugin_native::fsutil::read_regular_nofollow;
+use pandoras_forum_native::fsutil::read_regular_nofollow;
 
 #[test]
 fn a_fifo_is_refused_without_blocking_the_open() {

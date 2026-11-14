@@ -7,9 +7,9 @@ in participation_cases.py.
 
 from __future__ import annotations
 
-from lessdugin_ref.build import DAY, HOUR, MIN, NOW, T0, Forum, at, did, dt, rec, tid
-from lessdugin_ref.cids import base58btc_spelling, upper_spelling
-from lessdugin_ref.common import NS, fk
+from pandoras_forum_ref.build import DAY, HOUR, MIN, NOW, T0, Forum, at, did, dt, rec, tid
+from pandoras_forum_ref.cids import base58btc_spelling, upper_spelling
+from pandoras_forum_ref.common import NS, fk
 
 from .util import file_doc, vector
 

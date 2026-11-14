@@ -3,7 +3,7 @@
 //!
 //! - [`Paths`]: where the config file, the `state` and `cache` stores, drafts, blobs and lock files
 //!   live (`docs/design/synthesis-v1.md` §6.10, `sync.md` §10.1). `--data-dir` or
-//!   `LESSDUGIN_DATA_DIR` puts everything under one directory.
+//!   `PANDORAS_FORUM_DATA_DIR` puts everything under one directory.
 //! - [`Config`]: `config.toml` (network profile, sources, verify mode, DoH providers, indexers…;
 //!   `sync.md` §2.3, `engine-api.md` §2). Saved with mode 0600.
 //! - [`FileLock`]: exclusive `fd-lock` files, e.g. the sync leader lock `<cache>/cache.lock`
@@ -21,15 +21,15 @@ use crate::fsutil;
 use crate::host::NetPolicy;
 
 /// Application directory name.
-pub const APP_NAME: &str = "lessdugin";
+pub const APP_NAME: &str = "pandoras-forum";
 /// Environment variable overriding the data directory (same as `--data-dir`).
-pub const DATA_DIR_ENV: &str = "LESSDUGIN_DATA_DIR";
+pub const DATA_DIR_ENV: &str = "PANDORAS_FORUM_DATA_DIR";
 /// Largest accepted `config.toml`.
 pub const CONFIG_MAX_BYTES: u64 = 1024 * 1024;
 /// Environment variable turning on the engine's **test-only** parity mode
 /// (`engine-api.md` §2.1, `EngineConfig::parity_now_ms`): a fixed view time in ms since the
 /// epoch. Accepted only in devnet mode ([`parity_now_ms`]).
-pub const PARITY_NOW_ENV: &str = "LESSDUGIN_PARITY_NOW_MS";
+pub const PARITY_NOW_ENV: &str = "PANDORAS_FORUM_PARITY_NOW_MS";
 
 /// Configuration errors.
 #[derive(Debug, thiserror::Error)]
@@ -69,13 +69,13 @@ fn io_err(path: &Path) -> impl FnOnce(io::Error) -> ConfigError + '_ {
 // Paths
 // ---------------------------------------------------------------------------------------------
 
-/// The directories and files lessdugin uses.
+/// The directories and files Pandora's Forum uses.
 ///
 /// | | default (Linux) | under `--data-dir D` |
 /// |---|---|---|
-/// | config | `~/.config/lessdugin/config.toml` | `D/config.toml` |
-/// | data | `~/.local/share/lessdugin/` (`state.sqlite`, `drafts/`, `locks/`) | `D/` |
-/// | cache | `~/.cache/lessdugin/` (`cache.sqlite`, `blobs/`, `locks/`, `cache.lock`) | `D/cache/` |
+/// | config | `~/.config/pandoras-forum/config.toml` | `D/config.toml` |
+/// | data | `~/.local/share/pandoras-forum/` (`state.sqlite`, `drafts/`, `locks/`) | `D/` |
+/// | cache | `~/.cache/pandoras-forum/` (`cache.sqlite`, `blobs/`, `locks/`, `cache.lock`) | `D/cache/` |
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Paths {
     /// `config.toml`.
@@ -87,7 +87,7 @@ pub struct Paths {
 }
 
 impl Paths {
-    /// `--data-dir` if given, else `$LESSDUGIN_DATA_DIR` if set and non-empty, else the
+    /// `--data-dir` if given, else `$PANDORAS_FORUM_DATA_DIR` if set and non-empty, else the
     /// platform directories.
     pub fn resolve(data_dir_flag: Option<&Path>) -> Result<Self, ConfigError> {
         if let Some(dir) = data_dir_flag.filter(|d| !d.as_os_str().is_empty()) {
@@ -345,14 +345,14 @@ pub struct DevnetProfile {
 
 impl DevnetProfile {
     /// `h(plc + "\n" + pds)`: names this devnet's directories ([`Paths::for_devnet`]) and its
-    /// keyring service (`lessdugin-devnet-<id>`).
+    /// keyring service (`pandoras-forum-devnet-<id>`).
     pub fn id(&self) -> String {
         lock_hash(&format!("{}\n{}", self.plc.as_str(), self.pds.as_str()))
     }
 
     /// The keyring service of this devnet's sessions.
     pub fn keyring_service(&self) -> String {
-        format!("lessdugin-devnet-{}", self.id())
+        format!("pandoras-forum-devnet-{}", self.id())
     }
 }
 
@@ -425,7 +425,7 @@ pub enum IndexerMode {
 /// plc = "https://plc.directory"
 /// indexer = "forum"               # forum | none | ["https://…"]
 /// # the hosted native OAuth client (`data-model.md` §10.4); unset: the production metadata
-/// oauth_client_id = "https://lessdugin.7778777.online/oauth/cli-client-metadata.json"
+/// oauth_client_id = "https://pandoras.forum/oauth/cli-client-metadata.json"
 ///
 /// [network]
 /// mode = "devnet"                 # production | devnet
@@ -938,7 +938,7 @@ mod tests {
         let b = dev("http://localhost:2582", "http://localhost:9999");
         assert_ne!(p.for_devnet(&b).data_dir, d.data_dir);
         assert_eq!(p.for_devnet(&a.clone()), d);
-        assert_eq!(a.keyring_service(), format!("lessdugin-devnet-{id}"));
+        assert_eq!(a.keyring_service(), format!("pandoras-forum-devnet-{id}"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Completes an OAuth authorization on the devnet PDS in headless Chromium (the e2e tests of
-// `lessdugin login`). Usage:
+// `pandoras-forum login`). Usage:
 //
 //   node oauth_approve.mjs <authorize-url> <password> capture|follow
 //

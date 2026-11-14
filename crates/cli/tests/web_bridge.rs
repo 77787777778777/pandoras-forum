@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `lessdugin web` (`threat-model.md` §6, §7), offline: the real binary on 127.0.0.1, driven
+//! `pandoras-forum web` (`threat-model.md` §6, §7), offline: the real binary on 127.0.0.1, driven
 //! with reqwest and raw TCP.
 //!
 //! - every response, static or bridge, carries the §6.1 CSP (the §6.2 policy under `--dev`)
@@ -36,8 +36,8 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use base64::Engine as _;
 use base64::engine::general_purpose::STANDARD;
-use lessdugin_core::store::key::{Part, encode};
-use lessdugin_lexicon::ns::NS;
+use pandoras_forum_core::store::key::{Part, encode};
+use pandoras_forum_lexicon::ns::NS;
 use serde_json::{Value, json};
 
 const DID: &str = "did:plc:ewvi7nxzyoun6zhxrhs64oiz";
@@ -173,18 +173,18 @@ fn free_port() -> u16 {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The `lessdugin web` process
+// The `pandoras-forum web` process
 
 fn cli(data: &Path, global: &[String]) -> Command {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_lessdugin"));
+    let mut c = Command::new(env!("CARGO_BIN_EXE_pandoras-forum"));
     for (k, _) in std::env::vars() {
-        if k.starts_with("LESSDUGIN_") {
+        if k.starts_with("PANDORAS_FORUM_") {
             c.env_remove(k);
         }
     }
     c.args(global)
-        .env("LESSDUGIN_DATA_DIR", data)
-        .env("LESSDUGIN_KEYRING", "off")
+        .env("PANDORAS_FORUM_DATA_DIR", data)
+        .env("PANDORAS_FORUM_KEYRING", "off")
         .env("NO_COLOR", "1")
         .env_remove("RUST_LOG")
         .env_remove("BROWSER");
@@ -201,7 +201,7 @@ struct Web {
 }
 
 impl Web {
-    /// Starts `lessdugin [global] web --no-open [--port port]` and waits for its first link.
+    /// Starts `pandoras-forum [global] web --no-open [--port port]` and waits for its first link.
     fn start(data: &Path, global: &[String], port: Option<u16>) -> (Self, String) {
         let mut c = cli(data, global);
         c.args(["web", "--no-open"]);
@@ -264,7 +264,7 @@ impl Web {
             Err(_) => {
                 let status = self.child.try_wait().ok().flatten();
                 panic!(
-                    "no link from lessdugin web (exit {status:?}): {}",
+                    "no link from pandoras-forum web (exit {status:?}): {}",
                     self.stderr()
                 )
             }
@@ -330,7 +330,7 @@ impl Drop for Web {
 }
 
 fn cap_of(link: &str) -> &str {
-    link.split_once("#lessdugin-cap=")
+    link.split_once("#pandoras-forum-cap=")
         .unwrap_or_else(|| panic!("no capability in {link}"))
         .1
 }
@@ -584,7 +584,7 @@ fn serve_pds() -> Pds {
     }
 }
 
-/// `lessdugin login <DID> --password-stdin` against the PDS.
+/// `pandoras-forum login <DID> --password-stdin` against the PDS.
 fn login(pds: &Pds, data: &Path) {
     let mut c = cli(data, &pds.global());
     c.args(["--json", "login", DID, "--password-stdin"])
@@ -614,7 +614,7 @@ fn key(parts: &[&str]) -> String {
 
 fn succ(parts: &[&str]) -> String {
     let k = encode(&parts.iter().map(|p| Part::from(*p)).collect::<Vec<_>>());
-    STANDARD.encode(lessdugin_core::host::prefix_successor(&k).unwrap())
+    STANDARD.encode(pandoras_forum_core::host::prefix_successor(&k).unwrap())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -647,7 +647,7 @@ fn static_files_and_config_carry_the_policy_headers() {
     let http = Http::new();
     let csp = production_csp();
     // The printed link: the bridge origin, then a 43-character capability in the fragment.
-    assert!(link.starts_with(&format!("{}/#lessdugin-cap=", web.origin)));
+    assert!(link.starts_with(&format!("{}/#pandoras-forum-cap=", web.origin)));
     let cap = cap_of(&link);
     assert_eq!(cap.len(), 43);
     assert!(
@@ -687,8 +687,8 @@ fn static_files_and_config_carry_the_policy_headers() {
             std::fs::read(dist.join("assets").join(&asset)).unwrap()
         );
     }
-    // lessdugin-config.json says bridge mode.
-    let r = http.send(http.request(Method::GET, &web.url("/lessdugin-config.json")));
+    // pandoras-forum-config.json says bridge mode.
+    let r = http.send(http.request(Method::GET, &web.url("/pandoras-forum-config.json")));
     assert_eq!(r.status, 200);
     r.assert_policy(&csp, "config");
     assert_eq!(r.header("content-type"), Some("application/json"));
@@ -708,7 +708,7 @@ fn static_files_and_config_carry_the_policy_headers() {
         r.assert_policy(&csp, "405");
     }
     // Bridge answers: the same headers, and no-store.
-    let r = web.exchange(&http, "x#lessdugin-cap=nope");
+    let r = web.exchange(&http, "x#pandoras-forum-cap=nope");
     assert_eq!(r.status, 403);
     r.assert_policy(&csp, "bridge 403");
     assert_eq!(r.header("cache-control"), Some("no-store"));
@@ -742,7 +742,7 @@ fn foreign_hosts_are_refused_before_routing() {
     for host in &hosts {
         for (method, path) in [
             (Method::GET, "/"),
-            (Method::GET, "/lessdugin-config.json"),
+            (Method::GET, "/pandoras-forum-config.json"),
             (Method::GET, "/no/such/file"),
             (Method::POST, "/bridge/session"),
             (Method::POST, "/bridge/kv"),
@@ -1108,7 +1108,7 @@ fn a_link_used_twice_revokes_its_session() {
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     while !web
         .stderr()
-        .contains("a lessdugin web link was used twice; its session was revoked")
+        .contains("a pandoras-forum web link was used twice; its session was revoked")
     {
         assert!(
             std::time::Instant::now() < deadline,
@@ -1311,7 +1311,7 @@ fn xrpc_forwards_only_allowlisted_writes_through_the_cli_session() {
     assert_eq!(r.status, 200, "{}", String::from_utf8_lossy(&r.body));
     r.assert_policy(&dev_csp(), "xrpc (devnet)");
     assert_eq!(r.header("cache-control"), Some("no-store"));
-    assert_eq!(r.header("x-lessdugin-upstream"), Some("pds"));
+    assert_eq!(r.header("x-pandoras-forum-upstream"), Some("pds"));
     assert_eq!(r.json()["cid"], "bafyreia");
     assert_eq!(r.header("content-type"), Some("application/json"));
     assert_eq!(r.header("ratelimit-limit"), Some("5000"));
@@ -1349,7 +1349,7 @@ fn xrpc_forwards_only_allowlisted_writes_through_the_cli_session() {
     assert_eq!(r.status, 429);
     assert_eq!(r.json()["error"], "RateLimitExceeded");
     assert_eq!(r.header("retry-after"), Some("7"));
-    assert_eq!(r.header("x-lessdugin-upstream"), Some("pds"));
+    assert_eq!(r.header("x-pandoras-forum-upstream"), Some("pds"));
     let r = xrpc(
         "com.atproto.repo.deleteRecord",
         &format!("?account={}", DID.replace(':', "%3A")),
@@ -1499,7 +1499,7 @@ fn xrpc_forwards_only_allowlisted_writes_through_the_cli_session() {
             "{nsid}{query} {body}: {}",
             String::from_utf8_lossy(&r.body)
         );
-        assert!(r.header("x-lessdugin-upstream").is_none());
+        assert!(r.header("x-pandoras-forum-upstream").is_none());
         assert!(r.json()["error"].is_string());
     }
     let r = xrpc(
@@ -1578,7 +1578,9 @@ fn the_port_comes_from_the_flag_or_web_port_and_a_busy_port_is_an_error() {
     {
         let (web, link) = Web::start(dir.path(), &[], None);
         assert_eq!(web.port, configured);
-        assert!(link.starts_with(&format!("http://127.0.0.1:{configured}/#lessdugin-cap=")));
+        assert!(link.starts_with(&format!(
+            "http://127.0.0.1:{configured}/#pandoras-forum-cap="
+        )));
         // --port overrides it.
         let flag = free_port();
         let (web2, _) = Web::start(dir.path(), &[], Some(flag));
@@ -1647,7 +1649,7 @@ fn ctrl_c_stops_the_server_despite_a_stalled_client() {
             }
             assert!(
                 started.elapsed() < Duration::from_secs(10),
-                "lessdugin web still runs {:?} after Ctrl-C: {}",
+                "pandoras-forum web still runs {:?} after Ctrl-C: {}",
                 started.elapsed(),
                 web.stderr()
             );

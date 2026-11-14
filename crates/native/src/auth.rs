@@ -33,11 +33,11 @@ pub mod store;
 
 use std::sync::Arc;
 
-use lessdugin_atp::syntax::Did;
-use lessdugin_core::dto::AccountView;
-use lessdugin_core::engine::{AccountInfo, Engine, EngineError, ErrorCode, LoginBinding};
-use lessdugin_core::host::{Host, KvStore};
-use lessdugin_core::identity::{HandleResolution, IdentityLevel, ResolutionMethod};
+use pandoras_forum_atp::syntax::Did;
+use pandoras_forum_core::dto::AccountView;
+use pandoras_forum_core::engine::{AccountInfo, Engine, EngineError, ErrorCode, LoginBinding};
+use pandoras_forum_core::host::{Host, KvStore};
+use pandoras_forum_core::identity::{HandleResolution, IdentityLevel, ResolutionMethod};
 use url::Url;
 
 pub use app_password::{APP_PASSWORD_ENV, AppPassword, AppPasswordSession};
@@ -167,7 +167,7 @@ pub async fn resolve_login_target<H: Host>(
     })
 }
 
-/// App-password login (`lessdugin login --app-password`): creates a session at the target's PDS
+/// App-password login (`pandoras-forum login --app-password`): creates a session at the target's PDS
 /// with `createSession`, checks the binding (the session's DID is the target's, the PDS is the
 /// one in a fresh DID document), stores the session, records the account and registers the
 /// session. Any failure after `createSession` deletes the session at the server.

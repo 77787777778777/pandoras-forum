@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The settings page writes each setting through the operation the engine keeps it with, and
 // shows a refusal instead of dropping it (review finding m3-5).
-import { MockEngine } from "@lessdugin/engine/mock";
-import type { ForumIndexer, IndexerConsent } from "@lessdugin/engine/types";
+import { MockEngine } from "@pandoras-forum/engine/mock";
+import type { ForumIndexer, IndexerConsent } from "@pandoras-forum/engine/types";
 
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

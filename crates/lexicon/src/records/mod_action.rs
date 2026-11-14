@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! `modAction` (§6.7) and its action definitions.
 
-use lessdugin_atp::syntax::{AtUri, Datetime};
+use pandoras_forum_atp::syntax::{AtUri, Datetime};
 use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::{Map, Value};

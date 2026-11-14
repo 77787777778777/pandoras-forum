@@ -5,46 +5,48 @@
 //! `$EDITOR` (the headless driver); in parity mode the Thread screen's `ThreadView` is then
 //! byte-identical on alice's and carol's devices.
 //!
-//! Runs only with `LESSDUGIN_E2E=1`. `LESSDUGIN_DEVNET_JSON=<file>` reuses a running devnet;
+//! Runs only with `PANDORAS_FORUM_E2E=1`. `PANDORAS_FORUM_DEVNET_JSON=<file>` reuses a running devnet;
 //! otherwise the test starts one and kills it at the end.
 //!
 //! This is also the recipe for the parity scenario: open an engine with
 //! `NativeHost::open(paths.for_devnet(..), config)` and `parity_now_ms`, log in with
-//! `login_app_password`, then [`lessdugin_tui::capture_thread`].
+//! `login_app_password`, then [`pandoras_forum_tui::capture_thread`].
 
 #![allow(clippy::disallowed_methods)] // a real clock and real sleeps for a real network
 
 mod common;
 
-use lessdugin_core::dto::{
+use pandoras_forum_core::dto::{
     DefaultTier, ForumDraft, MembershipMode, PostDraft, SyncOpts, ThreadRoot, WriteState,
 };
-use lessdugin_core::engine::{Engine, EngineConfig};
-use lessdugin_native::auth::{AppPassword, SecretStore, login_app_password, resolve_login_target};
-use lessdugin_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
-use lessdugin_native::engine::engine_config;
-use lessdugin_native::host::NativeHost;
-use lessdugin_tui::{CaptureOpts, Headless, HeadlessOpts, capture_thread};
+use pandoras_forum_core::engine::{Engine, EngineConfig};
+use pandoras_forum_native::auth::{
+    AppPassword, SecretStore, login_app_password, resolve_login_target,
+};
+use pandoras_forum_native::config::{Config, DevnetProfile, NetworkProfile, Paths};
+use pandoras_forum_native::engine::engine_config;
+use pandoras_forum_native::host::NativeHost;
+use pandoras_forum_tui::{CaptureOpts, Headless, HeadlessOpts, capture_thread};
 use serde_json::Value;
 
 struct Devnet {
     info: Value,
-    _child: Option<lessdugin_testkit::node_devnet::NodeDevnet>,
+    _child: Option<pandoras_forum_testkit::node_devnet::NodeDevnet>,
 }
 
 impl Devnet {
     fn start() -> Option<Self> {
-        if std::env::var("LESSDUGIN_E2E").ok().as_deref() != Some("1") {
-            eprintln!("skipped: set LESSDUGIN_E2E=1 to run against the devnet");
+        if std::env::var("PANDORAS_FORUM_E2E").ok().as_deref() != Some("1") {
+            eprintln!("skipped: set PANDORAS_FORUM_E2E=1 to run against the devnet");
             return None;
         }
-        if let Ok(path) = std::env::var("LESSDUGIN_DEVNET_JSON") {
+        if let Ok(path) = std::env::var("PANDORAS_FORUM_DEVNET_JSON") {
             let info = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
             return Some(Self { info, _child: None });
         }
         let root = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../.."));
         // one devnet per test: the tests of a binary run in parallel
-        let (child, info) = lessdugin_testkit::node_devnet::NodeDevnet::start(root, "tui");
+        let (child, info) = pandoras_forum_testkit::node_devnet::NodeDevnet::start(root, "tui");
         Some(Self {
             info,
             _child: Some(child),

@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::task::{Context as TaskContext, Poll};
 
 use futures::lock::Mutex as AsyncMutex;
-use lessdugin_atp::syntax::Nsid;
+use pandoras_forum_atp::syntax::Nsid;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
@@ -142,7 +142,7 @@ impl LiveConfig {
     pub fn new(endpoints: Vec<Url>, browser: bool) -> Self {
         Self {
             endpoints,
-            namespace: lessdugin_lexicon::ns::NS.to_owned(),
+            namespace: pandoras_forum_lexicon::ns::NS.to_owned(),
             browser,
         }
     }

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { MockEngine } from "@lessdugin/engine/mock";
+import { MockEngine } from "@pandoras-forum/engine/mock";
 import type { EngineHandle } from "./handle.ts";
 
 export function createMockHandle(engine: MockEngine = new MockEngine()): EngineHandle {

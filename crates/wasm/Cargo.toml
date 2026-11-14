@@ -1,6 +1,6 @@
 [package]
-name = "lessdugin-wasm"
-description = "WebAssembly bindings for the lessdugin engine (used by the SPA)"
+name = "pandoras-forum-wasm"
+description = "WebAssembly bindings for the Pandora's Forum engine (used by the SPA)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -14,31 +14,31 @@ crate-type = ["cdylib", "rlib"]
 [features]
 default = ["math", "verify", "orientation"]
 # MathML through math-core (lfm-1.md §7.2); without it the renderer emits `<span data-tex>`.
-math = ["lessdugin-markdown/math"]
+math = ["pandoras-forum-markdown/math"]
 # Record verification (ADR 0002 rule 5: `xtask wasm --report` prints its marginal size).
-verify = ["lessdugin-core/verify"]
+verify = ["pandoras-forum-core/verify"]
 # The media pipeline's pure-Rust decoders (PNG, JPEG, GIF, WebP): EXIF orientation is applied
 # physically and images are downscaled to fit the PDS, in the SPA as natively (the same core
 # code, `threat-model.md` §5.9.1, SUP-9). Without it the SPA strips the orientation tag with the
 # rest of the EXIF and uploads the pixels unrotated.
-orientation = ["lessdugin-core/orientation"]
+orientation = ["pandoras-forum-core/orientation"]
 # Test-only builds (`cargo xtask wasm --kv-test`): export `kvConformance(store)`, which runs the
-# shared `KvStore` contract and record-store scenario of lessdugin-testkit against a JS store
-# (the IndexedDB store of @lessdugin/engine under vitest). Never part of the SPA's build.
-kv-conformance = ["dep:lessdugin-testkit", "debug-panic"]
+# shared `KvStore` contract and record-store scenario of pandoras-forum-testkit against a JS store
+# (the IndexedDB store of @pandoras-forum/engine under vitest). Never part of the SPA's build.
+kv-conformance = ["dep:pandoras-forum-testkit", "debug-panic"]
 # Report Rust panics on `console.error` (test and debug builds).
 debug-panic = []
 vectors = []
 # Test-only: the tsify declarations of every DTO (`tests/dto_decl.rs`), which
 # `packages/engine/src/types.parity.test.ts` compares with the hand-written `types.ts`.
-dto-decl = ["lessdugin-core/tsify", "dep:tsify"]
+dto-decl = ["pandoras-forum-core/tsify", "dep:tsify"]
 
 [dependencies]
-lessdugin-core = { path = "../core", default-features = false }
-lessdugin-markdown = { path = "../markdown", default-features = false }
-lessdugin-atp.workspace = true
-lessdugin-lexicon.workspace = true
-lessdugin-testkit = { workspace = true, optional = true }
+pandoras-forum-core = { path = "../core", default-features = false }
+pandoras-forum-markdown = { path = "../markdown", default-features = false }
+pandoras-forum-atp.workspace = true
+pandoras-forum-lexicon.workspace = true
+pandoras-forum-testkit = { workspace = true, optional = true }
 tsify = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
@@ -61,7 +61,7 @@ wasm-bindgen-futures.workspace = true
 js-sys.workspace = true
 
 [dev-dependencies]
-lessdugin-testkit.workspace = true
+pandoras-forum-testkit.workspace = true
 
 [[test]]
 name = "dto_decl"

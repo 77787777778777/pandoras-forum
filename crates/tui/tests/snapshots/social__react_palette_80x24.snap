@@ -1,9 +1,8 @@
 ---
 source: crates/tui/tests/social.rs
-assertion_line: 374
 expression: screen
 ---
- lessdugin › R┌ React ───────────────────────────────────────────┐l.example.com
+ Pandora's For┌ React ───────────────────────────────────────────┐l.example.com
  React forum ·│React for · Tab stance · Enter pick · Esc close   │
 ▌ Bob's post  │✅ Agreed                                         │
 ▌ @bob.example│❌ Disagree                                       │

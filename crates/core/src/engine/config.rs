@@ -108,7 +108,7 @@ pub struct EngineConfig {
     /// this fixed time (ms) instead of the host clock, and every admitted version's first-seen
     /// time (`obs`) is taken to be this time, so clients that synced the same records at
     /// different times produce byte-identical DTOs. Native clients set it only in devnet mode
-    /// (`LESSDUGIN_PARITY_NOW_MS` with `--dev`), the SPA only in e2e builds; it is never set in
+    /// (`PANDORAS_FORUM_PARITY_NOW_MS` with `--dev`), the SPA only in e2e builds; it is never set in
     /// production. Sync, the outbox, caches and back-offs keep using the host clock.
     pub parity_now_ms: Option<i64>,
 }
@@ -120,7 +120,7 @@ fn url(s: &str) -> url::Url {
 /// The default native `User-Agent` (`sync.md` §9.5).
 pub fn default_user_agent() -> String {
     format!(
-        "lessdugin/{} (+https://lessdugin.7778777.online)",
+        "pandoras-forum/{} (+https://pandoras.forum)",
         env!("CARGO_PKG_VERSION")
     )
 }
@@ -214,7 +214,7 @@ mod tests {
         assert_eq!(id.doh[0].as_str(), "https://cloudflare-dns.com/dns-query");
         assert_eq!(id.plc.as_str(), "https://plc.directory/");
         assert!(id.assisted && id.slingshot.is_some() && !id.is_devnet());
-        assert!(c.user_agent.starts_with("lessdugin/"));
+        assert!(c.user_agent.starts_with("pandoras-forum/"));
 
         let browser = EngineConfig {
             platform: Platform::Browser,

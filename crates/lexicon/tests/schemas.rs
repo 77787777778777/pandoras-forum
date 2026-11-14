@@ -18,10 +18,10 @@ use std::path::Path;
 #[cfg(not(target_arch = "wasm32"))]
 use common::repo_path;
 use common::{nsid, sample_def};
-use lessdugin_atp::syntax::RecordKeyType;
-use lessdugin_lexicon::ns::{NS, NS_FINAL, to_build_nsid};
-use lessdugin_lexicon::schemas::{Def, EXTERNAL, LESSDUGIN, Registry, TypeDef, registry};
-use lessdugin_lexicon::validate::{Options, Validator};
+use pandoras_forum_atp::syntax::RecordKeyType;
+use pandoras_forum_lexicon::ns::{NS, NS_FINAL, to_build_nsid};
+use pandoras_forum_lexicon::schemas::{Def, EXTERNAL, PANDORAS_FORUM, Registry, TypeDef, registry};
+use pandoras_forum_lexicon::validate::{Options, Validator};
 
 #[cfg(not(target_arch = "wasm32"))]
 fn walk(dir: &Path, base: &Path, out: &mut BTreeSet<String>) {
@@ -47,14 +47,14 @@ fn embedded_list_matches_the_directory() {
     let base = repo_path("lexicons");
     let mut on_disk = BTreeSet::new();
     walk(&base, &base, &mut on_disk);
-    let embedded: BTreeSet<String> = LESSDUGIN.iter().map(|e| e.path.to_owned()).collect();
-    assert_eq!(embedded.len(), LESSDUGIN.len(), "duplicate entries");
+    let embedded: BTreeSet<String> = PANDORAS_FORUM.iter().map(|e| e.path.to_owned()).collect();
+    assert_eq!(embedded.len(), PANDORAS_FORUM.len(), "duplicate entries");
     assert_eq!(
         embedded, on_disk,
-        "schemas::LESSDUGIN must list exactly the files under lexicons/"
+        "schemas::PANDORAS_FORUM must list exactly the files under lexicons/"
     );
     // the embedded text is the file text
-    for e in LESSDUGIN {
+    for e in PANDORAS_FORUM {
         assert_eq!(
             std::fs::read_to_string(base.join(e.path)).unwrap(),
             e.json,
@@ -73,7 +73,7 @@ fn embedded_list_matches_the_directory() {
 fn ids_match_paths_and_map_to_the_build_prefix() {
     let reg = registry();
     assert!(reg.errors().is_empty(), "{:?}", reg.errors());
-    for e in LESSDUGIN.iter().chain(EXTERNAL) {
+    for e in PANDORAS_FORUM.iter().chain(EXTERNAL) {
         let file_id = e.path.trim_end_matches(".json").replace('/', ".");
         let build_id = to_build_nsid(&file_id).unwrap_or_else(|| file_id.clone());
         let doc = reg
@@ -81,7 +81,7 @@ fn ids_match_paths_and_map_to_the_build_prefix() {
             .unwrap_or_else(|| panic!("{build_id} not in the registry"));
         assert_eq!(doc.file_id, file_id);
         assert_eq!(doc.id, build_id);
-        if LESSDUGIN.iter().any(|x| x.path == e.path) {
+        if PANDORAS_FORUM.iter().any(|x| x.path == e.path) {
             assert!(file_id.starts_with(NS_FINAL), "{file_id}");
             assert!(doc.id.starts_with(NS), "{}", doc.id);
         }
@@ -91,7 +91,7 @@ fn ids_match_paths_and_map_to_the_build_prefix() {
         "{:?}",
         reg.unresolved_refs()
     );
-    assert_eq!(reg.docs().count(), LESSDUGIN.len() + EXTERNAL.len());
+    assert_eq!(reg.docs().count(), PANDORAS_FORUM.len() + EXTERNAL.len());
 }
 
 #[test]
@@ -144,9 +144,7 @@ fn inventory_matches_data_model_1_2() {
     // reserved group names are never record names (§1.5)
     for r in reg.record_nsids() {
         let short = r.strip_prefix(&format!("{NS}.")).unwrap();
-        assert!(!lessdugin_lexicon::reserved::is_reserved_collection_name(
-            short
-        ));
+        assert!(!pandoras_forum_lexicon::reserved::is_reserved_collection_name(short));
     }
 }
 
@@ -205,7 +203,7 @@ fn every_query_output_accepts_its_sample() {
     }
 }
 
-/// Lints over the lessdugin lexicons (`data-model.md` §2.1).
+/// Lints over the Pandora's Forum lexicons (`data-model.md` §2.1).
 #[test]
 fn lexicon_conventions() {
     let reg = registry();
@@ -322,11 +320,11 @@ fn records_keep_their_final_ids_in_files() {
     // the files use the final prefix; the registry never contains the other prefix's records
     let reg = registry();
     let other = if NS == NS_FINAL {
-        lessdugin_lexicon::ns::NS_TEMP
+        pandoras_forum_lexicon::ns::NS_TEMP
     } else {
         NS_FINAL
     };
-    for c in lessdugin_lexicon::Collection::ALL {
+    for c in pandoras_forum_lexicon::Collection::ALL {
         assert!(reg.record(&c.nsid_in(other)).is_none(), "{c}");
         assert!(reg.record(c.nsid()).is_some(), "{c}");
     }

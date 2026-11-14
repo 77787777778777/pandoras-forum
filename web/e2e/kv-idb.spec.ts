@@ -6,7 +6,7 @@
 //
 // The harness page is served from memory (Playwright routes): the kv-test wasm module of
 // `cargo xtask wasm --kv-test` (packages/engine/pkg/kvtest) and packages/engine/src/idb.ts with
-// its types stripped. Without the module the test is skipped, unless LESSDUGIN_KV_TEST=1 (set
+// its types stripped. Without the module the test is skipped, unless PANDORAS_FORUM_KV_TEST=1 (set
 // it where the module is built first, as CI's browser job should: `cargo xtask wasm --kv-test`).
 
 import { existsSync, readFileSync } from "node:fs";
@@ -16,8 +16,8 @@ import { expect, test } from "@playwright/test";
 
 const ENGINE = fileURLToPath(new URL("../../packages/engine/", import.meta.url));
 const KVTEST = `${ENGINE}pkg/kvtest/`;
-const present = existsSync(`${KVTEST}lessdugin_engine_bg.wasm`);
-const required = process.env.LESSDUGIN_KV_TEST === "1";
+const present = existsSync(`${KVTEST}pandoras_forum_engine_bg.wasm`);
+const required = process.env.PANDORAS_FORUM_KV_TEST === "1";
 const ORIGIN = "http://127.0.0.1:47999";
 
 const MAIN = `
@@ -68,10 +68,13 @@ test("the core's KV conformance suites pass on Chromium's IndexedDB", async ({ p
     "/main.js": { type: "text/javascript", body: MAIN },
     "/idb.ts": { type: "text/javascript", body: js(`${ENGINE}src/idb.ts`) },
     "/protocol.ts": { type: "text/javascript", body: js(`${ENGINE}src/protocol.ts`) },
-    "/glue.js": { type: "text/javascript", body: readFileSync(`${KVTEST}lessdugin_engine.js`) },
+    "/glue.js": {
+      type: "text/javascript",
+      body: readFileSync(`${KVTEST}pandoras_forum_engine.js`),
+    },
     "/kv.wasm": {
       type: "application/wasm",
-      body: readFileSync(`${KVTEST}lessdugin_engine_bg.wasm`),
+      body: readFileSync(`${KVTEST}pandoras_forum_engine_bg.wasm`),
     },
   };
   await page.route(`${ORIGIN}/**`, (route) => {

@@ -3,15 +3,15 @@
 // start-up work before the router mounts (OAuth callback, bridge capability), the login
 // providers, and the stand-ins for operations the wasm engine does not implement yet.
 
-import type { AccountInfo, EngineError } from "@lessdugin/engine/types";
+import type { AccountInfo, EngineError } from "@pandoras-forum/engine/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const engineCalls: { op: string; args: unknown[] }[] = [];
 let addAccountImpl: (info: AccountInfo) => Promise<unknown> = async () => ({});
 const started: { init?: unknown }[] = [];
 
-vi.mock("@lessdugin/engine/client", async (importOriginal) => {
-  const orig = await importOriginal<typeof import("@lessdugin/engine/client")>();
+vi.mock("@pandoras-forum/engine/client", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("@pandoras-forum/engine/client")>();
   return {
     ...orig,
     startEngine: (opts: { init?: unknown }) => {
@@ -226,32 +226,32 @@ describe("hosted mode", () => {
   });
 });
 
-describe("lessdugin web mode", () => {
+describe("pandoras-forum web mode", () => {
   const CAP = "A".repeat(43);
   const TOKEN = "T".repeat(43);
 
   it("exchanges the capability before the router mounts and keeps the token in sessionStorage", async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ token: TOKEN })));
     vi.stubGlobal("fetch", fetchMock);
-    at(`/#lessdugin-cap=${CAP}`);
+    at(`/#pandoras-forum-cap=${CAP}`);
     expect(location.hash).toBe("#/");
     const h = await createRealEngine({ mode: "bridge" });
     expect(fetchMock).toHaveBeenCalledWith(
       "/bridge/session",
       expect.objectContaining({ method: "POST", body: JSON.stringify({ cap: CAP }) }),
     );
-    expect(sessionStorage.getItem("lessdugin-bridge-token")).toBe(TOKEN);
+    expect(sessionStorage.getItem("pandoras-forum-bridge-token")).toBe(TOKEN);
     expect(started[0]).toMatchObject({
       init: { state: { kind: "bridge", endpoint: "/bridge/kv", token: TOKEN } },
     });
-    expect(h.notice).toContain("lessdugin web");
+    expect(h.notice).toContain("pandoras-forum web");
     await expect(h.login.logout("did:plc:aaaaaaaaaaaaaaaaaaaaaaaa")).rejects.toMatchObject({
       code: "unsupported",
     });
   });
 
   it("reuses the tab's token after a reload or a sign-in", async () => {
-    sessionStorage.setItem("lessdugin-bridge-token", TOKEN);
+    sessionStorage.setItem("pandoras-forum-bridge-token", TOKEN);
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     at("/#/");
@@ -265,7 +265,7 @@ describe("lessdugin web mode", () => {
       "fetch",
       vi.fn(async () => new Response('{"error":"auth_required"}', { status: 403 })),
     );
-    at(`/#lessdugin-cap=${CAP}`);
+    at(`/#pandoras-forum-cap=${CAP}`);
     await expect(createRealEngine({ mode: "bridge" })).rejects.toMatchObject({
       name: "BridgeLinkError",
       message: expect.stringContaining("already used or has expired"),

@@ -10,8 +10,8 @@ matter. The reacts projection cannot list karma fields; the K of every reactor i
 
 from __future__ import annotations
 
-from lessdugin_ref.build import MIN, T0, Forum, did
-from lessdugin_ref.fold import fold_vector_input
+from pandoras_forum_ref.build import MIN, T0, Forum, did
+from pandoras_forum_ref.fold import fold_vector_input
 
 from . import kcast
 from .util import file_doc, vector

@@ -13,22 +13,22 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
-use lessdugin_atp::syntax::{AtUri, Did};
-use lessdugin_core::discovery::ForumKey;
-use lessdugin_core::engine::{Engine, EngineConfig};
-use lessdugin_core::host::{
+use pandoras_forum_atp::syntax::{AtUri, Did};
+use pandoras_forum_core::discovery::ForumKey;
+use pandoras_forum_core::engine::{Engine, EngineConfig};
+use pandoras_forum_core::host::{
     BlobHandle, Dir, Host, HostError, HttpRequest, HttpResponse, KeyRange, KvOp, KvStore,
 };
-use lessdugin_core::store::mem::MemKv;
-use lessdugin_core::store::{RecKey, RecordStore};
-use lessdugin_core::sync::{Priority, Reason, Stats, SyncConfig, SyncRequest, Syncer};
-use lessdugin_lexicon::collection::nsid;
-use lessdugin_lexicon::keys;
-use lessdugin_lexicon::records::{Forum, Membership, Post};
-use lessdugin_lexicon::values::MembershipMode;
-use lessdugin_testkit::fake_pds::{AccountHandle, Fault};
-use lessdugin_testkit::repo::tid_at_ms;
-use lessdugin_testkit::{FakeNet, MemHost};
+use pandoras_forum_core::store::mem::MemKv;
+use pandoras_forum_core::store::{RecKey, RecordStore};
+use pandoras_forum_core::sync::{Priority, Reason, Stats, SyncConfig, SyncRequest, Syncer};
+use pandoras_forum_lexicon::collection::nsid;
+use pandoras_forum_lexicon::keys;
+use pandoras_forum_lexicon::records::{Forum, Membership, Post};
+use pandoras_forum_lexicon::values::MembershipMode;
+use pandoras_forum_testkit::fake_pds::{AccountHandle, Fault};
+use pandoras_forum_testkit::repo::tid_at_ms;
+use pandoras_forum_testkit::{FakeNet, MemHost};
 
 const HEAD: &str = "com.atproto.sync.getLatestCommit";
 
@@ -191,7 +191,7 @@ impl Host for HoldHost {
     }
 
     async fn http(&self, req: HttpRequest) -> Result<HttpResponse, HostError> {
-        let url = lessdugin_testkit::memhost::target_url(&req.target);
+        let url = pandoras_forum_testkit::memhost::target_url(&req.target);
         if self.hold.matches(&url) && !self.hold.open.load(Ordering::SeqCst) {
             self.hold.held.lock().unwrap().push(url);
             std::future::poll_fn(|cx: &mut Context<'_>| {
@@ -258,8 +258,8 @@ fn poll_once<F: Future + Unpin>(f: &mut F) -> Poll<F::Output> {
     std::pin::Pin::new(f).poll(&mut cx)
 }
 
-fn dt(host: &MemHost) -> lessdugin_atp::syntax::Datetime {
-    lessdugin_atp::syntax::Datetime::from_millis(host.now() - 3_600_000).unwrap()
+fn dt(host: &MemHost) -> pandoras_forum_atp::syntax::Datetime {
+    pandoras_forum_atp::syntax::Datetime::from_millis(host.now() - 3_600_000).unwrap()
 }
 
 /// A forum of `owner` in `mode`, the owner a member.
@@ -382,13 +382,13 @@ const INDEX: &str = "https://index.example.com";
 fn endpoint(method: &str) -> String {
     format!(
         "{INDEX}/xrpc/{}",
-        lessdugin_core::indexer::contract::method_nsid(method)
+        pandoras_forum_core::indexer::contract::method_nsid(method)
     )
 }
 
 fn as_of() -> serde_json::Value {
     serde_json::json!({
-        "asOf": {"seq": 0, "timeUs": lessdugin_testkit::memhost::DEFAULT_NOW_MS * 1000, "lagMs": 0},
+        "asOf": {"seq": 0, "timeUs": pandoras_forum_testkit::memhost::DEFAULT_NOW_MS * 1000, "lagMs": 0},
         "indexer": {"did": "did:web:index.example.com", "coreVersion": "test"}
     })
 }
@@ -406,7 +406,7 @@ fn serve_indexer(mem: &MemHost, net: &FakeNet, posts: &[String]) {
         .extend(as_of().as_object().unwrap().clone());
     mem.respond_get(
         &endpoint("describeIndexer"),
-        lessdugin_testkit::resp::ok_json(&describe),
+        pandoras_forum_testkit::resp::ok_json(&describe),
     );
     let mut page = serde_json::json!({
         "posts": posts.iter().map(|u| serde_json::json!({
@@ -419,30 +419,31 @@ fn serve_indexer(mem: &MemHost, net: &FakeNet, posts: &[String]) {
         .extend(as_of().as_object().unwrap().clone());
     mem.respond_get(
         &endpoint("listPosts"),
-        lessdugin_testkit::resp::ok_json(&page),
+        pandoras_forum_testkit::resp::ok_json(&page),
     );
     let net = net.clone();
     mem.on_get(&endpoint("getRecordProofs"), move |req| {
-        let url = url::Url::parse(&lessdugin_testkit::memhost::target_url(&req.target)).unwrap();
+        let url =
+            url::Url::parse(&pandoras_forum_testkit::memhost::target_url(&req.target)).unwrap();
         let uris: Vec<String> = url
             .query_pairs()
             .filter(|(k, _)| k == "uris")
             .map(|(_, v)| v.into_owned())
             .collect();
-        Ok(lessdugin_testkit::resp::car(proof_bundle(&net, &uris)))
+        Ok(pandoras_forum_testkit::resp::car(proof_bundle(&net, &uris)))
     });
 }
 
 /// A `getRecordProofs` bundle (`sync.md` §8.6) of the records' current proofs at their PDSes.
 fn proof_bundle(net: &FakeNet, uris: &[String]) -> Vec<u8> {
-    use lessdugin_atp::Ipld;
+    use pandoras_forum_atp::Ipld;
     use std::collections::BTreeMap;
     let mut items = Vec::new();
     let mut blocks = BTreeMap::new();
     for u in uris {
         let uri = AtUri::parse(u).unwrap();
         let account = net.account(uri.did().as_str()).unwrap();
-        let qs = lessdugin_atp::xrpc::query_string(&[
+        let qs = pandoras_forum_atp::xrpc::query_string(&[
             ("did", uri.did().as_str()),
             ("collection", uri.collection().as_str()),
             ("rkey", uri.rkey().as_str()),
@@ -451,13 +452,16 @@ fn proof_bundle(net: &FakeNet, uris: &[String]) -> Vec<u8> {
             "{}/xrpc/com.atproto.sync.getRecord?{qs}",
             account.pds_base()
         );
-        let req = HttpRequest::get(lessdugin_core::host::Target::Anon(
+        let req = HttpRequest::get(pandoras_forum_core::host::Target::Anon(
             url::Url::parse(&url).unwrap(),
         ));
         let resp = net.request(&req, "indexer").unwrap();
         assert_eq!(resp.status, 200, "no proof for {u}");
-        let car = lessdugin_atp::car::read_car(&resp.body, &lessdugin_atp::car::CarLimits::PROOF)
-            .unwrap();
+        let car = pandoras_forum_atp::car::read_car(
+            &resp.body,
+            &pandoras_forum_atp::car::CarLimits::PROOF,
+        )
+        .unwrap();
         let mut item = BTreeMap::new();
         item.insert("uri".to_owned(), Ipld::String(u.clone()));
         item.insert(
@@ -473,17 +477,17 @@ fn proof_bundle(net: &FakeNet, uris: &[String]) -> Vec<u8> {
     let mut manifest = BTreeMap::new();
     manifest.insert("v".to_owned(), Ipld::Integer(1));
     manifest.insert("items".to_owned(), Ipld::List(items));
-    let manifest = lessdugin_atp::dagcbor::encode(&Ipld::Map(manifest)).unwrap();
-    let root = lessdugin_atp::cid::for_dag_cbor(&manifest);
+    let manifest = pandoras_forum_atp::dagcbor::encode(&Ipld::Map(manifest)).unwrap();
+    let root = pandoras_forum_atp::cid::for_dag_cbor(&manifest);
     blocks.insert(root, manifest);
-    lessdugin_atp::car::write_car(&[root], blocks.iter().map(|(c, b)| (c, b.as_slice())))
+    pandoras_forum_atp::car::write_car(&[root], blocks.iter().map(|(c, b)| (c, b.as_slice())))
 }
 
 fn assisted<H: Host>(host: H) -> Engine<H> {
     Engine::new(
         host,
         EngineConfig {
-            indexers: vec![lessdugin_core::engine::IndexerConsent {
+            indexers: vec![pandoras_forum_core::engine::IndexerConsent {
                 url: url::Url::parse(INDEX).unwrap(),
             }],
             ..EngineConfig::default()
@@ -493,23 +497,23 @@ fn assisted<H: Host>(host: H) -> Engine<H> {
 
 /// A grant of `#access member` to `member`, by the owner.
 fn grant(host: &MemHost, owner: &AccountHandle, key: &ForumKey, member: &Did) {
-    use lessdugin_lexicon::records::{AccessAction, Action, ModAction};
+    use pandoras_forum_lexicon::records::{AccessAction, Action, ModAction};
     let m = ModAction::new(
         key.uri.clone(),
         member.as_str(),
         Action::Access(AccessAction::new(
-            lessdugin_lexicon::values::AccessLevel::Member,
+            pandoras_forum_lexicon::values::AccessLevel::Member,
         )),
         dt(host),
     );
-    let r = lessdugin_core::outbox::records::mod_action(&m).unwrap();
+    let r = pandoras_forum_core::outbox::records::mod_action(&m).unwrap();
     owner.put(nsid::MOD_ACTION, &r.rkey, &r.value);
 }
 
-fn all_posts(forum: &ForumKey) -> lessdugin_core::dto::ListPostsQuery {
-    let mut q = lessdugin_core::dto::ListPostsQuery::new(forum.uri.to_string());
-    q.sort = lessdugin_core::dto::PostSort::New;
-    q.filter = lessdugin_core::dto::PostFilter::All;
+fn all_posts(forum: &ForumKey) -> pandoras_forum_core::dto::ListPostsQuery {
+    let mut q = pandoras_forum_core::dto::ListPostsQuery::new(forum.uri.to_string());
+    q.sort = pandoras_forum_core::dto::PostSort::New;
+    q.filter = pandoras_forum_core::dto::PostFilter::All;
     q
 }
 
@@ -547,7 +551,7 @@ fn a_granted_members_hydrated_post_is_listed_before_their_repo_sync() {
     );
 
     let query = all_posts(&key);
-    let fallback = lessdugin_core::dto::SyncOpts::default();
+    let fallback = pandoras_forum_core::dto::SyncOpts::default();
     let mut page = Box::pin(engine.list_posts_page(&query, &fallback));
     let page = (0..1_000)
         .find_map(|_| match poll_once(&mut page) {
@@ -555,15 +559,22 @@ fn a_granted_members_hydrated_post_is_listed_before_their_repo_sync() {
             Poll::Pending => None,
         })
         .expect("the cold page waited for the member's sync");
+    // Both posts carry the same `createdAt`, so the page orders them by uri (`social.md` §14).
+    let mut expected = [theirs.as_str(), mine.as_str()];
+    expected.sort_unstable();
     let listed: Vec<&str> = page.items.iter().map(|p| p.uri.as_str()).collect();
-    assert_eq!(listed, [theirs.as_str(), mine.as_str()], "{page:?}");
-    assert_eq!(page.items[0].title.as_deref(), Some("Member's post"));
+    assert_eq!(listed, expected, "{page:?}");
+    let member_post = page.items.iter().find(|p| p.uri.as_str() == theirs);
+    assert_eq!(
+        member_post.and_then(|p| p.title.as_deref()),
+        Some("Member's post")
+    );
     // The membership was read at the member's PDS; the member's repo is still not listed.
     let membership = AtUri::parse(&member.uri(nsid::MEMBERSHIP, &key.fk)).unwrap();
     let row = futures::executor::block_on(RecordStore::new(mem.cache()).get(&membership))
         .unwrap()
         .expect("the membership is not held");
-    assert_eq!(row.level, lessdugin_core::store::Level::Pds, "{row:?}");
+    assert_eq!(row.level, pandoras_forum_core::store::Level::Pds, "{row:?}");
     assert!(
         futures::executor::block_on(RecordStore::new(mem.cache()).repo(member.did().as_str()))
             .unwrap()
@@ -701,7 +712,7 @@ fn the_authors_on_screen_are_resolved_ahead_of_the_participant_sweep() {
     };
     mem.park_sleeps(true);
     // The page's forum sync (as the SPA starts it) is resolving participants…
-    let opts = lessdugin_core::dto::SyncOpts {
+    let opts = pandoras_forum_core::dto::SyncOpts {
         budget_ms: Some(8_000),
         max_requests: Some(400),
         full: false,
@@ -729,7 +740,7 @@ fn the_authors_on_screen_are_resolved_ahead_of_the_participant_sweep() {
     // … when the cold page lists its posts.
     let started = mem.requests().len();
     let query = all_posts(&key);
-    let fallback = lessdugin_core::dto::SyncOpts::default();
+    let fallback = pandoras_forum_core::dto::SyncOpts::default();
     let mut page = Box::pin(engine.list_posts_page(&query, &fallback));
     let mut page_done = None;
     for _ in 0..10_000 {
@@ -824,7 +835,7 @@ fn a_forum_sync_cut_short_by_its_budget_converges_in_the_background() {
         let engine = Engine::new(
             mem.clone(),
             EngineConfig {
-                sources: lessdugin_core::engine::Sources::Direct,
+                sources: pandoras_forum_core::engine::Sources::Direct,
                 ..EngineConfig::default()
             },
         );
@@ -835,14 +846,14 @@ fn a_forum_sync_cut_short_by_its_budget_converges_in_the_background() {
                 .on_repo(member.did().as_str())
                 .on_nsid("com.atproto.repo.listRecords"),
         );
-        let opts = lessdugin_core::dto::SyncOpts {
+        let opts = pandoras_forum_core::dto::SyncOpts {
             budget_ms: Some(8_000),
             max_requests: Some(400),
             full: false,
         };
         let report = engine.sync_forum(key.uri.as_str(), &opts).await.unwrap();
         assert!(report.partial, "{report:?}");
-        let listed = |page: &lessdugin_core::dto::PostList| -> Vec<String> {
+        let listed = |page: &pandoras_forum_core::dto::PostList| -> Vec<String> {
             page.items.iter().map(|p| p.uri.clone()).collect()
         };
         let page = engine.list_posts(&all_posts(&key)).await.unwrap();
@@ -902,7 +913,7 @@ fn names_any(mem: &MemHost, dids: &[Did]) -> bool {
 }
 
 /// The posts of `page` missing from `list`.
-fn unlisted<'a>(list: &lessdugin_core::dto::PostList, page: &'a [String]) -> Vec<&'a String> {
+fn unlisted<'a>(list: &pandoras_forum_core::dto::PostList, page: &'a [String]) -> Vec<&'a String> {
     page.iter()
         .filter(|p| !list.items.iter().any(|i| &i.uri == *p))
         .collect()
@@ -922,7 +933,7 @@ fn page_then_sync(mem: &MemHost) -> (HoldHost, Engine<HoldHost>, ForumKey, Vec<S
     (host, engine, key, page, off_screen)
 }
 
-const PAGE_SYNC: lessdugin_core::dto::SyncOpts = lessdugin_core::dto::SyncOpts {
+const PAGE_SYNC: pandoras_forum_core::dto::SyncOpts = pandoras_forum_core::dto::SyncOpts {
     budget_ms: Some(8_000),
     max_requests: Some(400),
     full: false,
@@ -938,7 +949,7 @@ fn a_forum_sync_started_beside_a_cold_page_goes_after_it() {
     let (host, engine, key, posts, off_screen) = page_then_sync(&mem);
     mem.park_sleeps(true);
     let query = all_posts(&key);
-    let fallback = lessdugin_core::dto::SyncOpts::default();
+    let fallback = pandoras_forum_core::dto::SyncOpts::default();
     let mut page = Box::pin(engine.list_posts_page(&query, &fallback));
     assert!(poll_once(&mut page).is_pending());
     let mut sweep = Box::pin(engine.sync_forum(key.uri.as_str(), &PAGE_SYNC));
@@ -990,7 +1001,7 @@ fn a_cold_page_holds_the_forum_sync_beside_it_for_a_bounded_time() {
     let (host, engine, key, posts, off_screen) = page_then_sync(&mem);
     mem.park_sleeps(true);
     let query = all_posts(&key);
-    let fallback = lessdugin_core::dto::SyncOpts::default();
+    let fallback = pandoras_forum_core::dto::SyncOpts::default();
     let mut page = Box::pin(engine.list_posts_page(&query, &fallback));
     assert!(poll_once(&mut page).is_pending());
     let started = mem.now();
@@ -1006,7 +1017,7 @@ fn a_cold_page_holds_the_forum_sync_beside_it_for_a_bounded_time() {
         mem.advance_ms(10);
     }
     let held = reached.expect("the sweep stayed held by the page") - started;
-    let bound = lessdugin_core::limits::COLD_PAGE_HOLD_MS as i64;
+    let bound = pandoras_forum_core::limits::COLD_PAGE_HOLD_MS as i64;
     assert!(
         (bound..bound + 1_000).contains(&held),
         "the sweep started {held} ms after it was asked (hold {bound} ms)"
@@ -1027,14 +1038,14 @@ fn a_background_forum_sync_is_not_held_by_a_cold_page() {
     let (host, engine, key, _posts, off_screen) = page_then_sync(&mem);
     mem.park_sleeps(true);
     let query = all_posts(&key);
-    let fallback = lessdugin_core::dto::SyncOpts::default();
+    let fallback = pandoras_forum_core::dto::SyncOpts::default();
     let mut page = Box::pin(engine.list_posts_page(&query, &fallback));
     assert!(poll_once(&mut page).is_pending());
-    let opts = lessdugin_core::discovery::SyncOpts {
+    let opts = pandoras_forum_core::discovery::SyncOpts {
         budget_ms: Some(8_000),
         max_requests: Some(400),
         background: true,
-        ..lessdugin_core::discovery::SyncOpts::default()
+        ..pandoras_forum_core::discovery::SyncOpts::default()
     };
     let started = mem.now();
     let mut sweep = Box::pin(engine.sync_forum(key.uri.as_str(), &opts));

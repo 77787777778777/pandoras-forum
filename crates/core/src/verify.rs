@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-//! `lessdugin verify <ref> [--deep]` (`sync.md` §8.8): proof verification orchestration
+//! `pandoras-forum verify <ref> [--deep]` (`sync.md` §8.8): proof verification orchestration
 //! (`proofs/1`).
 //!
 //! ```text
 //! verify(uri, deep) -> VerifyReport
 //!   doc  = DID document of did(uri), fetched now, level doc         → PDS endpoint, #atproto key
 //!   car  = com.atproto.sync.getRecord at the PDS                     (Anon, no redirects, 1 MB)
-//!   lessdugin_atp::proof::verify_proof(car, did, coll, rkey, key, now)   (= verify_record_proof)
+//!   pandoras_forum_atp::proof::verify_proof(car, did, coll, rkey, key, now)   (= verify_record_proof)
 //!   json = com.atproto.repo.getRecord at the PDS: cid(DAG-CBOR(json.value)) must equal the proven
 //!          CID (or the PDS must report RecordNotFound for a proven absence)
 //!   deep = strongRef and blob checks: not implemented in M1 (reported as a skipped check:
@@ -18,11 +18,11 @@
 //! than reports, since nothing was learned about the record. Verification never writes the store
 //! in M1 (raising a stored version's level to `proven` comes with the record store).
 
-use lessdugin_atp::crypto::PublicKey;
-use lessdugin_atp::proof::{ProofCaps, ProofError, verify_proof};
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did, DidMethod};
-use lessdugin_atp::xrpc::{GetRecord, SyncGetRecord};
-use lessdugin_atp::{Cid, commit::CommitError};
+use pandoras_forum_atp::crypto::PublicKey;
+use pandoras_forum_atp::proof::{ProofCaps, ProofError, verify_proof};
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did, DidMethod};
+use pandoras_forum_atp::xrpc::{GetRecord, SyncGetRecord};
+use pandoras_forum_atp::{Cid, commit::CommitError};
 
 use crate::dto::{DtoVersion, VerifyCheck, VerifyOutcome, VerifyReport};
 use crate::engine::EngineError;
@@ -253,7 +253,7 @@ pub async fn verify_record<H: Host>(
         (_, Err(e)) if e.is_transient() => {
             return Err(EngineError::from(e).context("repo.getRecord"));
         }
-        (Some(cid), Ok(out)) => match lessdugin_atp::datamodel::record_cid(&out.value) {
+        (Some(cid), Ok(out)) => match pandoras_forum_atp::datamodel::record_cid(&out.value) {
             Ok(c) if c != cid => (
                 false,
                 format!("the JSON value hashes to {c}, the signed record is {cid}"),
@@ -313,9 +313,9 @@ mod tests {
 
     #[test]
     fn stage_mapping() {
-        use lessdugin_atp::car::CarError;
-        use lessdugin_atp::crypto::CryptoError;
-        use lessdugin_atp::mst::MstError;
+        use pandoras_forum_atp::car::CarError;
+        use pandoras_forum_atp::crypto::CryptoError;
+        use pandoras_forum_atp::mst::MstError;
         assert_eq!(failing_stage(&ProofError::NoRoot), 0);
         assert_eq!(
             failing_stage(&ProofError::Car(CarError::TooLarge { len: 2, max: 1 })),
@@ -336,7 +336,7 @@ mod tests {
             3
         );
         assert_eq!(failing_stage(&ProofError::Mst(MstError::Ordering)), 4);
-        let cid = lessdugin_atp::cid::for_raw(b"x");
+        let cid = pandoras_forum_atp::cid::for_raw(b"x");
         assert_eq!(failing_stage(&ProofError::MissingRecord(cid)), 5);
     }
 }

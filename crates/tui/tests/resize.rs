@@ -8,7 +8,7 @@ mod common;
 use common::{block_on, scenario, tui};
 use unicode_width::UnicodeWidthStr;
 
-fn selected(t: &lessdugin_tui::Headless<lessdugin_testkit::MemHost>) -> Option<String> {
+fn selected(t: &pandoras_forum_tui::Headless<pandoras_forum_testkit::MemHost>) -> Option<String> {
     let th = t.state.top_thread()?;
     Some(th.layout.items.get(th.pos.selected)?.uri.clone())
 }

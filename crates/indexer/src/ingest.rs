@@ -9,18 +9,18 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::time::Duration;
 
-use lessdugin_atp::syntax::{AtIdentifier, AtUri, Did, Nsid};
-use lessdugin_atp::xrpc::{ListRecords, ListReposByCollection};
-use lessdugin_core::discovery::{ForumKey, SyncOpts};
-use lessdugin_core::engine::{EngineError, ErrorCode};
-use lessdugin_core::host::Host;
-use lessdugin_core::identity::IdentityLevel;
-use lessdugin_core::model::{ForumModel, ModelError};
-use lessdugin_core::store::records::RecordStore;
-use lessdugin_core::store::repo::AccountStatus;
-use lessdugin_core::sync::repo::PointOutcome;
-use lessdugin_core::sync::{Priority, Reason, Stats, SyncRequest};
-use lessdugin_core::xrpc::{CallOpts, Service};
+use pandoras_forum_atp::syntax::{AtIdentifier, AtUri, Did, Nsid};
+use pandoras_forum_atp::xrpc::{ListRecords, ListReposByCollection};
+use pandoras_forum_core::discovery::{ForumKey, SyncOpts};
+use pandoras_forum_core::engine::{EngineError, ErrorCode};
+use pandoras_forum_core::host::Host;
+use pandoras_forum_core::identity::IdentityLevel;
+use pandoras_forum_core::model::{ForumModel, ModelError};
+use pandoras_forum_core::store::records::RecordStore;
+use pandoras_forum_core::store::repo::AccountStatus;
+use pandoras_forum_core::sync::repo::PointOutcome;
+use pandoras_forum_core::sync::{Priority, Reason, Stats, SyncRequest};
+use pandoras_forum_core::xrpc::{CallOpts, Service};
 use tracing::{info, warn};
 
 use crate::proofs;
@@ -104,7 +104,7 @@ pub async fn tick(indexer: &Indexer) {
             .store
             .schedule_next(
                 "gc",
-                now.saturating_add(lessdugin_core::limits::TOMBSTONE_GC_EVERY_MS),
+                now.saturating_add(pandoras_forum_core::limits::TOMBSTONE_GC_EVERY_MS),
             )
             .ok();
     }
@@ -124,7 +124,7 @@ async fn pass(indexer: &Indexer, forum: &str) {
 /// the core record store, and cached proofs of records no forum indexes any more leave
 /// `proof_cache` after the same retention.
 pub async fn gc(indexer: &Indexer, now_ms: i64) {
-    let retention = lessdugin_core::limits::TOMBSTONE_MIN_RETENTION_MS;
+    let retention = pandoras_forum_core::limits::TOMBSTONE_MIN_RETENTION_MS;
     match RecordStore::new(indexer.engine.host().cache())
         .gc_tombstones(now_ms, retention)
         .await
@@ -276,10 +276,10 @@ async fn sync_forum_inner(indexer: &Indexer, forum: &str) -> anyhow::Result<()> 
     let pending = indexer.store.candidates(forum, indexer.now_ms());
     let mut confirmations = BTreeMap::new();
     for (did, cid, _) in &pending {
-        let membership = lessdugin_lexicon::keys::membership_rkey(key.fk.as_str())?;
+        let membership = pandoras_forum_lexicon::keys::membership_rkey(key.fk.as_str())?;
         let at = AtUri::parse(&format!(
             "at://{did}/{}/{membership}",
-            lessdugin_lexicon::nsid::MEMBERSHIP
+            pandoras_forum_lexicon::nsid::MEMBERSHIP
         ))?;
         confirmations.insert(did.clone(), (at, cid.clone()));
     }
@@ -305,17 +305,17 @@ async fn sync_forum_inner(indexer: &Indexer, forum: &str) -> anyhow::Result<()> 
         .await?
         .and_then(|row| row.value_json().ok())
         .and_then(|value| {
-            lessdugin_lexicon::records::Record::from_nsid_value(
-                lessdugin_lexicon::nsid::FORUM,
+            pandoras_forum_lexicon::records::Record::from_nsid_value(
+                pandoras_forum_lexicon::nsid::FORUM,
                 value,
             )
         })
         .and_then(|record| match record {
-            Ok(lessdugin_lexicon::records::Record::Forum(decl)) => Some(decl),
+            Ok(pandoras_forum_lexicon::records::Record::Forum(decl)) => Some(decl),
             _ => None,
         })
         .ok_or_else(|| anyhow::anyhow!("synced forum declaration is missing"))?;
-    let state = lessdugin_core::discovery::ForumState::load(
+    let state = pandoras_forum_core::discovery::ForumState::load(
         indexer.engine.host().cache(),
         &key,
         &decl,
@@ -324,18 +324,18 @@ async fn sync_forum_inner(indexer: &Indexer, forum: &str) -> anyhow::Result<()> 
     .await?;
     // A rejected relay-only candidate is kept as a `disc.relay` row, not a disc row.
     let relay =
-        lessdugin_core::discovery::state::relay_rows(indexer.engine.host().cache(), &key.fk)
+        pandoras_forum_core::discovery::state::relay_rows(indexer.engine.host().cache(), &key.fk)
             .await?;
     for (did, (at, expected_cid)) in confirmations {
         let row = state.disc.get(&did).or_else(|| relay.get(&did));
         let state_name = if matches!(
             row.map(|d| &d.state),
-            Some(lessdugin_core::discovery::DiscState::Confirmed)
+            Some(pandoras_forum_core::discovery::DiscState::Confirmed)
         ) {
             Some("confirmed")
         } else if matches!(
             row.map(|d| &d.state),
-            Some(lessdugin_core::discovery::DiscState::Rejected)
+            Some(pandoras_forum_core::discovery::DiscState::Rejected)
         ) {
             Some("rejected")
         } else {
@@ -658,8 +658,8 @@ pub async fn discover(indexer: &Indexer) -> anyhow::Result<()> {
     let relays = indexer.config.relays.clone();
     for relay in relays {
         for collection in [
-            lessdugin_lexicon::nsid::FORUM,
-            lessdugin_lexicon::nsid::MEMBERSHIP,
+            pandoras_forum_lexicon::nsid::FORUM,
+            pandoras_forum_lexicon::nsid::MEMBERSHIP,
         ] {
             let mut cursor = None;
             for _ in 0..1000 {
@@ -744,18 +744,22 @@ async fn records_of(indexer: &Indexer, did: &Did, collection: &str) -> anyhow::R
             if uri.did() != did
                 || uri.collection().as_str() != collection
                 || indexer.blocked(uri.as_str())
-                || lessdugin_lexicon::validity::check_uri(&uri, &value)
+                || pandoras_forum_lexicon::validity::check_uri(&uri, &value)
                     .first_rule()
                     .is_some()
             {
                 continue;
             }
-            let forum = if collection == lessdugin_lexicon::nsid::FORUM {
+            let forum = if collection == pandoras_forum_lexicon::nsid::FORUM {
                 Some(uri)
             } else {
-                match lessdugin_lexicon::records::Record::from_nsid_value(collection, value.clone())
-                {
-                    Some(Ok(lessdugin_lexicon::records::Record::Membership(m))) => Some(m.forum),
+                match pandoras_forum_lexicon::records::Record::from_nsid_value(
+                    collection,
+                    value.clone(),
+                ) {
+                    Some(Ok(pandoras_forum_lexicon::records::Record::Membership(m))) => {
+                        Some(m.forum)
+                    }
                     _ => None,
                 }
             };
@@ -769,11 +773,11 @@ async fn records_of(indexer: &Indexer, did: &Did, collection: &str) -> anyhow::R
                     refused += 1;
                     continue;
                 }
-                if collection == lessdugin_lexicon::nsid::MEMBERSHIP {
+                if collection == pandoras_forum_lexicon::nsid::MEMBERSHIP {
                     let created_ms =
-                        lessdugin_lexicon::records::Record::from_nsid_value(collection, value)
+                        pandoras_forum_lexicon::records::Record::from_nsid_value(collection, value)
                             .and_then(|r| match r {
-                                Ok(lessdugin_lexicon::records::Record::Membership(m)) => {
+                                Ok(pandoras_forum_lexicon::records::Record::Membership(m)) => {
                                     Some(m.created_at.timestamp_micros().div_euclid(1000))
                                 }
                                 _ => None,

@@ -1,12 +1,12 @@
 <!-- SPDX-License-Identifier: CC0-1.0 -->
 
-# lessdugin specification
+# Pandora's Forum specification
 
-lessdugin is a markdown and media forum on the AT Protocol, modelled on ForumMagnum. Every forum, post, comment, vote, react, wiki edit, sequence and moderation action is an ordinary record in its author's own atproto repository. Every client computes the same forum view from those records with one deterministic fold. No lessdugin server is needed; an optional indexer only speeds things up.
+Pandora's Forum is a markdown and media forum on the AT Protocol, modelled on ForumMagnum. Every forum, post, comment, vote, react, wiki edit, sequence and moderation action is an ordinary record in its author's own atproto repository. Every client computes the same forum view from those records with one deterministic fold. No Pandora's Forum server is needed; an optional indexer only speeds things up.
 
-This directory is the normative specification. It is written so that an independent implementation can interoperate with lessdugin's own clients without reading their code.
+This directory is the normative specification. It is written so that an independent implementation can interoperate with the Pandora's Forum clients without reading their code.
 
-**Status:** draft for the development namespace `online.7778777.lessdugin.temp` (milestone M0). It is frozen at release 0.1 (M7), when the lexicons are published (§2).
+**Status:** draft for the development namespace `forum.pandoras.temp` (milestone M0). It is frozen at release 0.1 (M7), when the lexicons are published (§2).
 **Key words.** MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, MAY and OPTIONAL are used as in RFC 2119 and RFC 8174 when, and only when, they appear in capitals.
 
 ---
@@ -25,14 +25,14 @@ This directory is the normative specification. It is written so that an independ
 | `reacts-default-1.json` | normative data | the `default/1` react palette | `default/1` |
 | `sync.md` | normative | trust levels and admission, identity, forum resolution and discovery, per-repo sync, live updates, the sync side of the outbox, proof verification, scheduling, the store, media display, the `Host` contract, the optional indexer | `proofs/1` |
 | `limits.md` | normative | every byte, count, depth, time and budget limit, with its change class (N, L, W, S, P, O) and the rules for hitting a limit | – (its class-N numbers belong to the IDs that use them) |
-| `threat-model.md` | normative | assets, trust boundaries, adversaries, inherent limits, measures (IDs `AREA-n`), the SPA CSP and headers, `lessdugin web`, residual risks | – |
+| `threat-model.md` | normative | assets, trust boundaries, adversaries, inherent limits, measures (IDs `AREA-n`), the SPA CSP and headers, `pandoras-forum web`, residual risks | – |
 | `engine-api.md` | normative for this repository's implementations; informative for others | the engine's operations, events and the DTO schema `dto/1` shared by the CLI's `--json`, the TUI, the SPA and the indexer | – (`dto/1` is a schema version, §3.4) |
 
 Related material outside this directory:
 
 | Path | Status |
 |---|---|
-| `lexicons/online/7778777/lessdugin/` | The lexicon JSON files, authored with the final NSIDs. Until M7, `data-model.md` wins over them; after publication, the published lexicons win (§1.3). |
+| `lexicons/forum/pandoras/` | The lexicon JSON files, authored with the final NSIDs. Until M7, `data-model.md` wins over them; after publication, the published lexicons win (§1.3). |
 | `testdata/vectors/` | Normative test vectors (§5). |
 | `docs/adr/` | Decision records. `0001-decisions-v1.md` is the decision log (D1–D21) and the resolution of every design critique. Spike ADRs record measurements. |
 | `docs/plan.md` | The implementation plan: milestones, acceptance criteria, deferred work. Normative for scope and order only. |
@@ -76,8 +76,8 @@ These are recorded here so that implementers do not have to discover them. Each 
 
 ## 2. Namespace and freezing
 
-- `NS = online.7778777.lessdugin`, with NSID authority `lessdugin.7778777.online`. Indexer queries live under `NS.index.*`.
-- Development, devnet, CI and dogfood builds read and write only `NS.temp = online.7778777.lessdugin.temp`, which is never published. Every document and every lexicon file uses the **final** NSIDs; a `.temp` build substitutes the prefix everywhere (`data-model.md` §1.3). `.temp` data carries no compatibility promise.
+- `NS = forum.pandoras`, with NSID authority `pandoras.forum`. Indexer queries live under `NS.index.*`.
+- Development, devnet, CI and dogfood builds read and write only `NS.temp = forum.pandoras.temp`, which is never published. Every document and every lexicon file uses the **final** NSIDs; a `.temp` build substitutes the prefix everywhere (`data-model.md` §1.3). `.temp` data carries no compatibility promise.
 - **Frozen at publication (M7):** NSIDs, field types and names, required sets, every lexicon limit and accept list, rkey grammars, and every behaviour ID released with 0.1.
 - **May change in any release:** anything `limits.md` classes W, S, P or O; values marked *tunable* in `sync.md`; presentation under `RENDERER_VERSION` (`lfm-1.md` §1.2); the engine API compatibly within `dto/1`.
 - **Before M7:** any normative text MAY change, but only together with its vectors, and with an ADR when it reverses a recorded decision (`docs/plan.md` §2.2).
@@ -140,7 +140,7 @@ The fold contract (`social.md` §1: purity, integer arithmetic, `libm` for `hot(
 | Name | Who | Summary |
 |---|---|---|
 | **Level 0 (reader)** | minimal readers, bots, archivers, alternative clients | Reads a forum's posts and comments and applies the moderators' hides. |
-| **Level 1 (full fold)** | lessdugin's CLI, TUI, SPA and indexer | Computes the complete forum view, byte-identical to every other Level-1 client. |
+| **Level 1 (full fold)** | The Pandora's Forum CLI, TUI, SPA and indexer | Computes the complete forum view, byte-identical to every other Level-1 client. |
 | **Writer requirements** | any client that writes records, at either level | Writes only valid records, through the write protocol. |
 | **Indexer requirements** | any service that serves `NS.index.*` | Level 1, plus the indexer rules. |
 
@@ -193,8 +193,8 @@ An indexer MUST be Level 1, MUST implement the methods it lists in `describeInde
 A conformance claim names the level and every behaviour ID implemented, for example:
 
 ```
-lessdugin Level 1 + writer: fk/1 sk/1 lfm/1 mod/1 karma/1 magic/1 default/1 proofs/1
-lessdugin Level 0: fk/1 sk/1 mod/1 (forum scope)
+Pandora's Forum Level 1 + writer: fk/1 sk/1 lfm/1 mod/1 karma/1 magic/1 default/1 proofs/1
+Pandora's Forum Level 0: fk/1 sk/1 mod/1 (forum scope)
 ```
 
 A claim is valid only while the implementation passes every normative vector of the listed IDs.
@@ -208,13 +208,13 @@ A claim is valid only while the implementation passes every normative vector of 
 - Vectors live in `testdata/vectors/<kind>/*.json`. Each file is a JSON object `{behaviour, kind, description?, vectors}`: `behaviour` names the behaviour ID (or contract) under test, `kind` the vector category within it, and `vectors` is an array of objects `{name, input, expected}`; `name` is unique within its file. The owning document defines the shapes of `input` and `expected` and MAY define further fields (for example `note`, or `raw` in `keys/`).
 - Inputs inject every source of variation: `now`, `obs` and local state are explicit, and the fold never reads a clock.
 - Floating-point results (only `hot`, `magic/1`) are written as the 16 lowercase hex digits of their binary64 bit pattern.
-- `testdata/interop/` holds vendored atproto-interop-tests under their own licence. They test atproto conformance (syntax, data model, MST, signatures) and are not lessdugin vectors.
+- `testdata/interop/` holds vendored atproto-interop-tests under their own licence. They test atproto conformance (syntax, data model, MST, signatures) and are not Pandora's Forum vectors.
 
 ### 5.2 Kinds
 
 | Kind | Owner | Class |
 |---|---|---|
-| `syntax`, `datamodel` | atproto, plus lessdugin cases (NSIDs, Jetstream patterns) | normative for the atproto layer |
+| `syntax`, `datamodel` | atproto, plus Pandora's Forum cases (NSIDs, Jetstream patterns) | normative for the atproto layer |
 | `keys` | `data-model.md` §3 | `fk/1`, `sk/1` |
 | `lexicon` | `data-model.md` §7 | record validity; frozen with the lexicons |
 | `limits` | `limits.md`, `data-model.md` §2.2 | N- and L-class limits |
@@ -229,7 +229,7 @@ A claim is valid only while the implementation passes every normative vector of 
 
 ### 5.3 Runners and blessing
 
-- The Rust runners (the vector tests of each crate) run every vector natively. The same tests, built for wasm32-unknown-unknown, run under node (`cargo xtask test-wasm`, in CI): the vectors of `lessdugin-atp`, `lessdugin-lexicon` and `lessdugin-markdown`, and the social fold vectors and the P9 digest of `lessdugin-core` in both namespaces. Both runs check the same expected outputs, which proves native = wasm. (A TypeScript runner calling `runVector` in a `vectors`-feature wasm build is not needed for that, and none is built.)
+- The Rust runners (the vector tests of each crate) run every vector natively. The same tests, built for wasm32-unknown-unknown, run under node (`cargo xtask test-wasm`, in CI): the vectors of `pandoras-forum-atp`, `pandoras-forum-lexicon` and `pandoras-forum-markdown`, and the social fold vectors and the P9 digest of `pandoras-forum-core` in both namespaces. Both runs check the same expected outputs, which proves native = wasm. (A TypeScript runner calling `runVector` in a `vectors`-feature wasm build is not needed for that, and none is built.)
 - `cargo xtask vectors --bless` regenerates expected outputs. Every blessed diff is reviewed, and lands in the same commit as the spec change that explains it.
 - Before M7, any expected output MAY change under that rule. After M7, the rules of §3.3 apply.
 - Property tests (proptest; `social.md` §19) complement the vectors: permutation invariance, idempotence, layering, the pair and sybil bounds, incremental = batch, native = wasm.
@@ -242,7 +242,7 @@ A claim is valid only while the implementation passes every normative vector of 
 - Every markdown file in these paths starts with `<!-- SPDX-License-Identifier: CC0-1.0 -->`. Files that cannot carry a comment (JSON) are CC0-1.0 by their location, and this section is their notice.
 - Contributions to these paths are accepted under CC0-1.0, with a DCO sign-off.
 - `testdata/interop/` keeps its upstream licence (its own `LICENSE` file).
-- Not covered here: the applications (AGPL-3.0-or-later) and the `lessdugin-atp` and `lessdugin-lexicon` crates (MIT OR Apache-2.0, pending the owner's confirmation; ADR 0001, D21). An implementation of this specification may use any licence.
+- Not covered here: the applications (AGPL-3.0-or-later) and the `pandoras-forum-atp` and `pandoras-forum-lexicon` crates (MIT OR Apache-2.0, pending the owner's confirmation; ADR 0001, D21). An implementation of this specification may use any licence.
 
 ---
 

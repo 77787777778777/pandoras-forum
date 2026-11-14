@@ -16,8 +16,8 @@
 // named from `LoadedMedia.sniffed`, the type the bytes sniff as whatever was declared (sync.md
 // §11.2, engine-api.md §3.4 `load_media`), and `<cid>.bin` when that is unknown too.
 
-import type { EngineApi } from "@lessdugin/engine/api";
-import type { Cid, LoadedMedia, MediaView } from "@lessdugin/engine/types";
+import type { EngineApi } from "@pandoras-forum/engine/api";
+import type { Cid, LoadedMedia, MediaView } from "@pandoras-forum/engine/types";
 
 /** The display allowlist (sync.md §11.2), with the element each type becomes. */
 const DISPLAY = {

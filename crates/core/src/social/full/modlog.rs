@@ -17,7 +17,7 @@
 
 use std::collections::BTreeMap;
 
-use lessdugin_lexicon::Collection;
+use pandoras_forum_lexicon::Collection;
 
 use crate::social::full::author::AuthorTier;
 use crate::social::full::cx::Cx;
