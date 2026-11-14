@@ -306,12 +306,14 @@ fn media_open_hands_the_saved_file_to_the_viewer() {
     let path = v["path"].as_str().unwrap().to_owned();
     assert!(path.ends_with(&format!("{}.png", raw_cid(PNG))), "{v}");
     assert_eq!(std::fs::read(&path).unwrap(), PNG);
-    // the viewer runs in the background
+    // The viewer runs in the background, and its shell creates the file before it writes to it:
+    // wait for what it wrote, not for the file.
     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
-    while !opened.exists() && std::time::Instant::now() < deadline {
+    let mut arg = String::new();
+    while arg.is_empty() && std::time::Instant::now() < deadline {
         std::thread::sleep(std::time::Duration::from_millis(50));
+        arg = std::fs::read_to_string(&opened).unwrap_or_default();
     }
-    let arg = std::fs::read_to_string(&opened).unwrap_or_default();
     assert!(arg.ends_with(&format!("{}.png", raw_cid(PNG))), "{arg:?}");
 }
 
